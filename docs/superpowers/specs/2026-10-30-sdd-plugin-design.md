@@ -748,6 +748,10 @@ re-ask, never retry" and the blocked list keep sessions away from it.
 13. Phase 1 ships before phase 2, each with its own plan, and phase 1 is
     complete only after a real run on a scratch project with the private
     copy already removed.
+14. `away on` takes an optional expiry (`away on 9h`, `away on until
+    07:30`), stored in the marker beside the generation; a hook or a status
+    read that finds the marker expired treats it as off, so a forgotten
+    night ends itself. Without an expiry the marker holds until `away off`.
 
 ### Left to the builder
 
@@ -784,3 +788,11 @@ re-ask, never retry" and the blocked list keep sessions away from it.
 7. The record repository `claude-subagent-apply` keeps its charter (a
    record, never the skill) and hands its tests to the plugin, rather than
    becoming the plugin repository itself?
+8. Deferred (owner, 2026-10-30: "probably, let's discuss it later"): a
+   per-session override, so that one session the owner is still answering
+   from the phone under Remote Control can be exempted (`/away off` in that
+   session) while the machine is away, and a session can be enrolled
+   (`/away on`) while the machine is not. It would make the session command
+   and the terminal command two levels rather than one switch from two
+   places, with the narrower level winning (run `pause`, session `/away`,
+   machine `away`). Decide before phase 2's plan.
