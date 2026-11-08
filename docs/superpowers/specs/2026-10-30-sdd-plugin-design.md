@@ -1,7 +1,9 @@
 # sdd: the subagent-apply plugin, with an away mode
 
-Design, 2026-10-30. Status: draft for review (revision 5, after the
-builder check and the Codex, agy, DeepSeek and Qwen reviews).
+Design, 2026-10-30. Status: draft for review (revision 6, 2026-11-08,
+after the owner's review of revision 5 settled every open question; the
+settled list is at the end). Revision 5 followed the builder check and the
+Codex, agy, DeepSeek and Qwen reviews.
 
 ## Intent
 
@@ -15,11 +17,13 @@ one's rule widened to the whole session.
    one copy). A plugin gives them a version, a home for the hooks and the
    command module that `away` needs (a skill cannot register hooks), one
    place for tests, and an install path on the owner's other machines that
-   carry the same dotfiles. The skill's measurement record,
-   `akalongman/claude-subagent-apply` (private; decisions, measurements,
-   five test scripts and transcript tools), stays what its charter says it
-   is, a record that never holds the skill; the plugin takes over its tests
-   and the record points at the plugin.
+   carry the same dotfiles. The skill's measurement record, the private
+   repository `akalongman/claude-subagent-apply` checked out at
+   `~/projects/personal/claude-subagent-apply` (decisions, measurements,
+   reviews, five test scripts and transcript tools under `tools/`), hands
+   all of that to this repository and is then archived on GitHub and
+   removed from the machine (owner, 2026-11-08: "if we move everything,
+   why do I need that folder").
 2. **Add `away`,** a machine-wide mode in which no session waits for the
    owner. The owner's observation that drove it: when a session stops to ask
    ("found an edge case, I recommend X, should I?", "commit now?", "fix the
@@ -28,7 +32,8 @@ one's rule widened to the whole session.
    has the rule for this inside an apply run (`hands-off`: rule on your own
    reading, ledger `Ruling: <decision>. Cost if wrong: <what>`, keep going,
    stop only for the four stops). `away` applies the same rule to the main
-   agent of every session on the machine, through three hooks.
+   agent of every session on the machine, through three interventions: a
+   refused question, a refused permission ask, and a continued stop.
 
 The mode is about the owner's presence, not the clock, hence `away`, not
 "night". Names considered and dropped: `night` (wrong axis), `hands-off`
@@ -50,7 +55,10 @@ two), `non-interactive` (means print mode in Claude Code), `no-hitl` and
 - A session that reaches an outward or unrecoverable step while away
   records it as `blocked:` and moves on. In this phase that is the rule's
   instruction to the agent, with the apply skill's own push suppressed and
-  permission prompts turned into refusals; a tool-level fence is phase 3.
+  permission prompts turned into refusals; a tool-level fence is phase 4.
+- The whole plugin, the apply skill included, runs on Linux, macOS and
+  Windows (phase 3). Phases 1 and 2 are Linux first (owner, 2026-11-08),
+  and nothing in them is designed so that phase 3 has to undo it.
 - Apply runs launched by day and still running when `away` turns on keep
   going under the same rule, an owner's `pause` is honoured, and no hook
   ever makes a driver act while its unit is live.
@@ -61,7 +69,7 @@ two), `non-interactive` (means print mode in Claude Code), `no-hitl` and
 - Replacing the superpowers loop (`subagent-driven-development`), which the
   skill requires and the plugin declares as a dependency.
 - A tool-level fence that refuses pushes, merges and database writes by
-  inspecting commands (phase 3). Until then away is a rule the agent
+  inspecting commands (phase 4). Until then away is a rule the agent
   follows, not a guarantee: a push already planned when the marker appears
   is not intercepted, and auto mode's classifier allows pushes and merge
   request creation by default.
@@ -77,9 +85,13 @@ two), `non-interactive` (means print mode in Claude Code), `no-hitl` and
   typed from a terminal: hooks fire on events, so the marker reaches that
   session at its next event. `/away on` typed in that session wakes it
   (below).
-- Running sessions headless or in the cloud, and platforms other than the
-  owner's: the scripts are bash 5 with GNU coreutils on Linux; macOS and
-  Windows are out of scope and the README says so.
+- Running sessions headless or in the cloud.
+- Before phase 3, platforms other than Linux: the phase 1 and 2 scripts are
+  bash 5 with GNU coreutils, and the README says so until phase 3 ships.
+- A per-session override (`/away off` in one session while the machine is
+  away, or `/away on` in one session while it is not). Owner, 2026-11-08:
+  not needed. `/away` in a session and `away` in a terminal are two doors
+  to the one machine-wide switch.
 
 ## Anti-goals
 
@@ -116,6 +128,28 @@ machine on 2026-10-30.
   Stop hook; an open question dialog or permission prompt has already run
   its hook. A marker written afterwards changes nothing in that session
   until its next event.
+- A plugin's command module (laterbox's `hooks/register.tsx` is the
+  precedent on this machine) runs inside Claude Code's own runtime on every
+  platform and registers in-process hooks beside its commands. Read in the
+  module API types on 2026-11-08: `tool.call` (a tool call, answered with
+  `{ deny: <text> }` so the model reads the text as the tool's error; fires
+  in subagent loops too, with `agentId`), `tool.check` (fires when the
+  engine decides whether a call may run, after PreToolUse and before the
+  mode settles an ask; `next(e)` resolves to the engine's verdict `allow`,
+  `ask` or `deny` with the `rule`, `setting`, `hook` or `plugin` that
+  decided it, and the hook may return another verdict), `turn.complete`
+  (the final message of a turn, observe-only: it cannot block a stop),
+  `prompt.submit` (a user turn of the plugin's own, run once the session is
+  idle), `store` (a plugin JSON file under the config directory, kept
+  across sessions), `fs`, `state` and `session.start`. The classic
+  `hooks.json` events remain the only way to block a stop from a plugin.
+- A plugin's `bin/` directory is on the Bash tool's PATH while the plugin
+  is enabled, so its files run as bare commands (plugin manifest reference,
+  read 2026-11-08). Whether that PATH reaches a subagent's shell is tested
+  first. `${CLAUDE_PLUGIN_ROOT}`, `${CLAUDE_PLUGIN_DATA}` and
+  `${CLAUDE_SKILL_DIR}` are substituted anywhere in the Markdown body of a
+  skill, a command and an agent definition at load time, and are not in the
+  environment of any command the model runs through the Bash tool.
 - The Stop hook fires when the main agent ends a turn, also while background
   subagents or shell commands run; its input carries `last_assistant_message`,
   `stop_hook_active`, `background_tasks` (`id`, `type` such as `shell`,
@@ -140,11 +174,14 @@ machine on 2026-10-30.
 - Auto mode pauses and prompts the owner after 3 consecutive or 20 total
   classifier denials, and a permission prompt never times out. Explicit
   `ask` rules and MCP tools that require interaction prompt in auto mode
-  too. Whether a hook denial counts toward the pause threshold is
+  too. In auto mode the classifier is the mode that settles an `ask`
+  verdict, so most unmatched calls reach `tool.check` as `ask` and are then
+  allowed by the classifier; a hook that denied every `ask` would cripple
+  the session. Whether a hook's denial counts toward the pause threshold is
   undocumented; the build tests it (three denials in a row in a throwaway
-  session), and the result decides whether hook 2 ships. The machine's
-  three profiles all default to auto mode; a session in the manual mode
-  stops at its first unapproved call.
+  session) and what an unmatched call's verdict carries under auto mode.
+  The machine's three profiles all default to auto mode; a session in the
+  manual mode stops at its first unapproved call.
 - The question auto-continue timeout (`askUserQuestionTimeout`) never starts
   in a session attached to Remote Control, so it is no substitute for the
   hooks on this machine.
@@ -157,11 +194,11 @@ machine on 2026-10-30.
 - Plugin hooks live in `hooks/hooks.json` with the settings schema; hook
   processes receive `CLAUDE_PLUGIN_ROOT`, `CLAUDE_PLUGIN_DATA` and
   `CLAUDE_PLUGIN_OPTION_<KEY>`. None of these exists in the shell of the
-  Bash tool, in the main session or in a subagent. In a plugin skill's
-  `SKILL.md` body the harness substitutes `${CLAUDE_PLUGIN_ROOT}`,
-  `${CLAUDE_PLUGIN_DATA}` and `${CLAUDE_SKILL_DIR}` at load time;
-  substitution in supporting files read later is undocumented, so a path a
-  controller needs travels on the dispatch. `~/.claude2/plugins` and
+  Bash tool, in the main session or in a subagent. Substitution happens in
+  skill, command and agent bodies at load time (above), never in a
+  supporting file read later, so a path the controller's overrides file
+  needs is either a bare `bin/` command or written into the agent
+  definition. `~/.claude2/plugins` and
   `~/.claude3/plugins` are symlinks to `~/.claude/plugins`, so the plugin
   data directory is one per machine. A SessionStart hook's stdout is
   context for the agent; the owner-visible channel is the hook output's
@@ -175,17 +212,27 @@ machine on 2026-10-30.
   from its checkout). Edits reach sessions through `claude plugin update`
   (a new version) or by loading the checkout in place with `--plugin-dir`
   for one session, then `/reload-plugins`.
-- The `akalongman` marketplace is registered on this machine as the
-  directory `~/projects/akalongman/claude-laterbox`, so a second repository
-  cannot be the marketplace `akalongman` without moving that registration.
+- A marketplace is a `.claude-plugin/marketplace.json` file registered
+  once per name; its entries may point at other repositories
+  (`{"source": "github", "repo": "owner/repo"}`, pinned to a commit and
+  refreshed by `claude plugin update`) or at directories inside its own
+  repository. On this machine `akalongman` is registered as the directory
+  `~/projects/akalongman/claude-laterbox`, whose file lists laterbox alone
+  with source `./`; a second repository cannot be `akalongman` while that
+  registration stands. A second marketplace, `personal`, is the monorepo
+  `~/projects/personal/claude-plugins` (`plugins/<name>` entries), and its
+  `ak` plugin held a stale copy of the apply skill and the three agents
+  until 2026-11-08, when they were removed (commit `89b7131` there).
 - No hook can be switched off individually at runtime; presence in the
   configuration is the only switch, which is why the marker file gates the
   scripts themselves.
 - After a context compaction the harness re-attaches an invoked skill cut
   at 20,000 characters (measured in the record repository's decision 23,
-  with session ids); supporting files are not re-attached. `SKILL.md` is
-  19,392 characters today, held under 19,500 by the record's
-  `check-skill-size.sh`. Both phases' additions are paid for by prose
+  with session ids); supporting files are not re-attached. `SKILL.md` was
+  19,392 characters on 2026-10-30 and is 19,749 on 2026-11-08 (a commit of
+  2026-11-06 grew it), over the 19,500 guard of the record's
+  `check-skill-size.sh` and 251 under the cut. The move trims it back
+  under the guard, and both phases' additions are paid for by prose
   tightened in the same file, under the same test.
 - A command module registers `/<name>` with letters, digits, `_` and `-`
   only (laterbox registers `/later`), so the in-session switch is `/away`,
@@ -195,9 +242,11 @@ machine on 2026-10-30.
   prompt. laterbox's module handles a taken name with a toast and its
   terminal link refuses a foreign file silently; this plugin may not fail
   silently (anti-goal).
-- The record repository's five test scripts default to the dotfiles path
-  of the skill, and its transcript tools classify roles by the names
-  `app-subagent-apply` and `app-sdd-*`.
+- The record repository's five test scripts (`tools/`) default to the
+  dotfiles path of the skill, and its transcript tools classify roles by
+  the names `app-subagent-apply` and `app-sdd-*`. The repository has
+  `docs/` (specs and plans), `reviews/`, `tools/` with a `green/` fixture
+  set, `upstream/` and a parking lot with four open notes.
 - The driver's ledger vocabulary for a turn it ends to wait (verified in
   `SKILL.md`): `Section N: handed to controller`, `Section N: controller
   returned waiting (child <id>)`, `Section N: controller returned paused
@@ -217,15 +266,16 @@ machine on 2026-10-30.
 **Assumption.** Sessions that run while away use auto mode, the machine's
 default in every profile. The design does not handle a manual-mode session.
 
-**Residual waits.** With the three hooks in place a session can still stop
-for the owner in these cases, listed so nobody expects otherwise: the
-classifier's own pause after repeated denials (and, should the build's test
-show hook denials count toward it, hook 2 is dropped and the owner's `ask`
-rules join this list); an MCP tool that requires interaction, if hook 2
-does not reach it; a turn ending in an API error (`StopFailure`, which
-nothing re-wakes); a session already idle, or holding an open question
-dialog or permission prompt, when the marker appeared; and the budgets
-below running out, which end in a visible `blocked:` line.
+**Residual waits.** With the three interventions in place a session can
+still stop for the owner in these cases, listed so nobody expects
+otherwise: the classifier's own pause after repeated denials (and, should
+the build's test show the permission intervention's denials count toward
+it, that intervention is narrowed and the owner's `ask` rules join this
+list); an MCP tool that requires interaction, if `tool.check` does not see
+its ask; a turn ending in an API error (`StopFailure`, which nothing
+re-wakes); a session already idle, or holding an open question dialog or
+permission prompt, when the marker appeared; and the budgets below running
+out, which end in a visible `blocked:` line.
 
 ## Approaches considered
 
@@ -240,6 +290,48 @@ below running out, which end in a visible `blocked:` line.
 3. **One plugin carrying the skill, its agents and `away`** (chosen): the
    rule, the ledger line and the four stops have one owner, and the marker
    is an internal contract.
+
+### Where the hooks run
+
+1. **Three shell hooks in `hooks.json`** (revision 5): PreToolUse on the
+   question tool, PermissionRequest, Stop. Bash 5 with `jq`, Linux only,
+   and the permission hook can only answer a prompt that has already been
+   raised.
+2. **The module for what it can do, shell for the rest** (chosen): the
+   question refusal is a `tool.call` deny and the permission ask is a
+   `tool.check` verdict, both a few lines of TypeScript that run in Claude
+   Code's own runtime on every platform and see the verdict before any
+   prompt or classifier; the Stop hook stays a shell hook, because no
+   module hook can block a stop. Phase 3 may move the continuation to
+   `turn.complete` plus `prompt.submit` and the terminal command off bash.
+
+### Reaching the checkpoint script from a controller
+
+1. **A `Skill base: <path>` line on every dispatch** (revision 5), the
+   driver substituting `${CLAUDE_SKILL_DIR}` into it: one addition to the
+   dispatch contract phase 1 otherwise promises to leave alone.
+2. **Linking the scripts into `~/.local/bin`** at session start: a plugin
+   update swaps the script under a live run, and nothing links on native
+   Windows.
+3. **`bin/sdd-checkpoint`** (chosen): the plugin's `bin/` is on the Bash
+   tool's PATH, so the controller runs the bare name, the overrides file
+   names the bare name, and the dispatch contract is unchanged. The other
+   six scripts keep names too generic for a shared PATH and stay under the
+   skill directory, called through substituted paths.
+
+### Marketplace
+
+1. **Each repository its own marketplace** (`sdd@sdd` beside
+   `laterbox@akalongman`): least churn, two names for one owner.
+2. **The marketplace file in the laterbox repository, listing sdd by
+   GitHub source**: one name, but a laterbox commit gates every sdd listing
+   change.
+3. **A dedicated `akalongman/claude-plugins` repository** (chosen, owner
+   2026-11-08) holding only the marketplace file with GitHub-sourced
+   entries for laterbox and sdd; both plugin repositories drop their own
+   marketplace files and the `akalongman` registration moves there. The
+   GitHub name currently redirects to `claude-laterbox` from a past rename,
+   so creating it retakes the name.
 
 ### Continuing past a question
 
@@ -281,27 +373,32 @@ laid out like `claude-laterbox` (with its root files: `types/`, `LICENSE`,
 `.github/`, `.gitignore`, `.gitattributes`):
 
 ```
-.claude-plugin/plugin.json        name sdd, dependencies, userConfig (terminal only)
-.claude-plugin/marketplace.json   see "Marketplace" below
+.claude-plugin/plugin.json        name sdd, dependencies, userConfig (terminal, budgets, permission hook)
 .claude-plugin/types/             the module API types, as in laterbox
 tsconfig.json                     strict config for the module
 types/index.d.ts                  the plugin's own types (marker, budget state)
+bin/sdd-checkpoint                the checkpoint script, on the Bash tool's PATH
 skills/apply/SKILL.md             the moved skill, invoked as /sdd:apply
 skills/apply/prompts/*.md         the five override prompts (headings renamed, one edited)
-skills/apply/scripts/*            the seven scripts, unchanged
+skills/apply/scripts/*            the other six scripts, unchanged
 skills/apply/references/away.md   the driver's rules while away (phase 2)
 agents/implementer.md             sdd:implementer
 agents/reviewer.md                sdd:reviewer
 agents/unit-controller.md         sdd:unit-controller
-hooks/hooks.json                  PreToolUse, PermissionRequest, Stop, SessionStart
-hooks/register.tsx                the /away command module (phase 2)
-scripts/away.sh                   the one script behind the hooks and commands
+hooks/hooks.json                  Stop (phase 2) and SessionStart
+hooks/register.tsx                the module: /away, the question refusal, the permission ask (phase 2)
+scripts/away.sh                   the marker, the budgets and the Stop decision
 scripts/away                      the terminal command, linked like `later`
 scripts/away-rule.md              the rule text, one copy
 tests/*.test.sh                   shell tests: away.sh, and the record's five ported
+tools/                            the record's transcript tools, ported
 docs/superpowers/specs/           this document
+docs/history/                     the record's decisions, measurements, specs, plans and reviews
 README.md
 ```
+
+No `marketplace.json` here: the marketplace is the separate repository
+below.
 
 Dependencies in `plugin.json`: `superpowers@superpowers-marketplace` (the
 loop), with the marketplace manifest allowing that cross-marketplace
@@ -312,14 +409,16 @@ README names laterbox as recommended and says that a `later` missing from
 PATH (terminal link off, `~/.local/bin` not on PATH) shows up as
 `not parked` lines in the run report, never as an error.
 
-**Marketplace.** The owner decides between (1) the repository carrying its
-own `marketplace.json` named `sdd`, installed as `sdd@sdd` and registered
-as a directory marketplace like laterbox, (2) a central
-`akalongman/claude-plugins` marketplace repository listing both plugins,
-with laterbox's registration moved there, or (3) registering the checkout
-under another marketplace name such as `akalongman-sdd`. The design
-recommends (1) for now: least churn, same install path as laterbox, and (2)
-remains possible later.
+**Marketplace.** A new repository, `akalongman/claude-plugins`, holds
+`.claude-plugin/marketplace.json` named `akalongman` with two entries,
+`laterbox` and `sdd`, each `{"source": "github", "repo": ...}`. The
+laterbox repository drops its own marketplace file, the local `akalongman`
+registration moves from the laterbox directory to that repository, and
+both plugins install as `<name>@akalongman`, cloned from GitHub and pinned
+to a commit. A release is therefore a push plus `claude plugin update`, and
+the marketplace entry changes only when a description does. This happens
+in phase 1 (sdd's first install) and is proposed to the owner before the
+registration moves, since it changes how laterbox updates too.
 
 **Dev loop.** Day to day the checkout is loaded in place with
 `claude --plugin-dir ~/projects/akalongman/claude-sdd` and `/reload-plugins`
@@ -329,8 +428,8 @@ long apply run keeps working across a plugin update only if the paths it
 handed to its controllers still exist, so a release is not made while a run
 is live.
 
-**Prerequisites, stated in the README:** Linux, bash 5, GNU coreutils,
-`jq`, git; Claude Code with plugins, hooks and the Agent tool; the
+**Prerequisites, stated in the README:** until phase 3, Linux, bash 5,
+GNU coreutils, `jq`, git; Claude Code with plugins, hooks and the Agent tool; the
 superpowers plugin; the owner's rule file `~/.claude/rules/git.md` for the
 implementer's commit rules (the plugin does not ship a copy); model aliases
 as the account offers them, with the skill's own fallback ledger line when
@@ -343,31 +442,30 @@ What moves, and the only edits made to it:
 - `skills/apply/SKILL.md`: the private `SKILL.md`. Its `name` becomes
   `apply` (the invocation is `/sdd:apply`). Every `app-sdd-unit-controller`
   dispatch becomes the plugin agent's name; the sentence "definition in
-  `~/.claude/agents/`" goes. The standing dispatch payload (the paths every
-  controller dispatch carries: the first dispatch, a re-dispatch after
-  `failed` or a killed controller, the fresh dispatch after `abort`, the
-  final phase) gains one line, `Skill base: ${CLAUDE_SKILL_DIR}`, which the
-  harness substitutes when the skill loads; the overrides file the
-  controller reads later gets no substitution, hence the line. `scripts/...`
-  and `prompts/...` paths stay relative to the skill directory as today. No
-  rule, step or ledger line changes. The file stays under 19,500 characters,
-  checked by the ported size test: the plan states the byte budget for
-  phase 1 and phase 2 together and names the prose that pays for it (the
-  renames `app-subagent-apply` to `apply` and `app-sdd-` to the plugin
-  names return about 40 characters; the rest is tightened wording, never a
-  dropped rule).
+  `~/.claude/agents/`" goes. The dispatch payload does not change: the one
+  path a controller needs, the checkpoint script, is the bare command
+  `sdd-checkpoint` from the plugin's `bin/`. `scripts/...` and
+  `prompts/...` paths stay relative to the skill directory as today, and
+  the driver's own call of the checkpoint script becomes the bare name too.
+  No rule, step or ledger line changes. The file returns under 19,500
+  characters, checked by the ported size test: the plan states the byte
+  budget for phase 1 and phase 2 together (about 250 characters over the
+  guard today plus the phase 2 pointer) and names the prose that pays for
+  it (the renames `app-subagent-apply` to `apply` and `app-sdd-` to the
+  plugin names return about 40 characters; the rest is tightened wording,
+  never a dropped rule).
 - `skills/apply/prompts/*.md`: every heading `## Overrides from
   app-subagent-apply` becomes `## Overrides from the sdd apply skill`.
   `unit-controller-overrides.md` gets two further edits and no other: the
   implementer and reviewer agent names become the plugin agents' names, and
   the hard-coded `~/.claude/skills/app-subagent-apply/scripts/sdd-checkpoint`
-  becomes `<Skill base>/scripts/sdd-checkpoint`, the token the controller
-  resolves from the dispatch line (a subagent's shell has no plugin
-  variables; the convention is stated in the overrides file beside its
-  first use). The other four prompts change in the heading only
+  becomes the bare command `sdd-checkpoint` (on PATH from the plugin's
+  `bin/`; a subagent's shell has no plugin variables, so no path is
+  written). The other four prompts change in the heading only
   (`implementer-overrides.md` cites `~/.claude/rules/git.md`, which is the
   owner's rule file, not the skill's, and stays).
-- `skills/apply/scripts/*`: byte-identical copies.
+- `skills/apply/scripts/*`: byte-identical copies of six scripts;
+  `sdd-checkpoint` moves to `bin/` byte-identical.
 - `agents/*.md`: the three definitions, `name` without the `app-sdd-`
   prefix, `description` and body reading "for the sdd plugin's apply
   skill" where they read "for app-subagent-apply", every other frontmatter
@@ -407,16 +505,25 @@ made:
   `app-subagent-apply` is reworded to name `/sdd:apply`; it is the one
   reference outside the skill itself (searched 2026-10-30 across `~/.claude`
   and the tsmulms project's `.claude`).
-- The record repository (`claude-subagent-apply`): its `CLAUDE.md` and
-  `README.md` sentence "the live skill lives in the private dotfiles" is
-  changed to name the plugin, its five test scripts (`check-skill-size.sh`,
+- The record repository (`~/projects/personal/claude-subagent-apply`) is
+  absorbed and retired: its five test scripts (`check-skill-size.sh`,
   `check-pause-text.sh`, `test-run-archive.sh`, `test-sdd-checkpoint.sh`,
   `test-sub-skill-check.sh`) are ported into the plugin's `tests/` with the
-  plugin paths as their defaults, and its transcript tools
+  plugin paths as their defaults; its transcript tools
   (`transcript-roles.py`, `transcript-clock.py`, `transcript-tokens.py`)
-  accept both the old names and `sdd:apply`, `sdd:unit-controller`,
-  `sdd:implementer`, `sdd:reviewer`, so runs before and after the move are
-  measured alike. A decision-log entry records the move.
+  and the `green/` fixtures move to `tools/` and accept both the old names
+  and `sdd:apply`, `sdd:unit-controller`, `sdd:implementer`,
+  `sdd:reviewer`, so runs before and after the move are measured alike;
+  its decision log, measurements, specs, plans and reviews move to
+  `docs/history/` with a closing decision-log entry that records the move;
+  its four open parked notes are read with the owner and re-parked here or
+  closed. Then the GitHub repository is archived (not deleted, so old links
+  resolve) and the local checkout is removed. Nothing is removed before
+  `git status` there is clean and every file above exists here.
+- The `ak` plugin in the `personal` marketplace: done on 2026-11-08, its
+  stale copies of the apply skill, the three agents, `review-mr` and
+  `verify-api-docs` were removed (commit `89b7131`); a parked note in the
+  global queue holds the question of what becomes of the rest of `ak`.
 - Memory notes that name the skill are left; they are history.
 
 Acceptance for phase 1:
@@ -424,17 +531,20 @@ Acceptance for phase 1:
 1. The unknowns are settled by a throwaway test before the move: a plugin
    agent dispatched from the Agent tool runs under its scoped or bare name
    (else the link fallback is used), the cross-plugin `skills:` preload
-   either loads or its fallback produces the loop, and the agent's
-   `experimental` frontmatter is honoured or its loss is recorded.
+   either loads or its fallback produces the loop, the agent's
+   `experimental` frontmatter is honoured or its loss is recorded, and a
+   `bin/` command runs by its bare name inside a subagent's shell (else the
+   controller's agent definition carries `${CLAUDE_PLUGIN_ROOT}/bin/sdd-checkpoint`,
+   which is substituted in agent bodies, and the overrides file says so).
 2. The plugin, loaded with `--plugin-dir` and then installed from the
-   marketplace, with the private skill directory and agent files already
-   removed (so a leftover copy cannot mask a broken name or path), runs
-   `/sdd:apply <small OpenSpec change>` on a scratch project through a unit,
-   a `pause` and `continue` (the checkpoint script), a resumed driver's
-   re-dispatch (so the `Skill base:` line is proven on that path too), the
-   final phase and `run-archive` exactly as the private skill did, with the
-   same ledger lines plus the `Skill base:` dispatch line on every
-   dispatch, and with `Handed to` lines parked when `later` is on PATH.
+   `akalongman` marketplace repository, with the private skill directory
+   and agent files already removed (so a leftover copy cannot mask a broken
+   name or path), runs `/sdd:apply <small OpenSpec change>` on a scratch
+   project through a unit, a `pause` and `continue` (the checkpoint
+   script, from a controller and from the driver), a resumed driver's
+   re-dispatch, the final phase and `run-archive` exactly as the private
+   skill did, with the same ledger lines and the same dispatch payload,
+   and with `Handed to` lines parked when `later` is on PATH.
 3. `/sdd:apply` without arguments still infers the source from the
    conversation, and `step`, `hands-off`, `isolated` and `tier=` still parse.
 
@@ -484,8 +594,10 @@ on or off.
   text plus, for an apply driver, "re-read the away reference".
 
 **The rule text.** One file in the plugin, `scripts/away-rule.md`, read by
-the three hooks and printed by `away on`, so there is exactly one copy. Its
-content, in the second person to the agent:
+the Stop hook, by the module for its two refusals, by the SessionStart
+hook and by `away on`, so there is exactly one copy. It names no tool, so
+any agent reading it gets the same instruction. Its content, in the second
+person to the agent:
 
 > away is on: nobody answers until it is off. When you would ask, take your
 > own recommendation (the option you would mark recommended, else the
@@ -517,9 +629,9 @@ content, in the second person to the agent:
 > the list "Rulings I made" above it when the work is done, or
 > `away: blocked: <why>` when nothing independent is left. A continuation
 > you receive while you wait is answered by printing the same waiting line
-> again, never by acting. Never re-ask in prose a question the question
-> tool refused, never call it again for the same question, and never retry
-> a refused command in another spelling.
+> again, never by acting. Never re-ask in prose a question that was
+> refused, never ask it again by any means, and never retry a refused
+> command in another spelling.
 
 The four stops of the superpowers loop are in that list word for word
 (destructive, security-sensitive, outside the worktree, every path a guess),
@@ -559,45 +671,66 @@ without the terminal command knowing any data directory. Every allowed stop
 resets all three, so each budget bounds consecutive interventions, not a
 night: a driver that waits on twenty units, or a session that rules on
 twenty separate questions with work between them, is never capped. Hooks
-that fire with `agent_id` present (inside a subagent) count nothing. Writes
+that fire with `agent_id` (or the module's `agentId`) present, inside a
+subagent, count nothing. The module writes its two counters into the same
+file through `fs`, so the Stop hook and the module read one state. Writes
 are atomic (write to a temporary file, rename); the SessionStart hook
-sweeps state files older than seven days. The budgets: 6 question
-refusals, 6 permission denials and 8 Stop continuations, the last equal to
-the harness's own cap so the warning below is always reached. Each budget
-exists to bound this plugin's interventions, not the session's activity; an
-agent can still spend tool calls between them.
+sweeps state files older than seven days. The budgets, each a `userConfig`
+number with this default: 6 question refusals, 10 permission denials and
+20 Stop continuations. The counts are strict (nothing but an allowed stop
+resets them) on purpose: a reset on every tool call, the harness's own
+rule, would leave a session that reads one file and re-asks the same
+question unbounded all night. The numbers differ because the
+interventions differ: a refusal is the same question asked again after
+reading the rule, six in a row is stuck; a denial is a distinct outward
+action, and one stretch of work can meet several; a continuation is a
+turn ended without a token, which a working session may do many times
+while it still makes progress, so its budget is the widest. Each budget
+exists to bound this plugin's interventions, not the session's activity;
+an agent can still spend tool calls between them.
 
-**Denials inside a subagent.** Hooks 1 and 2 fire in subagents too, where
-the input carries `agent_id`. There the reason must not tell the agent to
+**Denials inside a subagent.** The module's `tool.call` and `tool.check`
+fire in subagent loops too, where the input carries `agentId`. There the
+reason must not tell the agent to
 "continue with the next independent item": a unit controller and an
 implementer have their own protocol for a denied tool (the controller's
 return block carries `Denied:` lines and the unit pauses or parks). With
-`agent_id` present the reason is role-neutral: "away is on: this action
+`agentId` present the reason is role-neutral: "away is on: this action
 needs the owner and is denied; follow your role's rule for a denied tool",
 and nothing is counted.
 
-**Hook 1, PreToolUse on `AskUserQuestion`.** Inert without the marker. With
-it, exit 2 with the rule text on stderr, prefixed `sdd away:`, and the
-refusal counter incremented. At the budget the refusal says instead: "the
-question budget is spent: end this turn with the list Rulings I made and
-the line `away: blocked: question budget exhausted`".
+**Intervention 1, the question refusal** (module, `tool.call` on the
+tool that puts a question to the person). Inert without the marker. With
+it, the call is answered with a deny whose text is the rule, prefixed
+`sdd away:`, and the refusal counter is incremented. At the budget the
+text says instead: "the question budget is spent: end this turn with the
+list Rulings I made and the line `away: blocked: question budget
+exhausted`".
 
-**Hook 2, PermissionRequest.** Inert without the marker. With it, the
-prompt is answered with a denial whose reason is "away is on: this action
-needs the owner; print `blocked: <the action>` and continue with the next
-independent item", and the denial counter incremented, with the same
-budget ending as hook 1. This covers the owner's explicit `ask` rules
-(today `sdp` task writes, `cf`/`cfx` destructive flags, `secrets`), which
-are outward actions the rule blocks anyway, and whatever else would
-otherwise hang a prompt until morning. Two gates in the build decide its
-fate: whether it reaches an `ask` rule and an MCP tool that requires
-interaction, and whether three hook denials in a row trip auto mode's
-pause. If they do, hook 2 is dropped from the release and the `ask` rules
-are listed as residual waits; a hook that caused the stall it exists to
-prevent would be worse than none.
+**Intervention 2, the permission ask** (module, `tool.check`). Inert
+without the marker. With it, the hook first takes the engine's verdict
+(`next(e)`) and changes nothing unless that verdict is `ask` and would
+reach a person: an explicit permission rule (`rule` set; today the owner's
+`sdp` task writes, `cf` and `cfx` destructive flags and `secrets`, all
+outward actions the rule blocks anyway), the read-outside-working-directory
+setting (`setting` set), an ask a hook or plugin raised (`hook` or
+`plugin` set), or a tool that requires interaction. Such an ask becomes a
+deny with the reason "away is on: this action needs the owner; print
+`blocked: <the action>` and continue with the next independent item", and
+the denial counter is incremented, with the same budget ending as
+intervention 1. Every other verdict passes through untouched, in
+particular the `ask` that auto mode's classifier settles for an unmatched
+call. It ships on while away, with a `userConfig` boolean to turn it off.
+Two things the throwaway test pins before it ships: what an unmatched
+call's verdict carries under auto mode, so the filter above is proven
+rather than guessed, and whether three hook denials in a row count toward
+auto mode's pause (they should not, since the classifier never ran). If
+the filter cannot be made precise, the hook is narrowed to explicit rules
+and hook-made asks, and the rest join the residual waits.
 
-**Hook 3, Stop.** Inert without the marker. With it, the script reads the
-hook input and allows the stop when any of these holds:
+**Intervention 3, the Stop hook** (`hooks.json`, bash). Inert without the
+marker. With it, the script reads the hook input and allows the stop when
+any of these holds:
 
 1. The last non-empty line of `last_assistant_message` is one of the three
    tokens: `away: waiting: ...`, `away: done`, `away: blocked: ...`
@@ -614,13 +747,16 @@ hook input and allows the stop when any of these holds:
 3. The continuation budget is spent.
 
 Otherwise it increments the counter and returns
-`{"decision": "block", "reason": "<the rule text>"}`; on the seventh
-continuation the reason adds "this is the last continuation: end with the
-list Rulings I made and the line `away: blocked: continuation budget
-exhausted`", one before the harness's own cap of 8 so the line is printed
-rather than pre-empted. `stop_hook_active` is read but does not change the
-decision: a session continuing because of this hook is the intended state,
-and the budget bounds it.
+`{"decision": "block", "reason": "<the rule text>"}`. From the sixth
+continuation on, the reason adds "if no tool work is left, end now with
+the list Rulings I made and the line `away: blocked: continuation budget
+exhausted`; otherwise continue", so a session looping in pure prose prints
+its ending before the harness's own cap of 8 consecutive continuations
+without a tool call pre-empts it, while a session with work left keeps
+going up to the budget of 20. At the budget the reason is the ending
+alone. `stop_hook_active` is read but does not change the decision: a
+session continuing because of this hook is the intended state, and the
+budget bounds it.
 
 **The apply skill under away.** `SKILL.md` cannot grow, so it gains the
 shortest possible pointer, "At launch and before acting on every controller
@@ -713,6 +849,29 @@ implementers and reviewers return exactly as today. The classifier's own
 pause (3 consecutive or 20 total denials) is not touched; the rule's "never
 re-ask, never retry" and the blocked list keep sessions away from it.
 
+### Phase 3: the whole plugin portable
+
+Linux, macOS (its system bash 3.2, nothing from Homebrew, as laterbox's
+README promises) and Windows (Git for Windows' bash, which installing
+plugins already requires, with the terminal command unavailable on native
+Windows as laterbox's `later` is). What changes: the apply skill's seven
+scripts lose their bash 5 and GNU dependencies (`inherit_errexit`, `chmod
+--reference`, `realpath -ms`, nanosecond `date`) or move into the module
+behind `bin/` wrappers; the Stop hook either becomes bash-3.2 clean
+without `jq` or moves to the module as `turn.complete` plus
+`prompt.submit` (the continuation then a user turn of the plugin's own,
+the budget wholly the plugin's, and the harness cap no longer in play);
+`away.sh` follows the same choice; the marker path is computed from HOME
+or USERPROFILE; CI runs the tests on the three platforms like laterbox's.
+Its own spec and plan, written when phase 2 has run one night.
+
+### Phase 4: the tool-level fence
+
+A `tool.check` or PreToolUse fence that refuses a push, a merge request,
+a deploy and a database write while away by inspecting the call itself,
+so that away becomes a guarantee rather than a rule. Named here so that
+nothing in phases 1 to 3 is designed against it; otherwise undesigned.
+
 ### Decisions made in this design (the owner may overrule)
 
 1. The marker lives in `~/.local/state/sdd/`, a fixed path, because the
@@ -725,21 +884,29 @@ re-ask, never retry" and the blocked list keep sessions away from it.
 3. Three end-of-turn tokens, `away: waiting:`, `away: done`,
    `away: blocked:`, always the last line; the Stop hook matches the last
    line only and no ledger phrase.
-4. Budgets: 6 question refusals, 6 permission denials, 8 consecutive Stop
-   continuations (the harness cap) with the warning on the seventh; every
-   allowed stop resets all three; subagents are never counted.
-5. The rule text is one file read by the three hooks and the switch, and
-   it carries the four stops verbatim and the questioning skills.
+4. Budgets: 6 question refusals, 10 permission denials, 20 consecutive
+   Stop continuations, each a `userConfig` number, with the ending
+   instruction in the reason from the sixth continuation on; every allowed
+   stop resets all three and nothing else does; subagents are never
+   counted.
+5. The rule text is one file read by the Stop hook, the module, the
+   SessionStart hook and the switch; it carries the four stops verbatim
+   and the questioning skills, and names no tool.
 6. laterbox is a recommendation, not a declared dependency.
-7. The standing dispatch payload gains `Skill base: ${CLAUDE_SKILL_DIR}`
-   on every dispatch path, the one addition to the dispatch contract.
-8. A `PermissionRequest` hook is in phase 2 behind two gates (reach, and
-   the auto-mode pause); the command fence is phase 3.
+7. The dispatch contract does not change: `sdd-checkpoint` lives in the
+   plugin's `bin/` and is run by its bare name from the driver and the
+   controller alike.
+8. The question refusal and the permission ask are module hooks
+   (`tool.call`, `tool.check`); the permission ask denies only an `ask`
+   verdict that would reach a person, ships on while away with a
+   `userConfig` switch, and its filter is pinned by the throwaway test.
+   The Stop hook stays a shell hook. The command fence is phase 4.
 9. An unreadable status is the safe side of each decision: off for
    rulings, on for publication.
 10. The away rules for the driver live in `references/away.md`, because
-    `SKILL.md` sits 108 characters under its compaction-safe limit, and
-    the SessionStart hook re-emits them after a compaction.
+    `SKILL.md` has no room under its compaction-safe limit (it is over
+    the guard today and the move trims it), and the SessionStart hook
+    re-emits them after a compaction.
 11. The in-session command is `/away` (module names take no prefix); the
     name is checked against `/help` and PATH before it is taken, and the
     switch never fails silently.
@@ -752,13 +919,23 @@ re-ask, never retry" and the blocked list keep sessions away from it.
     07:30`), stored in the marker beside the generation; a hook or a status
     read that finds the marker expired treats it as off, so a forgotten
     night ends itself. Without an expiry the marker holds until `away off`.
+15. Phases 1 and 2 are Linux first; phase 3 makes the whole plugin
+    portable, the apply scripts included; the fence is phase 4.
+16. The marketplace is a dedicated `akalongman/claude-plugins` repository
+    listing laterbox and sdd by GitHub source; the plugin repositories
+    carry no marketplace file.
+17. The record repository is absorbed (tests, tools, documents, parked
+    notes) and then archived on GitHub and removed locally.
+18. One machine-wide switch with two doors; no per-session level.
+19. The `ak` plugin's stale copies were removed on 2026-11-08; its
+    future is a parked note, not this design's concern.
 
 ### Left to the builder
 
 - The exact shell for `away.sh` (bash, shellcheck-clean, tested like
   `later.sh`), the module's TypeScript (strict config per the owner's
-  JavaScript rules), and how the module and the SessionStart hook share
-  `away.sh`.
+  JavaScript rules), and how the module and the shell hooks share the
+  marker and the per-session state file (one format, written by both).
 - The byte budget for `SKILL.md` across both phases and which prose pays
   for it, within the ported size test.
 - The test harness layout, following laterbox's `tests/`, including a test
@@ -769,30 +946,27 @@ re-ask, never retry" and the blocked list keep sessions away from it.
   prerequisites, uninstall, what it sends (nothing: the plugin makes no
   network call).
 
-## Open questions for the owner
+## Settled with the owner, 2026-11-08
 
-1. The precedence paragraph above: are the three overridden agreements the
-   right three, and are "a spec or plan written while away waits for my
-   review" and "brainstorming, grilling and a review conversation stop at
-   their next question" the right lines?
-2. Marketplace: (1) own `marketplace.json` named `sdd`, (2) a central
-   `akalongman/claude-plugins` marketplace, or (3) another registration
-   name. Recommendation: (1).
-3. Away never publishes, with no knob (the earlier `away_push` setting is
-   dropped). Agreed?
-4. Budgets: 6 refusals, 6 denials, 8 continuations, all consecutive?
-5. The dispatch contract gains one line (`Skill base: <path>`); phase 1
-   otherwise promises an unchanged loop. Acceptable?
-6. The `PermissionRequest` hook in phase 2 behind its two gates, dropped
-   from the release if hook denials trip auto mode's pause?
-7. The record repository `claude-subagent-apply` keeps its charter (a
-   record, never the skill) and hands its tests to the plugin, rather than
-   becoming the plugin repository itself?
-8. Deferred (owner, 2026-10-30: "probably, let's discuss it later"): a
-   per-session override, so that one session the owner is still answering
-   from the phone under Remote Control can be exempted (`/away off` in that
-   session) while the machine is away, and a session can be enrolled
-   (`/away on`) while the machine is not. It would make the session command
-   and the terminal command two levels rather than one switch from two
-   places, with the narrower level winning (run `pause`, session `/away`,
-   machine `away`). Decide before phase 2's plan.
+The eight open questions of revision 5, with the owner's answers; the
+design above already reflects them.
+
+1. The precedence paragraph: accepted as written (not raised).
+2. Marketplace: one `akalongman` marketplace for both plugins, as a
+   dedicated repository (approaches, "Marketplace", option 3).
+3. Away never publishes, no knob: "agree for now".
+4. Budgets: raised to 6, 10 and 20, strict counts, configurable, after the
+   owner asked "why not more" and the reasoning in "Budgets".
+5. The dispatch-contract line: withdrawn; `bin/sdd-checkpoint` replaces it
+   after a check of the plugin documentation's practice.
+6. The permission intervention: as recommended, a `tool.check` hook that
+   denies only person-bound asks, on by default with a switch.
+7. The record repository: absorbed, archived on GitHub, removed locally.
+8. The per-session override: not needed.
+
+Two further decisions came out of the same review: everything is Linux
+first with portability as phase 3 (the owner: "make everything linux first
+and make whole plugin portable in the second phase", which the numbering
+here places after away), and the `ak` plugin was shrunk at once.
+
+Nothing is open for the owner before the phase 1 plan.
