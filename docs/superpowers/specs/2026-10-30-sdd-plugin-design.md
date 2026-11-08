@@ -514,10 +514,10 @@ What moves, and the only edits made to it:
   dispatch becomes the plugin agent's name; the sentence "definition in
   `~/.claude/agents/`" goes. The dispatch payload does not change: the one
   path a controller needs, the checkpoint script, is the bare command
-  `sdd-checkpoint` from the plugin's `bin/`. `scripts/...` and
-  `prompts/...` paths stay relative to the skill directory as today, and
-  the driver's own call of the checkpoint script becomes the bare name too.
-  No rule, step or ledger line changes. The file returns under 19,500
+  `sdd-checkpoint` from the plugin's `bin/`, named in the controller's
+  overrides file alone (the skill text never names it, checked
+  2026-11-09). `scripts/...` and `prompts/...` paths stay relative to the
+  skill directory as today. No rule, step or ledger line changes. The file returns under 19,500
   characters, checked by the ported size test: the plan states the byte
   budget for phase 1 and phase 2 together (about 250 characters over the
   guard today plus the phase 2 pointer) and names the prose that pays for
@@ -619,7 +619,7 @@ Acceptance for phase 1:
    and agent files already removed (so a leftover copy cannot mask a broken
    name or path), runs `/sdd:apply <small OpenSpec change>` on a scratch
    project through a unit, a `pause` and `continue` (the checkpoint
-   script, from a controller and from the driver), a resumed driver's
+   script run by a controller, by its bare name), a resumed driver's
    re-dispatch, the final phase and `run-archive` exactly as the private
    skill did, with the same ledger lines and the same dispatch payload,
    and with `Handed to` lines parked when `later` is on PATH; a second
