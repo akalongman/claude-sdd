@@ -2,8 +2,8 @@
 """Wall-clock accounting for apply runs: where the minutes went.
 
 Usage:
-    python3 tools/transcript-clock.py [--gap MINUTES] [--skill NAME] [--tsv] [--runs]
-        <project-dir>/<session-id>.jsonl [...]
+    python3 tools/transcript-clock.py [--gap MINUTES] [--skill NAME] [--tsv]
+        [--runs] [--gaps] <project-dir>/<session-id>.jsonl [...]
 
 --skill adds a skill whose invocations start a run to the two that always
 do, app-subagent-apply and sdd:apply; with no subagents in the run, the run
