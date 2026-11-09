@@ -7,12 +7,11 @@ archives the run.
 
 ## Install
 
-sdd depends on the superpowers plugin, which Claude Code installs with it
-only when the `superpowers-marketplace` marketplace is added; Requirements
-below gives the command. Then add the marketplace that lists sdd and install
-the plugin from your shell:
+In your shell, the first line adds the marketplace that lists superpowers,
+which sdd depends on:
 
 ```bash
+claude plugin marketplace add obra/superpowers-marketplace
 claude plugin marketplace add akalongman/claude-plugins
 claude plugin install sdd@akalongman
 ```
@@ -20,6 +19,7 @@ claude plugin install sdd@akalongman
 Or inside a Claude Code session:
 
 ```text
+/plugin marketplace add obra/superpowers-marketplace
 /plugin marketplace add akalongman/claude-plugins
 /plugin install sdd@akalongman
 ```
@@ -35,11 +35,7 @@ the next session, or after `/reload-plugins` in a session already open.
   subagent-driven-development loop the skill runs. sdd declares it as a
   dependency, so Claude Code installs it with sdd when the
   `superpowers-marketplace` marketplace is added; without that marketplace,
-  sdd installs but does not load. Add it first if you have not:
-
-  ```bash
-  claude plugin marketplace add obra/superpowers-marketplace
-  ```
+  sdd installs but does not load.
 
   The skill was verified against one superpowers release, pinned in
   `skills/apply/scripts/sub-skill-check`. With any other copy, each launch
