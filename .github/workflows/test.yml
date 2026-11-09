@@ -58,7 +58,15 @@ jobs:
         # Claude Code session has one; the runner does not.
         run: mkdir -p "$HOME/.claude/projects"
       - name: Run the tests
-        run: bash tests/run.sh
+        # run.sh ends with its totals line and exits 0 on a skip. A skip here
+        # means a prerequisite step above broke, so it fails the job.
+        run: |
+          bash tests/run.sh | tee "$RUNNER_TEMP/suite.log"
+          totals=$(tail -n 1 "$RUNNER_TEMP/suite.log")
+          if [[ ! $totals =~ ^[0-9]+\ ok,\ 0\ skipped,\ 0\ failed$ ]]; then
+            echo "A test was skipped ($totals): a prerequisite step above broke. Fix that step, never the test." >&2
+            exit 1
+          fi
       - name: Run shellcheck
         # The six bash scripts by name; section-span.awk is not shell.
         run: shellcheck bin/sdd-checkpoint skills/apply/scripts/openspec-section-brief skills/apply/scripts/openspec-section-tick skills/apply/scripts/run-archive skills/apply/scripts/sub-skill-check skills/apply/scripts/task-brief tests/*.sh
