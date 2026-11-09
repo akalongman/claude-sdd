@@ -29,13 +29,15 @@
 # dispatches app-sdd-unit-controller and sdd-unit-controller, names it after
 # the skill's argument and counts two units; 9, transcript-tokens.py counts
 # that app-subagent-apply invocation as a skill mention. Cases 10 to 12 hold
-# the head rules beside the bare names: 10, a subagent whose sidecar names a
-# bare reviewer and whose prompt opens "You are reviewing" takes no sdd role
-# in transcript-roles.py; 11, one whose sidecar names general-purpose and
-# whose prompt opens "You are implementing" is an implementer there by the
-# head rules; 12, in a run without unit controllers, transcript-clock.py
-# counts the general-purpose implementer as a unit and not the bare one, both
-# opening "You are implementing".
+# the head rules beside the bare names: 10, three subagents whose sidecars
+# name a bare unit-controller, implementer or reviewer and whose prompts
+# open with that role's head ("You run one unit", "You are implementing",
+# "You are reviewing") take no sdd role in transcript-roles.py; 11, one
+# whose sidecar names general-purpose and whose prompt opens
+# "You are implementing" is an implementer there by the head rules; 12, in
+# a run without unit controllers, transcript-clock.py counts the
+# general-purpose implementer as a unit and not the bare one, both opening
+# "You are implementing".
 #
 # Usage: bash tests/test-tools.sh
 set -euo pipefail
@@ -188,15 +190,22 @@ if [ "$rc" -eq 0 ] && [[ $out != *$'\n'* && $out == 'proj ffffffff legacy-plan: 
 run transcript-tokens.py "$legacy.jsonl"
 if [ "$rc" -eq 0 ] && [[ $out == *' skill-mentions=1  Agent calls=2'* ]]; then pass 9; else miss 9; fi
 
-# 10. A subagent whose sidecar names a bare reviewer and whose prompt opens
-#     "You are reviewing", a task review by the head rules: a bare sdd role
-#     name is no sdd role whatever the prompt opens with, so it counts as
-#     other, 1, and no other row.
+# 10. Three subagents whose sidecars name the bare types unit-controller,
+#     implementer and reviewer, each opening with its role's head
+#     ("You run one unit", "You are implementing", "You are reviewing"),
+#     which the head rules read as unit-controller, implementer and
+#     task-review: a bare sdd role name is no sdd role whatever the prompt
+#     opens with, so the three count as other, 3, and no other row.
 bare_head=$p/gggggggg-bare-head
 printf '{"type": "assistant", "message": {"model": "m", %s, "content": []}}\n' "$usage" > "$bare_head.jsonl"
-pair "$bare_head" g1 reviewer <<< '{"type": "user", "message": {"role": "user", "content": "You are reviewing Task 1."}}'
+declare -A heads=([unit-controller]='You run one unit' [implementer]='You are implementing' [reviewer]='You are reviewing')
+i=0
+for r in unit-controller implementer reviewer; do
+  i=$((i + 1))
+  printf '{"type": "user", "message": {"role": "user", "content": "%s"}}\n' "${heads[$r]}" | pair "$bare_head" "g$i" "$r"
+done
 run transcript-roles.py "$bare_head.jsonl"
-if [ "$rc" -eq 0 ] && [ "$(rows)" = 'other 1' ]; then pass 10; else miss 10; fi
+if [ "$rc" -eq 0 ] && [ "$(rows)" = 'other 3' ]; then pass 10; else miss 10; fi
 
 # 11. A subagent whose sidecar names general-purpose, the type the loop's own
 #     dispatches ran as before the sdd agents existed, and whose prompt opens
