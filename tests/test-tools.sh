@@ -12,15 +12,23 @@
 # Cases 1 and 2 are the plan's: three unit controllers, one per name form,
 # each opening with "You run one unit", roll up in transcript-roles.py as one
 # unit-controller row of 3 and no other row; transcript-clock.py --skill
-# sdd:apply exits 0 on that session. Cases 3 to 6 fail on the record's tools
-# as they were before the widening: 3, nine subagents (the three roles in the
+# sdd:apply exits 0 on that session. Cases 3 to 6 fail on the record
+# repository's (akalongman/claude-subagent-apply, private) tools as they were
+# before the widening: 3, nine subagents (the three roles in the
 # three forms) whose opening words match no head rule take their role from
 # the sidecar alone; 4, transcript-clock.py finds the run of a timestamped
 # session whose controller invokes sdd:apply and dispatches
 # sdd:unit-controller, names it after the skill's argument and counts one
 # unit; 5, the same with --skill naming another skill, which adds to the two
 # names, and that skill's own run beside it; 6, transcript-tokens.py counts
-# the sdd:apply invocation as a skill mention.
+# the sdd:apply invocation as a skill mention. Cases 7 to 9 hold the prefix
+# rule and the old names: 7, three subagents whose sidecars name a bare
+# unit-controller, implementer or reviewer, opening with words no head rule
+# matches, take no sdd role in transcript-roles.py; 8, transcript-clock.py
+# finds the run of a session whose controller invokes app-subagent-apply and
+# dispatches app-sdd-unit-controller and sdd-unit-controller, names it after
+# the skill's argument and counts two units; 9, transcript-tokens.py counts
+# that app-subagent-apply invocation as a skill mention.
 #
 # Usage: bash tests/test-tools.sh
 set -euo pipefail
@@ -125,5 +133,52 @@ if [ "$rc" -eq 0 ] && [ "$(wc -l <<< "$out")" -eq 2 ] && [[ ${out%%$'\n'*} == $w
 # 6. The tokens tool counts the one line that names sdd:apply, the Skill call.
 run transcript-tokens.py "$clock.jsonl"
 if [ "$rc" -eq 0 ] && [[ $out == *' skill-mentions=1  Agent calls=1'* ]]; then pass 6; else miss 6; fi
+
+# 7. Three subagents whose sidecars name the bare types unit-controller,
+#    implementer and reviewer (a project's own agents of those names), under
+#    opening words no head rule matches: a bare type is no sdd role, so the
+#    three fall to the head rules' other, 3, and no other row.
+bare=$p/eeeeeeee-bare
+printf '{"type": "assistant", "message": {"model": "m", %s, "content": []}}\n' "$usage" > "$bare.jsonl"
+i=0
+for r in unit-controller implementer reviewer; do
+  i=$((i + 1))
+  pair "$bare" "b$i" "$r" <<< '{"type": "user", "message": {"role": "user", "content": "Read the brief first."}}'
+done
+run transcript-roles.py "$bare.jsonl"
+if [ "$rc" -eq 0 ] && [ "$(rows)" = 'other 3' ]; then pass 7; else miss 7; fi
+
+# A timestamped session in the old names: the controller invokes
+# app-subagent-apply with the argument legacy-plan and dispatches one
+# app-sdd-unit-controller and one sdd-unit-controller, whose pairs follow; a
+# turn end closes the run. As in case 4, only the skill's argument can name
+# the run.
+legacy=$p/ffffffff-legacy
+cat > "$legacy.jsonl" <<EOF
+{"type": "user", "timestamp": "2026-11-09T12:00:00Z", "message": {"role": "user", "content": "Apply the plan."}}
+{"type": "assistant", "timestamp": "2026-11-09T12:00:05Z", "message": {"model": "m", $usage, "content": [{"type": "tool_use", "id": "t4", "name": "Skill", "input": {"skill": "app-subagent-apply", "args": "legacy-plan"}}]}}
+{"type": "assistant", "timestamp": "2026-11-09T12:01:00Z", "message": {"model": "m", $usage, "content": [{"type": "tool_use", "id": "t5", "name": "Agent", "input": {"subagent_type": "app-sdd-unit-controller", "description": "unit", "prompt": "You run one unit."}}]}}
+{"type": "assistant", "timestamp": "2026-11-09T12:06:00Z", "message": {"model": "m", $usage, "content": [{"type": "tool_use", "id": "t6", "name": "Agent", "input": {"subagent_type": "sdd-unit-controller", "description": "unit", "prompt": "You run one unit."}}]}}
+{"type": "system", "subtype": "turn_duration", "timestamp": "2026-11-09T12:11:00Z", "durationMs": 660000}
+EOF
+pair "$legacy" l1 app-sdd-unit-controller <<'EOF'
+{"type": "user", "timestamp": "2026-11-09T12:01:01Z", "message": {"role": "user", "content": "You run one unit."}}
+{"type": "assistant", "timestamp": "2026-11-09T12:05:00Z", "message": {"model": "m", "content": [{"type": "text", "text": "complete"}]}}
+EOF
+pair "$legacy" l2 sdd-unit-controller <<'EOF'
+{"type": "user", "timestamp": "2026-11-09T12:06:01Z", "message": {"role": "user", "content": "You run one unit."}}
+{"type": "assistant", "timestamp": "2026-11-09T12:10:00Z", "message": {"model": "m", "content": [{"type": "text", "text": "complete"}]}}
+EOF
+
+# 8. The clock without --skill on that session: one run, named after the
+#    app-subagent-apply call's argument, with two units and two dispatches.
+run transcript-clock.py "$legacy.jsonl"
+if [ "$rc" -eq 0 ] && [[ $out != *$'\n'* && $out == 'proj ffffffff legacy-plan: '*'; units 2, dispatches 2, '* ]]; then
+  pass 8; else miss 8; fi
+
+# 9. The tokens tool counts the one line that names app-subagent-apply, the
+#    Skill call.
+run transcript-tokens.py "$legacy.jsonl"
+if [ "$rc" -eq 0 ] && [[ $out == *' skill-mentions=1  Agent calls=2'* ]]; then pass 9; else miss 9; fi
 
 exit "$fail"

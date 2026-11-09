@@ -32,17 +32,19 @@ def strip_prefix(agent_type):
 
 def role_of_meta(path, head):
     """Role from the sidecar agent-*.meta.json (agentType, description) when the
-    harness wrote one (2026-09-25 layout), the agentType read after any of the
-    three prefixes strip_prefix names; the prompt head otherwise."""
+    harness wrote one (2026-09-25 layout) and its agentType carries one of the
+    three prefixes strip_prefix names, read after the prefix (a bare name, such
+    as a project's own reviewer, is no sdd role, as in transcript-clock.py); the
+    prompt head otherwise."""
     meta = path[:-6] + '.meta.json'
     try:
         with open(meta) as fh: m = json.load(fh)
     except (OSError, ValueError):
         return role_of(head)
     t = (m.get('agentType') or '').lower(); d = (m.get('description') or '').lower()
-    if strip_prefix(t) == 'unit-controller': return 'unit-controller'
-    if strip_prefix(t) == 'implementer': return 'final-fix' if 'final' in d and 'fix' in d else 'implementer'
-    if strip_prefix(t) == 'reviewer':
+    if strip_prefix(t) != t and strip_prefix(t) == 'unit-controller': return 'unit-controller'
+    if strip_prefix(t) != t and strip_prefix(t) == 'implementer': return 'final-fix' if 'final' in d and 'fix' in d else 'implementer'
+    if strip_prefix(t) != t and strip_prefix(t) == 'reviewer':
         if 're-review' in d or 'rereview' in d: return 'rereview'
         if 'final' in d or 'whole-branch' in d: return 'final-review'
         return 'task-review'

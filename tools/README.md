@@ -101,14 +101,17 @@ read tokens, which is the 650k to 781k column in the record repository's
 
 Roles are classified first from the sidecar `agent-*.meta.json` the harness
 writes beside each subagent transcript (since the 2026-09-25 layout). Its
-`agentType` is compared with its prefix removed, so the private skill's
-names (`app-sdd-unit-controller`), the plugin's (`sdd:unit-controller`) and
-the plugin's name fallback (`sdd-unit-controller`) classify alike:
-`unit-controller` is `unit-controller`, `implementer` is `implementer` (or
-`final-fix` when the description says final and fix), `reviewer` is
-`rereview`, `final-review` or `task-review` by its description. Without a
-meta file, or for any other type, the first 200 characters of the
-subagent's first user message, lowercased, first match wins:
+`agentType` must carry one of three prefixes, as in `transcript-clock.py`:
+the private skill's (`app-sdd-unit-controller`), the plugin's
+(`sdd:unit-controller`) or the plugin's name fallback's
+(`sdd-unit-controller`). With the prefix removed the three forms classify
+alike: `unit-controller` is `unit-controller`, `implementer` is
+`implementer` (or `final-fix` when the description says final and fix),
+`reviewer` is `rereview`, `final-review` or `task-review` by its
+description. A bare type, such as a project's own agent named `reviewer`,
+is no sdd role. Without a meta file, or for a bare or any other type, the
+first 200 characters of the subagent's first user message, lowercased,
+first match wins:
 
 | Role | Matched when the head |
 |---|---|
@@ -239,7 +242,7 @@ Caveats:
 ## transcript-clock.py
 
 ```
-python3 tools/transcript-clock.py [--gap MINUTES] [--tsv] [--runs] [--gaps] <project-dir>/<session-id>.jsonl [...]
+python3 tools/transcript-clock.py [--gap MINUTES] [--skill NAME] [--tsv] [--runs] [--gaps] <project-dir>/<session-id>.jsonl [...]
 ```
 
 Answers "where did the minutes go between the apply prompt and merge-ready".
@@ -252,6 +255,7 @@ elapsed minutes, active minutes (elapsed minus every gap over `--gap`
 minutes, default 10) split into subagent busy time, controller-alone time
 and the user's short answers, then the long gaps by bucket (prompt wait,
 ruling wait, idle, stall), units, dispatches, prompts and questions.
+`--skill NAME` adds a skill whose calls start a run to those two;
 `--tsv` prints the same as a table; `--runs` merges runs with the same
 project and target across sessions; `--gaps` lists every long gap with the
 record and line number on each side. The docstring defines the four gap
@@ -330,10 +334,12 @@ the script's own pin (the record repository's
 `docs/superpowers/specs/2026-10-23-sub-skill-upgrade-content-pin-design.md`).
 `test-tools.sh` tests the
 transcript tools here on fixture transcripts and prints `ok <n>` or
-`FAIL <n>` for each of six cases: the three agent name forms
-(`app-sdd-<role>`, `sdd:<role>`, `sdd-<role>`) in `transcript-roles.py`,
-both skill names and the adding `--skill` in `transcript-clock.py`, and
-`sdd:apply` in `transcript-tokens.py`. `test-run.sh` tests the runner on a
+`FAIL <n>` for each of nine cases: the three agent name forms
+(`app-sdd-<role>`, `sdd:<role>`, `sdd-<role>`) and the prefix they need (a
+bare `<role>` is no sdd role) in `transcript-roles.py`, both skill names,
+the three agent name forms and the adding `--skill` in
+`transcript-clock.py`, and both skill names in `transcript-tokens.py`.
+`test-run.sh` tests the runner on a
 copy beside stub scripts, never the real suite, with a PATH built per case,
 and prints `ok <n>` or `FAIL <n>` for each of five cases: the skip when
 `later` is absent, the skip with the reason from stderr when
