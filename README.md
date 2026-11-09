@@ -48,22 +48,26 @@ the next session, or after `/reload-plugins` in a session already open.
 - `jq`, which `skills/apply/scripts/sub-skill-check` runs at every launch.
 - For an OpenSpec source only, the `openspec` CLI, through which the skill
   loads the change.
-- `~/.claude/rules/git.md`, the plugin author's own git rule file, read from
-  your home directory; the plugin ships no copy. The implementer overrides
+- Not required: `~/.claude/rules/git.md`. The implementer overrides
   (`skills/apply/prompts/implementer-overrides.md`) and the skill's branch
-  step cite it for the commit rule. Without that file, the rule both places
-  spell out still applies (path-limited commits on the current branch with
-  `git add <paths> && git commit -m "<title>" -- <paths>`), and only what
-  the file would add is missing.
+  step cite it, but it is the plugin author's own git rule file, which
+  plugin users do not have and the plugin does not ship. The commit rule
+  holds without it: the branch step asks for path-limited commits on the
+  current branch, and the overrides spell out the command,
+  `git add <paths> && git commit -m "<title>" -- <paths>`. Only what the
+  author's file adds beyond that is missing.
 - Model aliases as your account offers them. The skill dispatches on `opus`
-  and `fable`, and on `sonnet` only for a unit you name. A role that hits a
-  rate limit runs one tier down for the rest of the run, and the run's
-  ledger records the switch.
+  and `fable`, and on `sonnet` for a unit you name, under `tier=sonnet`, and
+  as the fallback of an `opus` role: a role that hits a rate limit runs one
+  tier down for the rest of the run, and the run's ledger records the
+  switch.
 - Recommended, not required: the laterbox plugin, whose `later` command
-  parks the items a run hands to later work. When `later` is not on PATH
-  (laterbox links it as `~/.local/bin/later`, so that directory must be on
-  PATH), each such item shows in the run's final report as a `not parked`
-  line with the command that parks it from any terminal, never as an error.
+  parks the items a run hands to later work. It installs from the same
+  marketplace as sdd, with `claude plugin install laterbox@akalongman`.
+  When `later` is not on PATH (laterbox links it as `~/.local/bin/later`, so
+  that directory must be on PATH), each such item shows in the run's final
+  report as a `not parked` line with the command that parks it from any
+  terminal, never as an error.
 
 ## Using it
 
@@ -72,12 +76,13 @@ the next session, or after `/reload-plugins` in a session already open.
 ```
 
 `<source>` is an OpenSpec change name, a plan file path, or a PRD or spec
-path. An OpenSpec change (its `openspec/changes/<name>/tasks.md` exists)
-runs one unit per `## N.` section of `tasks.md`; a superpowers plan (a
-`Task N` heading) runs one unit per task; a PRD, spec or issue goes through
-superpowers' writing-plans skill first and then runs as a plan. With no
-source, the skill infers it from the conversation and asks when there are
-several candidates.
+path, and `<name>` below is the change name or the plan file's name
+without `.md`. An OpenSpec change (its `openspec/changes/<name>/tasks.md`
+exists) runs one unit per `## N.` section of `tasks.md`; a superpowers plan
+(a `Task N` heading) runs one unit per task; a PRD, spec or issue goes
+through superpowers' writing-plans skill first and then runs as a plan.
+With no source, the skill infers it from the conversation and asks when
+there are several candidates.
 
 `step` stops after each unit that completes or parks, shows that unit's
 result and asks whether to continue; stopping ends the run there, with the
@@ -118,9 +123,8 @@ dispatches only. While a run is live, `pause` in the session holds the run
 once the current implementer or reviewer reports, `continue` resumes it,
 and `abort` stops the unit's agents and waits for `continue`.
 
-The run keeps its state in `.superpowers/sdd/<name>/` in the repository,
-`<name>` being the change name or the plan file's name without `.md`: the
-ledger `progress.md`, `decisions.md`, and each unit's brief, report and
+The run keeps its state in `.superpowers/sdd/<name>/` in the repository:
+the ledger `progress.md`, `decisions.md`, and each unit's brief, report and
 review. Launching again with the same source resumes from the ledger and
 dispatches nothing already complete or parked.
 
