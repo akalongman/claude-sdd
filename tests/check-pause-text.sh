@@ -62,7 +62,7 @@ needline 'check before every dispatch' "grep -nE '\^\(Section N\|Final phase\): 
 needline 'latest pause line wins' 'latest.*wins'
 need 'owner note applied line' 'Section N: owner note applied'
 need 'checkpoint script' 'sdd-checkpoint'
-need 'no checkpoint path' '!scripts/sdd-checkpoint'
+need 'no checkpoint path' '!/sdd-checkpoint'
 needline 'stop keyed on status' 'status killed.*no result|killed.*no <result>'
 need 'no summary match' '!stopped by (user|Claude)'
 needline 'tick wins' 'tick.*complete.*whatever'
