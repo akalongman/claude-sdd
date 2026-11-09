@@ -12,10 +12,12 @@
 
 **Revision 3 (2026-11-09):** revision 2 followed two external reviews of revision 1; revision 3 moves the retirement of the private copy and the acceptance out of the run, into the section "After the run's archive". The changes are listed under "Self-review notes".
 
+**Revision 4 (2026-11-09, during the run, by the owner's ruling):** the private `SKILL.md` grew to 20,261 characters after revision 3 was measured (private commit 3e83ca5, the routed-to-driver rule), so Task 5 carries fourteen further wording-only cuts, rows 10 to 23, and its counts are recomputed.
+
 ## Global Constraints
 
 - Behaviour unchanged: no rule, step, ledger line or dispatch payload of the skill changes. The only edits are the renames this plan lists and prose tightened for size.
-- `skills/apply/SKILL.md` stays under 19,500 characters, measured by `tests/check-skill-size.sh` with `${CLAUDE_PLUGIN_ROOT}` references expanded to a 120-character stand-in path (spec, constraints: the compaction cut falls on substituted text; this phase writes no such reference, so the expansion first bites in phase 2). The nine wording-only cuts of Task 5, measured on the private file on 2026-11-09, leave 19,476. Phase 2 pays for its own pointer with further cuts; this phase keeps no margin beyond the guard.
+- `skills/apply/SKILL.md` stays under 19,500 characters, measured by `tests/check-skill-size.sh` with `${CLAUDE_PLUGIN_ROOT}` references expanded to a 120-character stand-in path (spec, constraints: the compaction cut falls on substituted text; this phase writes no such reference, so the expansion first bites in phase 2). The twenty-three wording-only cuts of Task 5, measured on the 20,261-character private file of 2026-11-09, leave 19,488. Phase 2 pays for its own pointer with further cuts; this phase keeps no margin beyond the guard.
 - The six scripts under `skills/apply/scripts/` and `bin/sdd-checkpoint` are byte-identical to the private copies (`cmp` proves it).
 - The dispatch contract does not change: a controller runs `sdd-checkpoint` by its bare name from the plugin's `bin/` (decision 7). The skill's own text never names the checkpoint script; only `prompts/unit-controller-overrides.md` does.
 - Plugin agent names: `sdd:implementer`, `sdd:reviewer`, `sdd:unit-controller`; frontmatter `name` without the plugin prefix (components reference: the scoped name is `<plugin>:<frontmatter name>`).
@@ -196,35 +198,49 @@ git add skills/apply/prompts && git commit -m "Move the override prompts under t
 - [ ] **Step 2: Measure**
 
 Run: `bash tests/check-skill-size.sh skills/apply/SKILL.md`
-Expected: `FAIL 19689/19500 (substituted)` (the private file is 19,749 characters; the three edits return 60).
+Expected: `FAIL 20201/19500 (substituted)` (the private file is 20,261 characters; the three edits return 60).
 
-- [ ] **Step 3: Apply the nine wording-only cuts, in order, until the measure passes**
+- [ ] **Step 3: Apply the twenty-three wording-only cuts, in order, until the measure passes**
 
-Each cut is a wording change that keeps every rule, ledger line, exit code, tool name and incident date. The savings were measured on the private file on 2026-11-09; the running count after each is in the last column.
+Each cut is a wording change that keeps every rule, ledger line, exit code, tool name and incident date. The savings were measured on the private file on 2026-11-09 (rows 1 to 9 for revision 3, rows 10 to 23 for revision 4); the running count after each, from the 20,261-character file, is in the last column.
 
 | # | Where | From | To | Saves | Count |
 |---|---|---|---|---|---|
-| 1 | Sources, the `<ws>` paragraph | `` (every change's file is `tasks.md`, so never run `sdd-workspace`; give every sub-skill script this OUTFILE) `` | `` (never run `sdd-workspace`; pass every sub-skill script this OUTFILE) `` | 38 | 19,651 |
-| 2 | This machine, item 1 | `` and so is the final phase once `<ws>/final-brief.md` exists and no `Final phase: complete` line is written, its paths being every unit's `` | `` and likewise the final phase once `<ws>/final-brief.md` exists with no `Final phase: complete` line, its paths every unit's `` | 13 | 19,638 |
-| 3 | Driver loop, item 3 | `ledger it as this item says, then` | `ledger it, then` | 18 | 19,620 |
-| 4 | Hands-off | `` `git push -u <remote> <branch>`, the remote being the branch's own or `origin` when it has none. `` | `` `git push -u <remote> <branch>` to the branch's remote, else `origin`. `` | 26 | 19,594 |
-| 5 | Driver loop, item 3 | `(2026-10-13, an orphaned implementer ran beside the retry on the shared tree)` | `(2026-10-13, an orphan ran beside the retry)` | 33 | 19,561 |
-| 6 | After the last unit | `(2026-11-05, a plan was reported done with three of its checkpoint notes open)` | `(2026-11-05, reported done with three notes open)` | 29 | 19,532 |
-| 7 | OpenSpec, `all_done` | `without one the units are ticked but the final phase is owed (an interrupted run), so go to the final phase below` | `without one the final phase is owed (an interrupted run): go to the final phase below` | 28 | 19,504 |
-| 8 | Driver loop, pre-flight | `say that the run will re-read it on every driver turn and that a fresh session avoids it, then continue` | `say that every driver turn re-reads it and a fresh session avoids it, then continue` | 20 | 19,484 |
-| 9 | OpenSpec, the after-merge task | `the pre-flight scan flags it and it is amended with the user into a pre-merge task` | `the pre-flight scan flags it; amend it with the user into a pre-merge task` | 8 | 19,476 |
+| 1 | Sources, the `<ws>` paragraph | `` (every change's file is `tasks.md`, so never run `sdd-workspace`; give every sub-skill script this OUTFILE) `` | `` (never run `sdd-workspace`; pass every sub-skill script this OUTFILE) `` | 38 | 20,163 |
+| 2 | This machine, item 1 | `` and so is the final phase once `<ws>/final-brief.md` exists and no `Final phase: complete` line is written, its paths being every unit's `` | `` and likewise the final phase once `<ws>/final-brief.md` exists with no `Final phase: complete` line, its paths every unit's `` | 13 | 20,150 |
+| 3 | Driver loop, item 3 | `ledger it as this item says, then` | `ledger it, then` | 18 | 20,132 |
+| 4 | Hands-off | `` `git push -u <remote> <branch>`, the remote being the branch's own or `origin` when it has none. `` | `` `git push -u <remote> <branch>` to the branch's remote, else `origin`. `` | 26 | 20,106 |
+| 5 | Driver loop, item 3 | `(2026-10-13, an orphaned implementer ran beside the retry on the shared tree)` | `(2026-10-13, an orphan ran beside the retry)` | 33 | 20,073 |
+| 6 | After the last unit | `(2026-11-05, a plan was reported done with three of its checkpoint notes open)` | `(2026-11-05, reported done with three notes open)` | 29 | 20,044 |
+| 7 | OpenSpec, `all_done` | `without one the units are ticked but the final phase is owed (an interrupted run), so go to the final phase below` | `without one the final phase is owed (an interrupted run): go to the final phase below` | 28 | 20,016 |
+| 8 | Driver loop, pre-flight | `say that the run will re-read it on every driver turn and that a fresh session avoids it, then continue` | `say that every driver turn re-reads it and a fresh session avoids it, then continue` | 20 | 19,996 |
+| 9 | OpenSpec, the after-merge task | `the pre-flight scan flags it and it is amended with the user into a pre-merge task` | `the pre-flight scan flags it; amend it with the user into a pre-merge task` | 8 | 19,988 |
+| 10 | Intro | `This skill adds the source adapter, this machine's constraints, the driver loop and the hands-off ending.` | (removed, with its leading space) | 106 | 19,882 |
+| 11 | Intro | `defines the loop (dispatch, task review, fix rounds, ledger, final review);` | `defines the loop;` | 58 | 19,824 |
+| 12 | Driver loop, pre-flight | `the earlier units it needs (an interface, a migration, a file they create) as` | `the earlier units it needs as` | 48 | 19,776 |
+| 13 | Driver loop, item 3 | `before acting on it, so a resumed driver can count attempts.` | `before acting on it.` | 40 | 19,736 |
+| 14 | Driver loop, item 3 | `An interim notification for that child (it waits on its own background work) is a wait.` | `An interim notification for that child is a wait.` | 38 | 19,698 |
+| 15 | This machine, item 3 | `` on `fable`, which is capped on this account; `` | `` on `fable`; `` | 33 | 19,665 |
+| 16 | This machine, item 1 | `a request still in force (as the driver loop's item 4 defines it) is released` | `a request still in force (driver loop, item 4) is released` | 19 | 19,646 |
+| 17 | Driver loop, item 3 | `the child's own hand-back then reaches the driver, because its parent's run ended.` | `the child's own hand-back then reaches the driver.` | 32 | 19,614 |
+| 18 | Driver loop, item 3 | `nothing is forwarded to the waiting controller, since a message would wake it;` | `nothing is forwarded to the waiting controller (a message would wake it);` | 5 | 19,609 |
+| 19 | After the last unit | `then before reporting the plan done, in this session or a later one, list` | `then before reporting the plan done, list` | 32 | 19,577 |
+| 20 | Driver loop, item 3 | `(2026-11-09, the routed lines of two early units sat unread for four units)` | `(2026-11-09, routed lines sat unread for four units)` | 23 | 19,554 |
+| 21 | Hands-off | `a GitLab instance (self-hosted included),` | `a GitLab instance,` | 23 | 19,531 |
+| 22 | Hands-off | `and stop; the work stays local.` | `and stop.` | 22 | 19,509 |
+| 23 | Driver loop, item 4 | `` On `abort`, the emergency route: TaskStop `` | `` On `abort`: TaskStop `` | 21 | 19,488 |
 
-Cut 2 keeps the "no `Final phase: complete` line" condition: without it a completed final phase would be re-dispatched on resume. Stop when the measure prints `ok`; all nine are needed (cut 8 is the first to pass). A tenth cut is not invented in this task: a shortfall after the nine means a measurement differs from the table and is reported, not trimmed around.
+Cut 2 keeps the "no `Final phase: complete` line" condition: without it a completed final phase would be re-dispatched on resume. All twenty-three apply (cut 23 is the first to pass); the measure is read after the last. A twenty-fourth cut is not invented in this task: a shortfall after the twenty-three means a measurement differs from the table and is reported, not trimmed around.
 
 - [ ] **Step 4: Run the guards**
 
 Run: `bash tests/check-skill-size.sh skills/apply/SKILL.md && bash tests/check-pause-text.sh skills/apply/SKILL.md && /bin/grep -c 'app-sdd-\|app-subagent-apply\|~/.claude/agents' skills/apply/SKILL.md`
-Expected: `ok 19476/19500 (substituted)`, no `missing:` line, grep count `0`.
+Expected: `ok 19488/19500 (substituted)`, no `missing:` line, grep count `0`.
 
 - [ ] **Step 5: Review the diff for dropped rules**
 
 Run: `diff <(tr -s ' ' '\n' < ~/.claude/skills/app-subagent-apply/SKILL.md) <(tr -s ' ' '\n' < skills/apply/SKILL.md) | /bin/grep '^<' | /bin/grep -v -e app-sdd -e app-subagent -e 'agents/'`
-Expected: only words from the nine passages in the table (and nothing from a ledger line or a backticked command). The output is read whole, not capped.
+Expected: only words from the twenty-three passages in the table (and nothing from a ledger line or a backticked command). The output is read whole, not capped.
 
 - [ ] **Step 6: Full suite and commit**
 
