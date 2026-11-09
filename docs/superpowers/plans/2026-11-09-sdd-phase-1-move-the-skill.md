@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Ship the `sdd` plugin with the private `app-subagent-apply` skill, its prompts, scripts and three agents moved in, behaving exactly as the private copy does, installed from a new `akalongman` marketplace repository, with the record repository absorbed.
+**Goal:** Ship the `sdd` plugin with the private `app-subagent-apply` skill, its prompts, scripts and three agents moved in, behaving exactly as the private copy does, installed from a new `akalongman` marketplace repository, with the record repository's tests and tools absorbed and its documents kept there, private, as the history.
 
-**Architecture:** A Claude Code plugin laid out like `claude-laterbox`: `skills/apply/` holds the skill, `agents/` the three definitions under plugin-scoped names, `bin/sdd-checkpoint` the one script a controller runs by bare name, `tests/` the record's five test scripts with plugin defaults, `tools/` and `docs/history/` the record's measurement tools and documents. No module and no hooks ship in this phase unless the agent-name probe fails, in which case a SessionStart hook writes prefixed agent copies into the user's agents directory.
+**Architecture:** A Claude Code plugin laid out like `claude-laterbox`: `skills/apply/` holds the skill, `agents/` the three definitions under plugin-scoped names, `bin/sdd-checkpoint` the one script a controller runs by bare name, `tests/` the record's five test scripts with plugin defaults, `tools/` the record's measurement tools; the record's documents stay in the private record repository. No module and no hooks ship in this phase unless the agent-name probe fails, in which case a SessionStart hook writes prefixed agent copies into the user's agents directory.
 
 **Tech Stack:** bash 5 with GNU coreutils (the moved scripts), Python 3 (the transcript tools), JSON manifests, the `claude plugin` CLI, GitHub Actions. No TypeScript in this phase.
 
@@ -13,6 +13,8 @@
 **Revision 3 (2026-11-09):** revision 2 followed two external reviews of revision 1; revision 3 moves the retirement of the private copy and the acceptance out of the run, into the section "After the run's archive". The changes are listed under "Self-review notes".
 
 **Revision 4 (2026-11-09, during the run, by the owner's ruling):** the private `SKILL.md` grew to 20,261 characters after revision 3 was measured (private commit 3e83ca5, the routed-to-driver rule), so Task 5 carries fourteen further wording-only cuts, rows 10 to 23, and its counts are recomputed. By later rulings of the same run, Task 9 renames the record's `CLAUDE.md` to `docs/history/record-instructions.md`, and the agents' `description` reads "for `sdd:apply`".
+
+**Revision 5 (2026-11-09, during the run, by the owner's ruling):** `claude-sdd` is to be public, and the record's documents name clients, so they stay in the private record repository rather than `docs/history/`. The run's unpushed commits were rewritten without `docs/history/` and with a neutral scenario URL in the green harness, before any push; Task 9b repoints the live citations; the record repository is kept, not archived.
 
 ## Global Constraints
 
@@ -28,7 +30,8 @@
 - Linux, bash 5, GNU coreutils, git; `jq` only where the private scripts already use it (`sub-skill-check`); no new dependency.
 - Prose in this repository is agent-neutral except where it is the skill or an agent definition, which are Claude Code components by design. No em or en dashes anywhere. Commit titles imperative, under 72 characters, no trailers, path-limited commits gated on the run's branch.
 - Nothing outside this repository is changed without the owner's word in the session: the user's `~/.claude` (the public dotfiles), `~/.claude/CLAUDE.md`, the laterbox repository, the record repository, GitHub, and the local marketplace registration. Each such step below is marked **owner step** and ends the unit as `parked` under hands-off.
-- A GitHub `source` entry on the private `akalongman/claude-sdd` repository installs only where git can authenticate to it (SSH on this machine). The README says so.
+- `akalongman/claude-sdd` becomes public after the run (an owner step in the section "After the run's archive"); until then a GitHub `source` entry installs only where git can authenticate to it (SSH on this machine). The README carries no private-repository note.
+- This repository is public: no file names a client, a client project or a client host, and no commit that reaches `origin` adds one (revision 5). The record's documents, which do, stay in the private record repository `akalongman/claude-subagent-apply`.
 
 ## Review Focus
 
@@ -367,6 +370,8 @@ git add tools tests/test-tools.sh tests/run.sh && git commit -m "Port the transc
 
 ### Task 9: Absorb the record's documents
 
+Superseded by revision 5: this task ran (the record repository's commit and push, the four re-parked notes), but its `docs/history/` commits were rewritten away before any push, and Task 9b replaces its result.
+
 **Files:**
 - Create: `docs/history/README.md` (the record's `README.md`), `docs/history/record-instructions.md` (the record's `CLAUDE.md`, renamed so that a session reading `docs/history/` does not load it as instructions), `docs/history/decisions.md`, `findings.md`, `lessons.md`, `measurements.md`, `skill.md`, `upstream.md`, `docs/history/specs/*` and `docs/history/plans/*` (from the record's `docs/superpowers/`), `docs/history/reviews/*` (every file under the record's `reviews/`, the five untracked ones included), `docs/history/upstream/*` only by the owner's word. The record's `.superpowers/sdd/` is a run workspace, not history, and does not move.
 - Create: `docs/history/INDEX.md` (one line per file: what it is, its date)
@@ -391,6 +396,30 @@ Expected: one line, `missing CLAUDE.md`, the record's instruction file moved as 
 
 ```bash
 git add docs/history && git commit -m "Absorb the record repository's documents as history" -- docs/history
+```
+
+### Task 9b: Keep the history in the private record repository
+
+**Files:**
+- Modify: `tests/check-skill-size.sh`, `tools/README.md`, `tools/green/README.md`, `tools/transcript-agents.py`, `docs/decisions.md` (every citation of `docs/history/`)
+
+**Interfaces:**
+- Consumes: the rewritten history (no `docs/history/` in any commit after `1ed8658`'s successor), the record repository `akalongman/claude-subagent-apply` at `51d51b2`, private.
+- Produces: a tree with no `docs/history` reference outside `docs/superpowers/` and no client name anywhere.
+
+- [ ] **Step 1: Repoint every citation**
+
+Each `docs/history/<path>` citation, and each `../docs/history/` or `../../docs/history/` link, becomes a plain-text citation of the record repository with the record's own path, for example "`docs/decisions.md`, decision 23, in the record repository (`akalongman/claude-subagent-apply`, private)". No link: readers of this public repository cannot open it. A sentence that says the history lives in `docs/history/`, or that `docs/history/` is closed, says the record repository holds it. `docs/decisions.md` entry 1 names the record repository once where it says "the record".
+
+- [ ] **Step 2: Verify**
+
+Run: `git grep -n 'docs/history' -- . ':!docs/superpowers'; git grep -nIiE -f "$PATTERNS" -- .; git log -p origin/main..HEAD | /bin/grep -ciE -f "$PATTERNS"; bash tests/run.sh && claude plugin validate . --strict`, with `PATTERNS` set to the run workspace's `client-names.pattern`, one extended regular expression per line, kept out of this repository because it spells the client names.
+Expected: no match from either `git grep`, `0` from the history count; `9 ok, 0 skipped, 0 failed`; validate as decisions R14.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add tests/check-skill-size.sh tools docs/decisions.md && git commit -m "Cite the private record repository for the history" -- tests/check-skill-size.sh tools docs/decisions.md
 ```
 
 ### Task 10: The `akalongman` marketplace repository
@@ -480,7 +509,7 @@ After the owner's push: `gh run watch` on the run for `git rev-parse HEAD` (the 
 
 - [ ] **Step 1: Fill the sections**
 
-`Install`: the two commands `claude plugin marketplace add akalongman/claude-plugins` and `claude plugin install sdd@akalongman`, the in-session forms, and the note that `claude-sdd` is private so the install needs git access to it. `Requirements`: Claude Code 2.1.318 or newer; the superpowers plugin (installed as a dependency); Linux, bash 5, GNU coreutils, git until phase 3; the owner's `~/.claude/rules/git.md` cited by the implementer overrides; model aliases as the account offers them; laterbox recommended, and a `later` missing from PATH shows as `not parked` lines in the run report, never as an error. `Using it`: `/sdd:apply <source> [step|hands-off] [isolated] [tier=<alias>]`, one paragraph per option, the workspace and archive paths, the three agents by name. `Develop`: `claude --plugin-dir .`, `claude plugin validate . --strict`, `bash tests/run.sh`, `shellcheck ...`, the release rule (a version bump reaches installed copies, never during a live run). `Uninstall`: `claude plugin uninstall sdd@akalongman`, and the fallback copies under `~/.claude/agents/sdd-*.md` to delete by hand when Task 7's fallback shipped. `History`: one line pointing at `docs/history/INDEX.md`. `License`: MIT, one line.
+`Install`: the two commands `claude plugin marketplace add akalongman/claude-plugins` and `claude plugin install sdd@akalongman`, the in-session forms. `Requirements`: Claude Code 2.1.318 or newer; the superpowers plugin (installed as a dependency); Linux, bash 5, GNU coreutils, git until phase 3; the owner's `~/.claude/rules/git.md` cited by the implementer overrides; model aliases as the account offers them; laterbox recommended, and a `later` missing from PATH shows as `not parked` lines in the run report, never as an error. `Using it`: `/sdd:apply <source> [step|hands-off] [isolated] [tier=<alias>]`, one paragraph per option, the workspace and archive paths, the three agents by name. `Develop`: `claude --plugin-dir .`, `claude plugin validate . --strict`, `bash tests/run.sh`, `shellcheck ...`, the release rule (a version bump reaches installed copies, never during a live run). `Uninstall`: `claude plugin uninstall sdd@akalongman`, and the fallback copies under `~/.claude/agents/sdd-*.md` to delete by hand when Task 7's fallback shipped. `History`: one line saying that the design history is kept in a private record repository. `License`: MIT, one line.
 
 - [ ] **Step 2: Verify and commit**
 
@@ -524,7 +553,7 @@ Expected, checked in `<ws>/progress.md` and the archive, on both legs alike: `Ru
 
 - [ ] **Step 5: Record, and the record repository**
 
-`docs/decisions.md` entry 3: the acceptance's session ids, what passed, anything that differed. Then, by the owner's word: `gh repo archive akalongman/claude-subagent-apply -y` and `rm -rf ~/projects/personal/claude-subagent-apply`, only after `git -C ~/projects/personal/claude-subagent-apply status --short` is empty, `git log origin/main..main` there is empty, and Task 9 Step 1 has settled the four parked notes (the gitignored `LATER.local.md` is invisible to both gates).
+`docs/decisions.md` entry 3: the acceptance's session ids, what passed, anything that differed. The record repository stays, private, as the history (revision 5): it is neither archived nor removed. Then, by the owner's word, make `akalongman/claude-sdd` public, after `git log -p origin/main | /bin/grep -ciE -f <pattern file>` reads `0` or shows only what the owner accepted, the pattern file being `client-names.pattern` in the run's archive under `~/.claude/docs/tmp/apply-runs/`.
 
 ```bash
 git add docs/decisions.md && git commit -m "Record the phase 1 acceptance run" -- docs/decisions.md

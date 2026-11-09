@@ -460,7 +460,6 @@ scripts/away-rule.md              the rule text, one copy
 tests/*.test.sh                   shell tests: the terminal command, and the record's five ported
 tools/                            the record's transcript tools, ported
 docs/superpowers/specs/           this document
-docs/history/                     the record's decisions, measurements, specs, plans and reviews
 README.md
 ```
 
@@ -574,15 +573,15 @@ made:
   run has passed. One copy, one removal; the other profiles follow through
   their symlinks. Afterwards a search for `app-subagent-apply` and
   `app-sdd-` across `~/.claude` (memory notes excepted) and across the
-  plugin outside `docs/history/`, `tools/` and the test fixtures returns
-  nothing; the history keeps the old names as history, and the transcript
+  plugin outside `tools/` and the test fixtures returns nothing; the
+  record repository keeps the old names as history, and the transcript
   tools accept both names on purpose.
 - The owner's global `CLAUDE.md` working agreement that names
   `app-subagent-apply` is reworded to name `/sdd:apply`; it is the one
   reference outside the skill itself (searched 2026-10-30 across `~/.claude`
-  and the tsmulms project's `.claude`).
+  and one client project's `.claude`).
 - The record repository (`~/projects/personal/claude-subagent-apply`) is
-  absorbed and retired: its five test scripts (`check-skill-size.sh`,
+  partly absorbed and kept: its five test scripts (`check-skill-size.sh`,
   `check-pause-text.sh`, `test-run-archive.sh`, `test-sdd-checkpoint.sh`,
   `test-sub-skill-check.sh`) are ported into the plugin's `tests/` with the
   plugin paths as their defaults; its transcript tools
@@ -590,15 +589,14 @@ made:
   and the `green/` fixtures move to `tools/` and accept both the old names
   and `sdd:apply`, `sdd:unit-controller`, `sdd:implementer`,
   `sdd:reviewer`, so runs before and after the move are measured alike;
-  its decision log, measurements, specs, plans and reviews move to
-  `docs/history/` with a closing decision-log entry that records the move;
-  its `upstream/` directory is read with the owner and moved to
-  `docs/history/upstream/` or dropped by the owner's word, never silently;
-  its four open parked notes are read with the owner and re-parked here or
-  closed. Then the GitHub repository is archived (not deleted, so old links
-  resolve) and the local checkout is removed. Nothing is removed before
-  the checkout is clean, every local commit is on `origin/main` (on
-  2026-11-09 six were not), and every file above exists here.
+  its decision log, measurements, specs, plans, reviews and `upstream/`
+  stay in the record repository, which stays private as the project's
+  history, because they name clients and this repository is public
+  (owner, 2026-11-09, during the phase 1 run; they first moved to
+  `docs/history/`, and those commits were rewritten away before any
+  push); its four open parked notes are read with the owner and re-parked
+  here or closed. The record's checkout is clean and every local commit is
+  on `origin/main` (on 2026-11-09 six were not; the run pushed them).
 - The `ak` plugin in the `personal` marketplace: done on 2026-11-08, its
   stale copies of the apply skill, the three agents, `review-mr` and
   `verify-api-docs` were removed (commit `89b7131`); a parked note in the
@@ -1127,9 +1125,9 @@ undesigned.
 16. The marketplace is a dedicated `akalongman/claude-plugins` repository
     listing laterbox and sdd by GitHub source; the plugin repositories
     carry no marketplace file.
-17. The record repository is absorbed (tests, tools, documents, `upstream/`
-    by the owner's word, parked notes) and then archived on GitHub and
-    removed locally, after its local commits are on `origin/main`.
+17. The record repository's tests, tools and parked notes are absorbed;
+    its documents and `upstream/` stay in it, kept private as the history,
+    because this repository is public (owner, 2026-11-09).
 18. One machine-wide switch with two doors; no per-session level.
 19. The `ak` plugin's stale copies were removed on 2026-11-08; its
     future is a parked note, not this design's concern.
@@ -1178,7 +1176,8 @@ design above already reflects them.
    after a check of the plugin documentation's practice.
 6. The permission intervention: as recommended, a `tool.check` hook that
    denies only person-bound asks, on by default with a switch.
-7. The record repository: absorbed, archived on GitHub, removed locally.
+7. The record repository: absorbed, archived on GitHub, removed locally
+   (revised 2026-11-09: its documents stay there, private, as the history).
 8. The per-session override: not needed.
 
 Two further decisions came out of the same review: everything is Linux
