@@ -32,12 +32,16 @@
 # the head rules beside the bare names: 10, three subagents whose sidecars
 # name a bare unit-controller, implementer or reviewer and whose prompts
 # open with that role's head ("You run one unit", "You are implementing",
-# "You are reviewing") take no sdd role in transcript-roles.py; 11, one
-# whose sidecar names general-purpose and whose prompt opens
-# "You are implementing" is an implementer there by the head rules; 12, in
-# a run without unit controllers, transcript-clock.py counts the
-# general-purpose implementer as a unit and not the bare one, both opening
-# "You are implementing".
+# "You are reviewing") take no sdd role in transcript-roles.py; 11, three
+# whose sidecars name general-purpose and whose prompts open with the same
+# three heads keep the roles the head rules give them there,
+# unit-controller, implementer and task-review; 12, in a run without unit
+# controllers, transcript-clock.py counts as a unit the general-purpose
+# subagent opening "You are implementing" and neither the bare
+# unit-controller, implementer and reviewer opening the same words (the
+# clock reads no unit controller from a prompt head, and its reviewer role
+# reaches no printed field, so the implementer head is the one under which
+# a bare name shows) nor a general-purpose one opening "You are reviewing".
 #
 # Usage: bash tests/test-tools.sh
 set -euo pipefail
@@ -207,33 +211,47 @@ done
 run transcript-roles.py "$bare_head.jsonl"
 if [ "$rc" -eq 0 ] && [ "$(rows)" = 'other 3' ]; then pass 10; else miss 10; fi
 
-# 11. A subagent whose sidecar names general-purpose, the type the loop's own
-#     dispatches ran as before the sdd agents existed, and whose prompt opens
-#     "You are implementing": every unprefixed type but the three bare names
-#     keeps the head rules, so it counts as implementer, 1, and no other row.
+# 11. Three subagents whose sidecars name general-purpose, the type the
+#     loop's own dispatches ran as before the sdd agents existed, each
+#     opening with one of case 10's heads: every unprefixed type but the
+#     three bare names keeps the head rules, so they count as
+#     unit-controller, implementer and task-review, 1 each, and no other row.
 general=$p/hhhhhhhh-general
 printf '{"type": "assistant", "message": {"model": "m", %s, "content": []}}\n' "$usage" > "$general.jsonl"
-pair "$general" h1 general-purpose <<< '{"type": "user", "message": {"role": "user", "content": "You are implementing Task 1."}}'
+i=0
+for r in unit-controller implementer reviewer; do
+  i=$((i + 1))
+  printf '{"type": "user", "message": {"role": "user", "content": "%s"}}\n' "${heads[$r]}" | pair "$general" "h$i" general-purpose
+done
 run transcript-roles.py "$general.jsonl"
-if [ "$rc" -eq 0 ] && [ "$(rows)" = 'implementer 1' ]; then pass 11; else miss 11; fi
+if [ "$rc" -eq 0 ] && [ "$(rows)" = $'implementer 1\ntask-review 1\nunit-controller 1' ]; then
+  pass 11; else miss 11; fi
 
 # 12. The clock on a timestamped session whose controller invokes sdd:apply
 #     with the argument mixed-plan and dispatches no unit controller, so its
-#     implementers are its units: two subagents opening "You are
-#     implementing", one whose sidecar names a bare implementer and one whose
-#     sidecar names general-purpose. Only the second is an implementer: one
-#     run, units 1.
+#     implementers are its units. Four subagents open "You are implementing":
+#     three whose sidecars name a bare unit-controller, implementer or
+#     reviewer, and one whose sidecar names general-purpose; a fifth, also
+#     general-purpose, opens "You are reviewing". The clock reads no unit
+#     controller from a prompt head and prints nothing its reviewer role
+#     decides, so the implementer head is the one under which a bare name
+#     the clock failed to set apart would show, as an extra unit. Only the
+#     general-purpose implementer is one: one run, units 1.
 mixed=$p/iiiiiiii-mixed
 cat > "$mixed.jsonl" <<EOF
 {"type": "assistant", "timestamp": "2026-11-09T13:00:00Z", "message": {"model": "m", $usage, "content": [{"type": "tool_use", "id": "t7", "name": "Skill", "input": {"skill": "sdd:apply", "args": "mixed-plan"}}]}}
 {"type": "system", "subtype": "turn_duration", "timestamp": "2026-11-09T13:06:00Z", "durationMs": 360000}
 EOF
-for t in implementer general-purpose; do
+for t in unit-controller implementer reviewer general-purpose; do
   pair "$mixed" "$t" "$t" <<'EOF'
 {"type": "user", "timestamp": "2026-11-09T13:01:00Z", "message": {"role": "user", "content": "You are implementing Task 1."}}
 {"type": "assistant", "timestamp": "2026-11-09T13:05:00Z", "message": {"model": "m", "content": [{"type": "text", "text": "done"}]}}
 EOF
 done
+pair "$mixed" general-purpose-review general-purpose <<'EOF'
+{"type": "user", "timestamp": "2026-11-09T13:01:00Z", "message": {"role": "user", "content": "You are reviewing Task 1."}}
+{"type": "assistant", "timestamp": "2026-11-09T13:05:00Z", "message": {"model": "m", "content": [{"type": "text", "text": "done"}]}}
+EOF
 run transcript-clock.py "$mixed.jsonl"
 if [ "$rc" -eq 0 ] && [[ $out != *$'\n'* && $out == 'proj iiiiiiii mixed-plan: '*'; units 1, dispatches 0, '* ]]; then
   pass 12; else miss 12; fi
