@@ -8,27 +8,39 @@ version can be checked against them. Newest last.
 
 On 2026-11-09, on Claude Code 2.1.319, probes in sessions that load this
 directory as a plugin showed that the plugin-scoped agent name dispatches,
-the cross-plugin skill preload loads, the plugin's `bin/` is on a
-subagent's PATH, and the agent's `experimental` block is honoured. The
-skill and its prompts therefore keep dispatching `sdd:implementer`,
-`sdd:reviewer` and `sdd:unit-controller`; `agents/unit-controller.md` keeps
-`skills: [superpowers:subagent-driven-development]` and
-`experimental: cacheTtl: 1h`; and a controller runs the checkpoint by its
-bare name, `sdd-checkpoint`. None of the phase 1 plan's three fallbacks was
-written: no prefixed agent copies from a SessionStart hook, no agent body
-that invokes the loop itself, no checkpoint path in the agent body.
+the cross-plugin skill preload loads, the plugin's `bin/` is on the PATH
+of a subagent's Bash tool, and the controller writes its prompt cache with
+the 1h TTL its `experimental` block asks for. `sdd:unit-controller` and
+`sdd:implementer` were dispatched; `sdd:reviewer` loaded (the debug line
+`Loaded 3 agents from plugin sdd`) but was not dispatched. The skill and
+its prompts therefore keep dispatching `sdd:implementer`, `sdd:reviewer`
+and `sdd:unit-controller`; `agents/unit-controller.md` keeps its `skills`
+list (`superpowers:subagent-driven-development`) and its
+`experimental.cacheTtl` (`1h`); and a controller runs the checkpoint by
+its bare name, `sdd-checkpoint`. None of the phase 1 plan's three
+fallbacks was written: no prefixed agent copies from a SessionStart hook,
+no agent body that invokes the loop itself, no checkpoint path in the
+agent body.
 
 This entry also records a deviation from the spec's layout: the test
-scripts keep the record's names (`check-*.sh`, `test-*.sh`) under `tests/`,
-not the layout line `tests/*.test.sh`. The five scripts came from the
-record's `tools/` directory, and the record's decision log, specs and plans
-cite them by those names; renamed, every such citation would point at no
-file.
+scripts keep the names they had in the record (the repository whose
+documents are now under `docs/history/`), `check-*.sh` and `test-*.sh`,
+under `tests/`, not the layout line `tests/*.test.sh`. The five scripts
+came from the record's `tools/` directory, and its decision log, specs and
+plans cite them by those names; renamed, every such citation would point
+at no file.
 
-The probes ran headless. Interactive sessions are exercised by the phase 1
-acceptance, which runs after the phase 1 run's archive.
+The probes ran headless. The phase 1 acceptance runs `/sdd:apply` in
+interactive sessions on both loading legs: one started with
+`--plugin-dir` and one with the plugin installed.
 
 ### Setup
+
+The two blocks below are parts of one command run before the probes,
+which also printed the head of the record's decision log, listed
+`~/projects/scratch/` and showed that `sdd-probe` did not exist yet. Each
+block quotes its part with that part's own output; the version part's
+`echo "exit $?"`, which printed `exit 0`, is left out.
 
 ```
 $ claude --version
@@ -109,8 +121,8 @@ exit 0
 ```
 
 The transcript: the dispatched type, the subagent's metadata, the kind of
-every message the subagent saw or wrote, in order (no `tool_use` among
-them), and the head of the second message, which carries the skill.
+every user and assistant message of the subagent, in order (no `tool_use`
+among them), and the head of the second message, which carries the skill.
 
 ```
 $ cd ~/projects/scratch/sdd-probe && t=~/.claude/projects/-home-longman-projects-scratch-sdd-probe/e6540d2e-c138-4a3d-877f-ab103969d646 && jq -c 'select(.type=="assistant") | .message.content[]? | select(.type=="tool_use") | .input.subagent_type' $t.jsonl && jq -c '{agentType, isBuiltIn}' $t/subagents/*.meta.json && jq -c 'select(.type=="user" or .type=="assistant") | [.type, (.message.content | if type=="array" then map(.type) else "text" end)]' $t/subagents/*.jsonl && jq -r 'select(.type=="user") | .message.content | arrays | .[].text' $t/subagents/*.jsonl | head -6
@@ -169,6 +181,14 @@ fd25fec
 Result: pass. The subagent's lookup lay outside the allowlist and was
 denied; the bare `sdd-checkpoint README.md` ran and printed the expected
 line, and `fd25fec` is the commit of `README.md` in the probe repository.
+The probe covers the Bash tool with sandboxing off (checked on 2026-11-09:
+no `sandbox` key in `~/.claude/settings.json` or
+`~/.claude/settings.local.json`, no managed settings directory
+`/etc/claude-code/`, no sandbox line in the debug log), so a sandboxed
+command and the PowerShell tool are untested; and no other installed
+plugin ships an `sdd-checkpoint` (none in a plugin cache under
+`~/.claude*`, no `sdd` entry in an installed-plugins registry), so the
+bare name resolved to this plugin's `bin/`.
 
 ### experimental
 
@@ -229,8 +249,11 @@ e6540d2e sdd:unit-controller: [{"ephemeral_1h_input_tokens":44068,"ephemeral_5m_
 7c6bf985 preload-control: [{"ephemeral_1h_input_tokens":0,"ephemeral_5m_input_tokens":36384}]
 ```
 
-Result: honoured. Every response of `sdd:unit-controller`, in all three
-probes, wrote 1h entries only; both controls wrote 5m entries only, the one
-with the same preload included, so the 1h TTL follows the `experimental`
-block and not the preload. The debug log says nothing about it; the
+Result: the controller writes 1h entries, as its `experimental` block
+asks. Every response of `sdd:unit-controller`, in all three probes, wrote
+1h entries only; both controls wrote 5m entries only, the one with the same
+preload included, so neither the main session's 1h default nor the preload
+alone explains the controller's 1h writes. No plugin agent with the preload
+and without `experimental` was run, so the probes do not tell the block
+apart from that combination. The debug log says nothing about it; the
 transcript usage is where it shows.
