@@ -23,8 +23,8 @@ no agent body that invokes the loop itself, no checkpoint path in the
 agent body.
 
 This entry also records a deviation from the spec's layout: the test
-scripts keep the names they had in the record (the repository whose
-documents are now under `docs/history/`), `check-*.sh` and `test-*.sh`,
+scripts keep the names they had in the record (the repository
+`akalongman/claude-subagent-apply`, private), `check-*.sh` and `test-*.sh`,
 under `tests/`, not the layout line `tests/*.test.sh`. The five scripts
 came from the record's `tools/` directory, and its decision log, specs and
 plans cite them by those names; renamed, every such citation would point

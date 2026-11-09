@@ -17,7 +17,9 @@ Responses are keyed on message.id and the largest value per usage field is
 kept, as in transcript-window.py. Context is input plus cache creation plus
 cache read. A resume is a user record whose content is a plain string or
 text blocks only, after the first response; tool results are not resumes.
-Written 2026-09-22 for the turn-cap question (docs/history/decisions.md 14).
+Written 2026-09-22 for the turn-cap question (docs/decisions.md,
+decision 14, in the record repository (akalongman/claude-subagent-apply,
+private)).
 """
 import glob
 import json
