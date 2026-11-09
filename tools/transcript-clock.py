@@ -42,7 +42,7 @@ active split into the union of subagent busy time and the remainder (the
 controller alone), the user share (short prompt and ruling gaps),
 the number of units (unit-controller dispatches, or implementer dispatches
 when the run has no unit controllers; the role comes from a prefixed agent
-type in the subagent's meta file, 2026-09-23 on, is none for a bare
+type in the subagent's meta file, 2026-09-23 on, is "other" for a bare
 unit-controller, implementer or reviewer, and otherwise comes from the
 opening words of its dispatch prompt), dispatches, subagent files, human
 prompts, compactions and the sum of the harness's own turn_duration
