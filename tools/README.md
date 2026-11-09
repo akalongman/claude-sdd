@@ -10,16 +10,16 @@ around `/clear` and `/compact` and the subagents' starting context;
 run. They read session
 transcripts in place and print to standard output; they never write to the
 transcripts and never copy them anywhere. Transcripts stay private, so the
-numbers they produced are quoted in `../README.md` and
-`../reviews/2026-09-21-data-brief.md` by session id only.
+numbers they produced are quoted in `../docs/history/README.md` and
+`../docs/history/reviews/2026-09-21-data-brief.md` by session id only.
 
 `transcript-tokens.py` answers "what did this run cost, and where did the
 tokens go". `transcript-roles.py` answers "which kind of agent spent them,
 and what was the controller doing with its turns". `transcript-window.py`
 answers the same first question per API response rather than per transcript
-line, for a time window, and adds the controller's context per turn. Decision 1 in
-`../docs/decisions.md` records why the review started here instead of with a
-second reading of the skill text.
+line, for a time window, and adds the controller's context per turn.
+Decision 1 in `../docs/history/decisions.md` records why the review
+started here instead of with a second reading of the skill text.
 
 ## Transcript layout the scripts expect
 
@@ -55,7 +55,7 @@ controller and all subagents.
 
 The prompt length column is what showed dispatch prompts growing from 4.3k
 to 13k characters in session eaa670bb
-(`../reviews/2026-09-21-data-brief.md`).
+(`../docs/history/reviews/2026-09-21-data-brief.md`).
 
 Caveats:
 
@@ -79,7 +79,7 @@ Caveats:
   `transcript-roles.py` is a maximum and is unaffected. Use
   `transcript-window.py` for absolute totals; the 2026-09-21 figures were
   left as measured, with this caveat beside them in
-  `../docs/measurements.md`.
+  `../docs/history/measurements.md`.
 
 ## transcript-roles.py
 
@@ -95,7 +95,8 @@ role with the number of agents, turns, cache read, output, wall-clock
 minutes and a failed count.
 
 Peak context is the largest per turn sum of input, cache creation and cache
-read tokens, which is the 650k to 781k column in `../README.md`.
+read tokens, which is the 650k to 781k column in
+`../docs/history/README.md`.
 
 Roles are classified first from the sidecar `agent-*.meta.json` the harness
 writes beside each subagent transcript (since the 2026-09-25 layout). Its
@@ -126,7 +127,7 @@ Caveats:
 - The role split is approximate and `final-review` over-counts, because the
   task reviewer template names a whole-branch review in its opening lines
   and that test runs before the `task-review` test
-  (`../reviews/2026-09-21-data-brief.md`).
+  (`../docs/history/reviews/2026-09-21-data-brief.md`).
 - The failed count is a heuristic: a subagent with at most one assistant
   turn and zero output tokens. A subagent that legitimately answered in one
   turn is counted as failed.
@@ -140,8 +141,8 @@ Caveats:
 - A session transcript is not one task. Session f4b38d60 covers an OpenSpec
   change of four sections plus two small changes, so its totals are the
   session's, not one change's
-  (`../reviews/2026-09-21-data-brief.md`). Split by hand if a per change
-  number is wanted.
+  (`../docs/history/reviews/2026-09-21-data-brief.md`). Split by hand if a
+  per change number is wanted.
 
 ## transcript-window.py
 
@@ -193,7 +194,7 @@ sessions given it then prints the distribution of the after and before
 values per command, and the first-turn context of every subagent file under
 `<session-id>/subagents/`. Responses are keyed on `message.id` as in
 `transcript-window.py`. It produced the "Clear versus compact, and the
-floor" numbers in `../docs/measurements.md` on 2026-09-22.
+floor" numbers in `../docs/history/measurements.md` on 2026-09-22.
 
 Caveats:
 
@@ -218,8 +219,8 @@ the file name and the first 70 characters of the prompt; sorted longest
 first, then the share of the longest `--top` agents (default 5) in the
 subagent cache read. Responses are keyed on `message.id` with the largest
 value per usage field, as in `transcript-window.py`. It produced "The
-longest implementers, and the turn-cap question" in `../docs/measurements.md`
-on 2026-09-22.
+longest implementers, and the turn-cap question" in
+`../docs/history/measurements.md` on 2026-09-22.
 
 Caveats:
 
@@ -253,7 +254,7 @@ ruling wait, idle, stall), units, dispatches, prompts and questions.
 project and target across sessions; `--gaps` lists every long gap with the
 record and line number on each side. The docstring defines the four gap
 buckets and the role rule.
-It produced `../reviews/2026-10-08-1211-wall-clock-brief.md`.
+It produced `../docs/history/reviews/2026-10-08-1211-wall-clock-brief.md`.
 
 Caveats:
 

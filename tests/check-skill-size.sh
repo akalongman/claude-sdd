@@ -3,9 +3,9 @@
 # compaction the harness re-attaches an invoked or
 # preloaded skill cut at 20,000 characters: the frontmatter is not
 # re-attached, while the "Base directory for this skill:" line and, when the
-# text does not fit, a 98-character truncation note are (docs/decisions.md,
-# decision 23; the re-attach shape is measured in
-# docs/superpowers/specs/2026-10-23-sub-skill-upgrade-content-pin-design.md).
+# text does not fit, a 98-character truncation note are
+# (docs/history/decisions.md, decision 23; the re-attach shape is measured
+# in docs/history/specs/2026-10-23-sub-skill-upgrade-content-pin-design.md).
 # The 19,500 limit leaves room for that line and that note. Characters are
 # counted with LC_ALL=C.UTF-8 wc -m, so a multibyte character counts once.
 #

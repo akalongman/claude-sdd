@@ -804,7 +804,8 @@ reproduces all seven recorded check results.
 
 `tick-script-check.sh [SCRIPTS_DIR]` is a plain shell check of the
 installed `openspec-section-tick`, `openspec-section-brief` and
-`section-span.awk` (default `~/.claude/skills/app-subagent-apply/scripts`).
+`section-span.awk` (default
+`$HOME/projects/akalongman/claude-sdd/skills/apply/scripts`).
 It builds a throwaway git repository per case from the two task fixtures
 and compares the task file and the ledger with what the case expects, so
 no model is involved. The eight cases are the failure paths an external
