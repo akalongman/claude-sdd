@@ -10,9 +10,9 @@ around `/clear` and `/compact` and the subagents' starting context;
 run. They read session
 transcripts in place and print to standard output; they never write to the
 transcripts and never copy them anywhere. Transcripts stay private, so the
-numbers they produced are quoted in `README.md` and
-`reviews/2026-09-21-data-brief.md`, in the record repository
-(`akalongman/claude-subagent-apply`, private), by session id only.
+numbers they produced are quoted in the record repository's `README.md` and
+`reviews/2026-09-21-data-brief.md` by session id only (the record
+repository is `akalongman/claude-subagent-apply`, private).
 
 `transcript-tokens.py` answers "what did this run cost, and where did the
 tokens go". `transcript-roles.py` answers "which kind of agent spent them,
