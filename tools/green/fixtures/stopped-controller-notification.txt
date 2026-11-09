@@ -1,0 +1,8 @@
+<task-notification>
+<task-id>a35eeea8d49cda7f2</task-id>
+<tool-use-id>toolu_01Ukub5sYUFVw6ahoZSjLWKa</tool-use-id>
+<output-file>/tmp/claude-1000/-home-longman-projects-personal-claude-subagent-apply/18128839-a0b8-411d-b845-09292bebe37a/tasks/a35eeea8d49cda7f2.output</output-file>
+<status>killed</status>
+<summary>Agent "Probe B2: busy controller stop" was stopped by user</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+</task-notification>

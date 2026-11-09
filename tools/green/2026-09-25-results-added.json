@@ -1,0 +1,807 @@
+{
+  "summary": "Scenario check of the driver and unit controller text after the 2026-09-25 change",
+  "agentCount": 18,
+  "logs": [],
+  "result": {
+    "summary": {
+      "S1-fix-small-ctx": {
+        "runs": 3,
+        "all_pass": 3
+      },
+      "S2-fix-large-ctx": {
+        "runs": 3,
+        "all_pass": 3
+      },
+      "D1b-prose-return": {
+        "runs": 3,
+        "all_pass": 0
+      },
+      "D4-parked": {
+        "runs": 3,
+        "all_pass": 3
+      },
+      "D5b-hands-off-other-host": {
+        "runs": 3,
+        "all_pass": 3
+      },
+      "D9-resume": {
+        "runs": 3,
+        "all_pass": 3
+      }
+    },
+    "green": [
+      {
+        "scenario": "S1-fix-small-ctx",
+        "rep": 1,
+        "result": {
+          "next_action": "message_same_implementer",
+          "ledger_lines": [
+            "Section 2: review (spec FAIL, quality needs fixes; 1 Critical, 1 Important, 2 Minor; commits 2b698a3..c1d2e3f; report /repo/.superpowers/sdd/demo/section-2-review.md)",
+            "Section 2: minor (deferred): M1 test names in tests/Feature/DepartmentFilterTest.php:12 do not follow the suite's it_ prefix",
+            "Section 2: minor (deferred): M2 docblock on DepartmentController::index() out of date (app/Http/Controllers/DepartmentController.php:30)",
+            "Section 2: fix round 1/5 dispatched (resume implementer a62e23f4 by message, last notification 118000 tokens; open C1, I1)"
+          ],
+          "round_ids": [
+            "C1",
+            "I1"
+          ],
+          "message_text": "Fix round 1 of 5 for section 2 of OpenSpec change `demo`.\n\nThe task review is in /repo/.superpowers/sdd/demo/section-2-review.md. Read it for the full findings. Fix these open findings, verbatim from the verdict:\n\nC1 Missing filters[status] handling in DepartmentController::index app/Http/Controllers/DepartmentController.php:41\nI1 Duplicate normalisation block copied from CalendarController app/Http/Controllers/DepartmentController.php:55-71\n\nFix only C1 and I1. Leave everything else in the review alone; it is recorded elsewhere. For I1, reuse the existing normalisation from CalendarController through a shared home rather than keeping a copy, and do not change CalendarController's behaviour. Do not add or change any normative line in the change's spec deltas; if C1 cannot be fixed without that, stop and say so in your report.\n\nCovering tests: tests/Feature/DepartmentFilterTest.php (add a case for filters[status] that fails before your fix), plus the CalendarController feature tests if you touch the shared normalisation. Re-run those, then append a fix report to /repo/.superpowers/sdd/demo/section-2-report.md with the covering tests, the exact command you ran and its output. Commit the fix, then return your short contract with the new commit range."
+        },
+        "checks": {
+          "resumes": true,
+          "names_file": true,
+          "names_ids": true,
+          "minors_out": true,
+          "minor_ids_out": true,
+          "open_ids_in_round": true,
+          "minors_deferred": true
+        }
+      },
+      {
+        "scenario": "S1-fix-small-ctx",
+        "rep": 2,
+        "result": {
+          "next_action": "message_same_implementer",
+          "round_ids": [
+            "C1",
+            "I1"
+          ],
+          "ledger_lines": [
+            "Section 2: review (commits 2b698a3..c1d2e3f): Spec FAIL, Quality needs fixes. C1, I1 open; report /repo/.superpowers/sdd/demo/section-2-review.md",
+            "Section 2: minor (deferred): M1 test names in tests/Feature/DepartmentFilterTest.php:12 do not follow the suite's it_ prefix",
+            "Section 2: minor (deferred): M2 docblock on DepartmentController::index() out of date (app/Http/Controllers/DepartmentController.php:30)",
+            "Section 2: fix round 1/5 dispatched: resume implementer a62e23f4 (last notification 118000 tokens, under 300000) with C1, I1; FIX_BASE c1d2e3f"
+          ],
+          "message_text": "Fix round 1 of 5 for section 2 of OpenSpec change `demo`. The task review of 2b698a3..c1d2e3f is in /repo/.superpowers/sdd/demo/section-2-review.md; read it for the full findings. Fix these open ids, and only these:\n\n- C1 (Critical): Missing filters[status] handling in DepartmentController::index, app/Http/Controllers/DepartmentController.php:41\n- I1 (Important): Duplicate normalisation block copied from CalendarController, app/Http/Controllers/DepartmentController.php:55-71\n\nM1 and M2 are Minor and deferred in the ledger; do not touch them in this round. Do not add or change any normative line of the change's spec deltas; if a fix seems to need one, stop and say so instead.\n\nAdd or extend a test in tests/Feature/DepartmentFilterTest.php that covers filters[status], then re-run the tests covering the amended code (at least tests/Feature/DepartmentFilterTest.php, plus the CalendarController tests if the normalisation extraction touches it). Commit the fix, append your fix report to the same report file as before (covering tests, the exact command run, and its output), and return only the short contract: status, commit range, one-line test summary, concerns."
+        },
+        "checks": {
+          "resumes": true,
+          "names_file": true,
+          "names_ids": true,
+          "minors_out": true,
+          "minor_ids_out": true,
+          "open_ids_in_round": true,
+          "minors_deferred": true
+        }
+      },
+      {
+        "scenario": "S1-fix-small-ctx",
+        "rep": 3,
+        "result": {
+          "next_action": "message_same_implementer",
+          "round_ids": [
+            "C1",
+            "I1"
+          ],
+          "ledger_lines": [
+            "Section 2: review verdict Spec FAIL, Quality Needs fixes (C1, I1 open; M1, M2 minor) report /repo/.superpowers/sdd/demo/section-2-review.md; commits 2b698a3..c1d2e3f",
+            "Section 2: minor (deferred): M1 test names do not follow the suite's it_ prefix, tests/Feature/DepartmentFilterTest.php:12",
+            "Section 2: minor (deferred): M2 docblock on index() out of date, app/Http/Controllers/DepartmentController.php:30",
+            "Section 2: fix round 1/5 dispatched: resumed implementer a62e23f4 (last notification 118000 tokens, under 300000) with C1, I1; FIX_BASE c1d2e3f"
+          ],
+          "message_text": "Fix round 1 of 5 for section 2 of OpenSpec change `demo`.\n\nThe task review failed. Read the findings in /repo/.superpowers/sdd/demo/section-2-review.md, sections C1 and I1 only. Those are the open ids for this round:\n\n- C1 (Critical): filters[status] is not handled in DepartmentController::index (app/Http/Controllers/DepartmentController.php:41)\n- I1 (Important): the normalisation block is copied from CalendarController (app/Http/Controllers/DepartmentController.php:55-71)\n\nFix C1 and I1 and nothing else. Other findings in that file are ledgered by the controller and are not part of this round. Do not add or change any normative line of the spec delta. If fixing a finding would mean contradicting the section brief or the spec, stop and report NEEDS_CONTEXT with the conflict instead of choosing yourself.\n\nKeep your implementer-overrides in force: commit path-limited on the current branch (`git add <paths> && git commit -m \"<title>\" -- <paths>`), never tick tasks.md, never push, never dispatch subagents.\n\nRe-run the tests covering the amended code: tests/Feature/DepartmentFilterTest.php, plus any test covering CalendarController if you move the shared normalisation out of it. Append a fix report to /repo/.superpowers/sdd/demo/section-2-report.md with the covering test files, the exact command you ran and its output.\n\nReturn only the short contract: status, commit range, one-line test summary, concerns."
+        },
+        "checks": {
+          "resumes": true,
+          "names_file": true,
+          "names_ids": true,
+          "minors_out": true,
+          "minor_ids_out": true,
+          "open_ids_in_round": true,
+          "minors_deferred": true
+        }
+      },
+      {
+        "scenario": "S2-fix-large-ctx",
+        "rep": 1,
+        "result": {
+          "next_action": "dispatch_fresh_implementer",
+          "ledger_lines": [
+            "Section 2: review verdict Spec FAIL, Quality Needs fixes; open C1, I1 (report /repo/.superpowers/sdd/demo/section-2-review.md, reviewed 2b698a3..c1d2e3f)",
+            "Section 2: minor (deferred): M1 test names do not follow the suite's it_ prefix, tests/Feature/DepartmentFilterTest.php:12",
+            "Section 2: minor (deferred): M2 docblock on index() out of date, app/Http/Controllers/DepartmentController.php:30",
+            "Section 2: fix round 1/5 dispatched to a fresh implementer (app-sdd-implementer, opus; prior implementer a62e23f4 last notification 346000 tokens, over 300000), open C1 I1, FIX_BASE c1d2e3f"
+          ],
+          "round_ids": [
+            "C1",
+            "I1"
+          ],
+          "message_text": "Dispatch: subagent_type app-sdd-implementer, model opus.\n\nYou are fixing section 2 of OpenSpec change `demo`, fix round 1 of 5. A prior implementer built this unit and ran 0 fix rounds; you own it now.\n\n1. Read /repo/.superpowers/sdd/demo/section-2-brief.md first. It is your requirements, with the exact values to use verbatim.\n2. Read /repo/.superpowers/sdd/demo/section-2-report.md for what the prior implementer built, tested and decided (commits 2b698a3..c1d2e3f).\n3. Read /repo/.superpowers/sdd/demo/section-2-review.md for the task review. Fix exactly these open findings, and only these:\n   - C1 Missing filters[status] handling in DepartmentController::index, app/Http/Controllers/DepartmentController.php:41\n   - I1 Duplicate normalisation block copied from CalendarController, app/Http/Controllers/DepartmentController.php:55-71\n   M1 and M2 in that file are deferred minors; do not touch them.\n4. Covering tests: tests/Feature/DepartmentFilterTest.php (add a case for filters[status]), plus the CalendarController tests if you extract the shared normalisation out of it. Run those, not the whole suite.\n5. Commit your fix. Append a fix report to /repo/.superpowers/sdd/demo/section-2-report.md with, per finding, what changed, the covering test files, the exact command run and its output.\n6. Do not change the task file or any line of the spec delta; if C1 needs a value the brief or spec does not give, stop and return NEEDS_CONTEXT with the question.\n\nFollow /home/longman/.claude/skills/app-subagent-apply/prompts/implementer-overrides.md. Never dispatch subagents. Return only: status, commit range, a one-line test summary, concerns."
+        },
+        "checks": {
+          "fresh": true,
+          "handover": true,
+          "prior_rounds": true,
+          "names_file": true,
+          "minors_out": true,
+          "minor_ids_out": true,
+          "open_ids_in_round": true
+        }
+      },
+      {
+        "scenario": "S2-fix-large-ctx",
+        "rep": 2,
+        "result": {
+          "next_action": "dispatch_fresh_implementer",
+          "ledger_lines": [
+            "Section 2: review (Spec FAIL, Quality Needs fixes; C1, I1 open; M1, M2 minor) report /repo/.superpowers/sdd/demo/section-2-review.md, commits 2b698a3..c1d2e3f",
+            "Section 2: minor (deferred): M1 test names do not follow the suite's it_ prefix, tests/Feature/DepartmentFilterTest.php:12",
+            "Section 2: minor (deferred): M2 docblock on index() out of date, app/Http/Controllers/DepartmentController.php:30",
+            "Section 2: fix round 1/5 dispatched to a fresh app-sdd-implementer on opus (prior implementer a62e23f4 at 346000 tokens, over the 300000 resume limit); open C1, I1; FIX_BASE c1d2e3f"
+          ],
+          "round_ids": [
+            "C1",
+            "I1"
+          ],
+          "message_text": "Subagent type: app-sdd-implementer. Model: opus.\n\nYou are implementing section 2 of OpenSpec change `demo` (workspace /repo/.superpowers/sdd/demo). This is fix round 1 of 5 for this unit.\n\nA prior implementer built this unit and ran 0 fix rounds; you own it now. Read the report file for what was built and tried.\n\n1. Brief (read this first; it is your requirements, with the exact values to use verbatim): /repo/.superpowers/sdd/demo/section-2-brief.md\n2. Report file (the prior implementer's report; append your fix report to it, do not overwrite): /repo/.superpowers/sdd/demo/section-2-report.md\n3. Review file (the task review of commits 2b698a3..c1d2e3f; read the findings named below in full there): /repo/.superpowers/sdd/demo/section-2-review.md\n\nOpen findings for this round, fix exactly these:\n- C1 Missing filters[status] handling in DepartmentController::index app/Http/Controllers/DepartmentController.php:41\n- I1 Duplicate normalisation block copied from CalendarController app/Http/Controllers/DepartmentController.php:55-71\n\nDo not act on M1 or M2; they are deferred minors in the ledger. Do not add or change any normative line of the change's spec deltas; if the brief and the code or the spec disagree, stop and report NEEDS_CONTEXT with the question instead of guessing.\n\nCovering tests: tests/Feature/DepartmentFilterTest.php (add the filters[status] cases there), plus any existing CalendarController test file if you move the shared normalisation out of CalendarController. Run those files, not the whole suite.\n\nCommit your fixes. Your fix report, appended to the report file, must contain the covering test files, the exact command you ran and its output. Do not dispatch subagents of any kind.\n\nReturn only: status (DONE, DONE_WITH_CONCERNS, NEEDS_CONTEXT or BLOCKED), commit range, a one-line test summary, and concerns.\n\nFollow /home/longman/.claude/skills/app-subagent-apply/prompts/implementer-overrides.md in full; it takes precedence over any conflicting instruction above."
+        },
+        "checks": {
+          "fresh": true,
+          "handover": true,
+          "prior_rounds": true,
+          "names_file": true,
+          "minors_out": true,
+          "minor_ids_out": true,
+          "open_ids_in_round": true
+        }
+      },
+      {
+        "scenario": "S2-fix-large-ctx",
+        "rep": 3,
+        "result": {
+          "next_action": "dispatch_fresh_implementer",
+          "ledger_lines": [
+            "Section 2: implementer returned DONE (commits 2b698a3..c1d2e3f)",
+            "Section 2: task review (opus): Spec FAIL, Quality Needs fixes; C1, I1 open; report /repo/.superpowers/sdd/demo/section-2-review.md",
+            "Section 2: minor (deferred): M1 test names do not follow the suite's it_ prefix (tests/Feature/DepartmentFilterTest.php:12)",
+            "Section 2: minor (deferred): M2 docblock on index() out of date (app/Http/Controllers/DepartmentController.php:30)",
+            "Section 2: fix round 1/5 dispatched to a fresh implementer (app-sdd-implementer, opus, base c1d2e3f; prior implementer a62e23f4 at 346000 tokens, over the 300000 resume limit); ids C1, I1"
+          ],
+          "round_ids": [
+            "C1",
+            "I1"
+          ],
+          "message_text": "Subagent type: app-sdd-implementer\nModel: opus\n\nA prior implementer built this unit and ran 0 fix rounds; you own it now.\n\nUnit: section 2 of OpenSpec change `demo`, workspace /repo/.superpowers/sdd/demo.\nBrief: /repo/.superpowers/sdd/demo/section-2-brief.md\nReport file (read it for what was built and tested; append your fix report to it): /repo/.superpowers/sdd/demo/section-2-report.md\nReview file (the findings in full): /repo/.superpowers/sdd/demo/section-2-review.md\nCurrent head: c1d2e3f (unit commits 2b698a3..c1d2e3f)\n\nFix round 1 of 5. Fix these open findings, and only these:\nC1 Missing filters[status] handling in DepartmentController::index app/Http/Controllers/DepartmentController.php:41\nI1 Duplicate normalisation block copied from CalendarController app/Http/Controllers/DepartmentController.php:55-71\n\nMinor findings M1 and M2 are deferred; do not touch them.\n\nRe-run the tests covering the amended code (tests/Feature/DepartmentFilterTest.php, plus the CalendarController tests if I1's fix touches shared code), commit, and append to the report file a fix report with the covering tests, the exact command run and its output. Do not add or change any normative line of the change's spec deltas; if the fix needs one, stop and say so in your return.\n\nFollow /home/longman/.claude/skills/app-subagent-apply/prompts/implementer-overrides.md."
+        },
+        "checks": {
+          "fresh": true,
+          "handover": true,
+          "prior_rounds": true,
+          "names_file": true,
+          "minors_out": true,
+          "minor_ids_out": true,
+          "open_ids_in_round": true
+        }
+      },
+      {
+        "scenario": "D1b-prose-return",
+        "rep": 1,
+        "result": {
+          "next_action": "resume_controller",
+          "command_text": "grep -nE '^Section 2:|^(Ruling|Model fallback|Gates):' /repo/.superpowers/sdd/demo/progress.md; tail -n 20 /repo/.superpowers/sdd/demo/progress.md; git -C /repo log --oneline 4b70725..HEAD",
+          "message_text": "Your final message was prose, not the return block, so section 2 has no status. It reports fix round 1 (commit 7a8b9c0) but no re-review of that round, no gates and no tick. Continue the unit under /home/longman/.claude/skills/app-subagent-apply/prompts/unit-controller-overrides.md: dispatch the re-review of fix round 1 to /repo/.superpowers/sdd/demo/section-2-review-r1.md, run `openspec validate demo --strict` and the project's gates, ledger `Gates: <commands> passed`, mark completion only through `openspec-section-tick demo 2 '<ledger line>' [ids]`. Then end with the return block exactly as the overrides define it (Unit, Status, Commits, Ledger, Denied, Question as applicable), nothing before or after it.",
+          "ledger_lines": []
+        },
+        "checks": {
+          "redispatches": false,
+          "prior_attempt_line": false,
+          "no_complete_line": true
+        }
+      },
+      {
+        "scenario": "D1b-prose-return",
+        "rep": 2,
+        "result": {
+          "next_action": "resume_controller",
+          "ledger_lines": [],
+          "command_text": "grep -nE '^(Section 2|Gates|Model fallback):' /repo/.superpowers/sdd/demo/progress.md; tail -n 20 /repo/.superpowers/sdd/demo/progress.md",
+          "message_text": "Your final message was prose, not the return block, so section 2 is not complete for the driver. It shows fix round 1 (7a8b9c0) but no scoped re-review, no gates and no tick. Stay on section 2 only and do not redo the implementation. Run the re-review of fix round 1 against /repo/.superpowers/sdd/demo/section-2-review.md with the -r1 suffix, as app-sdd-reviewer on opus with re-review-overrides.md. Then run the gates (openspec validate demo --strict first, then the project's lint, analysis and test commands over the unit's files) and ledger `Gates: <commands> passed`. Mark completion only through `openspec-section-tick demo 2 '<ledger line>' [ids]`. If the re-review leaves an Important open, go on with fix round 2 per the overrides. Your whole final message is the return block (Unit, Status, Commits 4b70725..<last sha>, Ledger, and Denied/Question only when they apply), with nothing before or after it."
+        },
+        "checks": {
+          "redispatches": false,
+          "prior_attempt_line": false,
+          "no_complete_line": true
+        }
+      },
+      {
+        "scenario": "D1b-prose-return",
+        "rep": 3,
+        "result": {
+          "next_action": "resume_controller",
+          "ledger_lines": [],
+          "command_text": "grep -nE '^(Section 2:|Gates:|Model fallback:)' /repo/.superpowers/sdd/demo/progress.md; tail -n 20 /repo/.superpowers/sdd/demo/progress.md; grep -nE '^## 2\\.|^- \\[[ x]\\] 2\\.' /repo/openspec/changes/demo/tasks.md",
+          "message_text": "Your final message was prose, not the return block, so section 2 is not complete yet. It reports commits 4b70725..6035b47 and a fix round 1 commit 7a8b9c0, but it does not mention a re-review of the Important finding, the gates, or the tick. Finish the unit under prompts/unit-controller-overrides.md: dispatch the scoped re-review of the fix round 1 commit against /repo/.superpowers/sdd/demo/section-2-review.md (report to section-2-review-r1.md), take any further rounds it needs, run `openspec validate demo --strict` and the project's lint, analysis and test gates over the section's files, ledger `Gates: <commands> passed`, then mark completion only with `openspec-section-tick demo 2 '<ledger line>' [ids]`. If any of that is already done, do not repeat it; check the ledger first. Then send the return block as your whole final message, nothing before or after:\n\nUnit: 2\nStatus: complete | parked | needs-ruling | failed\nCommits: <range or none>\nLedger: <number of lines you appended>\nDenied: <only when a permission was denied>\nQuestion: <only with needs-ruling>"
+        },
+        "checks": {
+          "redispatches": false,
+          "prior_attempt_line": false,
+          "no_complete_line": true
+        }
+      },
+      {
+        "scenario": "D4-parked",
+        "rep": 1,
+        "result": {
+          "next_action": "dispatch_next_unit",
+          "ledger_lines": [
+            "Section 2b: handed to controller"
+          ],
+          "command_text": "cd /repo && ~/.claude/skills/app-subagent-apply/scripts/openspec-section-brief demo 2b /repo/.superpowers/sdd/demo/section-2b-brief.md && echo 'Section 2b: handed to controller' >> /repo/.superpowers/sdd/demo/progress.md",
+          "message_text": "Run OpenSpec change `demo`, section 2b, as its unit controller.\n\nBrief: /repo/.superpowers/sdd/demo/section-2b-brief.md\nReport: /repo/.superpowers/sdd/demo/section-2b-report.md\nReview: /repo/.superpowers/sdd/demo/section-2b-review.md\nLedger: /repo/.superpowers/sdd/demo/progress.md\nDecisions: /repo/.superpowers/sdd/demo/decisions.md\nOverrides: /home/longman/.claude/skills/app-subagent-apply/prompts/unit-controller-overrides.md\nTick command: /home/longman/.claude/skills/app-subagent-apply/scripts/openspec-section-tick demo 2b '<ledger line>' [ids]\nModel tier: opus\nMode: hands-off"
+        },
+        "checks": {
+          "next": true,
+          "handoff_2b": true
+        }
+      },
+      {
+        "scenario": "D4-parked",
+        "rep": 2,
+        "result": {
+          "next_action": "dispatch_next_unit",
+          "command_text": "/home/longman/.claude/skills/app-subagent-apply/scripts/openspec-section-brief demo 2b /repo/.superpowers/sdd/demo/section-2b-brief.md && printf '%s\\n' 'Section 2b: handed to controller' >> /repo/.superpowers/sdd/demo/progress.md",
+          "message_text": "Dispatch app-sdd-unit-controller (model: opus) for section 2b of OpenSpec change demo. Paths only:\nBrief: /repo/.superpowers/sdd/demo/section-2b-brief.md\nReport: /repo/.superpowers/sdd/demo/section-2b-report.md\nReview: /repo/.superpowers/sdd/demo/section-2b-review.md\nLedger: /repo/.superpowers/sdd/demo/progress.md\nDecisions: /repo/.superpowers/sdd/demo/decisions.md\nOverrides: /home/longman/.claude/skills/app-subagent-apply/prompts/unit-controller-overrides.md\nTick command: /home/longman/.claude/skills/app-subagent-apply/scripts/openspec-section-tick demo 2b '<ledger line>' [ids]\nMode: hands-off",
+          "ledger_lines": [
+            "Section 2b: handed to controller"
+          ]
+        },
+        "checks": {
+          "next": true,
+          "handoff_2b": true
+        }
+      },
+      {
+        "scenario": "D4-parked",
+        "rep": 3,
+        "result": {
+          "next_action": "dispatch_next_unit",
+          "command_text": "/home/longman/.claude/skills/app-subagent-apply/scripts/openspec-section-brief demo 2b /repo/.superpowers/sdd/demo/section-2b-brief.md && printf '%s\\n' 'Section 2b: handed to controller' >> /repo/.superpowers/sdd/demo/progress.md",
+          "ledger_lines": [
+            "Section 2b: handed to controller"
+          ],
+          "message_text": "Dispatch app-sdd-unit-controller on opus with:\nBrief: /repo/.superpowers/sdd/demo/section-2b-brief.md\nReport: /repo/.superpowers/sdd/demo/section-2b-report.md\nReview: /repo/.superpowers/sdd/demo/section-2b-review.md\nLedger: /repo/.superpowers/sdd/demo/progress.md\nDecisions: /repo/.superpowers/sdd/demo/decisions.md\nOverrides: /home/longman/.claude/skills/app-subagent-apply/prompts/unit-controller-overrides.md\nTick command: /home/longman/.claude/skills/app-subagent-apply/scripts/openspec-section-tick demo 2b '<ledger line>' [ids]\nMode: hands-off"
+        },
+        "checks": {
+          "next": true,
+          "handoff_2b": true
+        }
+      },
+      {
+        "scenario": "D5b-hands-off-other-host",
+        "rep": 1,
+        "result": {
+          "next_action": "push_only",
+          "command_text": "cd /repo && git log --oneline origin/feature/demo..HEAD 2>/dev/null; git push -u origin feature/demo && printf 'Hands-off: pushed %s, none\\n' \"$(git rev-parse --short=7 HEAD)\" >> /repo/.superpowers/sdd/demo/progress.md && grep -nE '^(Ruling|Open before merge|Hands-off):|: parked' /repo/.superpowers/sdd/demo/progress.md",
+          "ledger_lines": [
+            "Hands-off: pushed <sha7 of HEAD>, none"
+          ],
+          "message_text": "Change `demo` is done. Every unit and the final phase are complete, and I pushed feature/demo to origin (git@git.example.org:team/app.git). I did not open a merge request. git.example.org is a Gitea server, and the hands-off rule only opens one on a GitLab instance (glab) or on github.com (gh). For any other host it stops once the branch is pushed. To merge into dev, open the request in Gitea yourself. Use the lines below as its description.\n\nRulings (the controllers decided these on their own because hands-off was given):\n1. <Ruling line 1 from progress.md, verbatim>\n2. <Ruling line 2 from progress.md, verbatim>\n\nOpen before merge:\n3. <Open before merge line from progress.md, verbatim>\n\nOnce it has merged, run `/opsx:archive demo`. After the archive I will delete /repo/.superpowers/sdd/demo.\n\nToken accounting for this run (fill in this session's transcript path):\npython3 /home/longman/projects/personal/claude-subagent-apply/tools/transcript-tokens.py <transcript.jsonl>\npython3 /home/longman/projects/personal/claude-subagent-apply/tools/transcript-agents.py <transcript.jsonl>\npython3 /home/longman/projects/personal/claude-subagent-apply/tools/transcript-roles.py <transcript.jsonl>"
+        },
+        "checks": {
+          "pushes": true,
+          "no_glab_gh": true,
+          "no_other_request": true,
+          "says_pushed": true,
+          "ledger_no_url": true
+        }
+      },
+      {
+        "scenario": "D5b-hands-off-other-host",
+        "rep": 2,
+        "result": {
+          "next_action": "push_only",
+          "command_text": "cd /repo\ngit log --oneline origin/dev..HEAD\ngit push -u origin feature/demo\nsha=$(git rev-parse --short=7 HEAD)\nprintf 'Hands-off: pushed %s, none\\n' \"$sha\" >> .superpowers/sdd/demo/progress.md\ngrep -nE '^(Ruling|Open before merge):|: parked' .superpowers/sdd/demo/progress.md\nopenspec instructions apply --change demo --json | jq '{state, progress, tasks, instruction}'\npython3 ~/projects/personal/claude-subagent-apply/tools/transcript-tokens.py ~/.claude/projects/-repo/d5fabf52-4812-43a0-a303-e79ffa123123.jsonl\npython3 ~/projects/personal/claude-subagent-apply/tools/transcript-roles.py ~/.claude/projects/-repo/d5fabf52-4812-43a0-a303-e79ffa123123.jsonl\npython3 ~/projects/personal/claude-subagent-apply/tools/transcript-window.py ~/.claude/projects/-repo/d5fabf52-4812-43a0-a303-e79ffa123123.jsonl",
+          "ledger_lines": [
+            "Hands-off: pushed <sha7 of HEAD after push>, none"
+          ],
+          "message_text": "Change `demo` is finished: every unit and the final phase are complete, and I ran it hands-off with commits on feature/demo.\n\nI pushed feature/demo to origin (git@git.example.org:team/app.git) with `git push -u origin feature/demo`. I did not open a merge request. git.example.org runs Gitea, and the skill only opens requests on GitLab (`glab mr create`) and github.com (`gh pr create`). You'll need to open the pull request into `dev` in Gitea yourself, and paste in the Ruling and Open before merge lines below.\n\nRuling lines from .superpowers/sdd/demo/progress.md:\n1. <Ruling line 1, verbatim from the ledger>\n2. <Ruling line 2, verbatim from the ledger>\n\nOpen before merge:\n1. <Open before merge line, verbatim from the ledger>\n\nLedger: Hands-off: pushed <sha7>, none\n\nNext steps: after the request merges, run `/opsx:archive demo`. Delete .superpowers/sdd/demo/ only once the archive is done.\n\nTo measure this run:\npython3 ~/projects/personal/claude-subagent-apply/tools/transcript-tokens.py ~/.claude/projects/-repo/d5fabf52-4812-43a0-a303-e79ffa123123.jsonl\npython3 ~/projects/personal/claude-subagent-apply/tools/transcript-roles.py ~/.claude/projects/-repo/d5fabf52-4812-43a0-a303-e79ffa123123.jsonl\npython3 ~/projects/personal/claude-subagent-apply/tools/transcript-window.py ~/.claude/projects/-repo/d5fabf52-4812-43a0-a303-e79ffa123123.jsonl"
+        },
+        "checks": {
+          "pushes": true,
+          "no_glab_gh": true,
+          "no_other_request": true,
+          "says_pushed": true,
+          "ledger_no_url": true
+        }
+      },
+      {
+        "scenario": "D5b-hands-off-other-host",
+        "rep": 3,
+        "result": {
+          "next_action": "push_only",
+          "command_text": "cd /repo && git log --oneline origin/feature/demo..HEAD 2>/dev/null || git log --oneline origin/dev..HEAD\ngit push -u origin feature/demo\nsha=$(git rev-parse --short=7 HEAD) && printf 'Hands-off: pushed %s, none\\n' \"$sha\" >> /repo/.superpowers/sdd/demo/progress.md\ngrep -nE '^(Ruling|Open before merge|Hands-off):|: parked' /repo/.superpowers/sdd/demo/progress.md",
+          "ledger_lines": [
+            "Hands-off: pushed <sha7>, none"
+          ],
+          "message_text": "Run complete for OpenSpec change `demo`. Every unit and the final phase finished under hands-off, and the gates passed.\n\nI pushed branch feature/demo to origin with `git push -u origin feature/demo`. I did not open a merge request. The remote host git.example.org runs Gitea, and the skill only opens a request on a GitLab instance (with `glab`) or on github.com (with `gh`). For any other host it stops once the branch is pushed. Open the request in the Gitea web UI against `dev`, and paste the run summary plus the lines below as its description.\n\nRulings the unit controllers made on their own (each lists what it costs if wrong):\n1. <Ruling line 1 from progress.md, verbatim>\n2. <Ruling line 2 from progress.md, verbatim>\n\nOpen before merge:\n1. <Open before merge line from progress.md, verbatim>\n\nParked units: none.\n\nNext step for the change: once the request is open, run `/opsx:archive demo`. Delete /repo/.superpowers/sdd/demo only after the archive.\n\nCost accounting (record repository tools, reading this session's transcript under ~/.claude/projects/-repo/):\npython3 ~/projects/personal/claude-subagent-apply/tools/transcript-tokens.py ~/.claude/projects/-repo/<session-id>.jsonl\npython3 ~/projects/personal/claude-subagent-apply/tools/transcript-roles.py ~/.claude/projects/-repo/<session-id>.jsonl\npython3 ~/projects/personal/claude-subagent-apply/tools/transcript-window.py --since <run start ISO> ~/.claude/projects/-repo/<session-id>.jsonl"
+        },
+        "checks": {
+          "pushes": true,
+          "no_glab_gh": true,
+          "no_other_request": true,
+          "says_pushed": true,
+          "ledger_no_url": true
+        }
+      },
+      {
+        "scenario": "D9-resume",
+        "rep": 1,
+        "result": {
+          "next_action": "dispatch_next_unit",
+          "command_text": "head -n 3 /repo/.superpowers/sdd/demo/progress.md; grep -nE '^(Run base|Commit mode|Model policy|Model fallback|Gates|Ruling|Open before merge|Hands-off):|: (complete|parked)' /repo/.superpowers/sdd/demo/progress.md; tail -n 20 /repo/.superpowers/sdd/demo/progress.md\n/home/longman/.claude/skills/app-subagent-apply/scripts/openspec-section-brief demo 2b /repo/.superpowers/sdd/demo/section-2b-brief.md\nprintf '%s\\n' 'Model policy: unit controller opus, implementer opus, reviewer opus, fix rounds 4-5 fable, final review fable' 'Section 2b: handed to controller' >> /repo/.superpowers/sdd/demo/progress.md",
+          "ledger_lines": [
+            "Model policy: unit controller opus, implementer opus, reviewer opus, fix rounds 4-5 fable, final review fable",
+            "Section 2b: handed to controller"
+          ],
+          "message_text": "Dispatch app-sdd-unit-controller, model opus, prompt:\n\nRun OpenSpec change `demo`, Section 2b.\nBrief: /repo/.superpowers/sdd/demo/section-2b-brief.md\nReport: /repo/.superpowers/sdd/demo/section-2b-report.md\nReview: /repo/.superpowers/sdd/demo/section-2b-review.md\nLedger: /repo/.superpowers/sdd/demo/progress.md\nDecisions: /repo/.superpowers/sdd/demo/decisions.md\nOverrides: /home/longman/.claude/skills/app-subagent-apply/prompts/unit-controller-overrides.md\nTick command: /home/longman/.claude/skills/app-subagent-apply/scripts/openspec-section-tick demo 2b '<ledger line>' [ids]"
+        },
+        "checks": {
+          "next": true,
+          "handoff_2b": true,
+          "no_redispatch_complete": true
+        }
+      },
+      {
+        "scenario": "D9-resume",
+        "rep": 2,
+        "result": {
+          "next_action": "dispatch_next_unit",
+          "command_text": "cd /repo && head -n 3 .superpowers/sdd/demo/progress.md && grep -nE '^(Run base|Commit mode|Model policy|Model fallback|Gates|Ruling|Open before merge|Hands-off):|: (complete|parked)' .superpowers/sdd/demo/progress.md; tail -n 20 .superpowers/sdd/demo/progress.md\ncd /repo && ~/.claude/skills/app-subagent-apply/scripts/openspec-section-brief demo 2b /repo/.superpowers/sdd/demo/section-2b-brief.md && printf '%s\\n' 'Model policy: unit controllers, implementers, reviewers opus; final review and fix rounds 4-5 fable' 'Section 2b: handed to controller' >> /repo/.superpowers/sdd/demo/progress.md",
+          "message_text": "Using source: demo (OpenSpec change, resumed; options: none). Sections 1 and 2 are complete in the ledger and will not be re-dispatched; section 2b has no ledger lines and is next.\n\nDispatch app-sdd-unit-controller, model opus, prompt:\n\nRun OpenSpec change demo, unit Section 2b.\nBrief: /repo/.superpowers/sdd/demo/section-2b-brief.md\nReport: /repo/.superpowers/sdd/demo/section-2b-report.md\nReview: /repo/.superpowers/sdd/demo/section-2b-review.md\nLedger: /repo/.superpowers/sdd/demo/progress.md\nDecisions: /repo/.superpowers/sdd/demo/decisions.md\nOverrides: /home/longman/.claude/skills/app-subagent-apply/prompts/unit-controller-overrides.md\nTick command: /home/longman/.claude/skills/app-subagent-apply/scripts/openspec-section-tick demo 2b '<ledger line>' [ids]\nTier: opus for implementers and reviewers; fable for fix rounds 4 and 5.",
+          "ledger_lines": [
+            "Model policy: unit controllers, implementers, reviewers opus; final review and fix rounds 4-5 fable",
+            "Section 2b: handed to controller"
+          ]
+        },
+        "checks": {
+          "next": true,
+          "handoff_2b": true,
+          "no_redispatch_complete": true
+        }
+      },
+      {
+        "scenario": "D9-resume",
+        "rep": 3,
+        "result": {
+          "next_action": "dispatch_next_unit",
+          "ledger_lines": [
+            "Model policy: unit controller opus, implementer opus, reviewer opus, fix rounds 4-5 fable, final review fable",
+            "Section 2b: handed to controller"
+          ],
+          "command_text": "cd /repo && head -n 3 .superpowers/sdd/demo/progress.md && grep -nE '^(Run base|Commit mode|Model policy|Model fallback|Gates|Ruling|Open before merge|Hands-off):|: (complete|parked)' .superpowers/sdd/demo/progress.md; tail -n 20 .superpowers/sdd/demo/progress.md\ncd /repo && git status --porcelain && git rev-parse --short HEAD\ncd /repo && ~/.claude/skills/app-subagent-apply/scripts/openspec-section-brief demo 2b /repo/.superpowers/sdd/demo/section-2b-brief.md && printf '%s\\n' 'Model policy: unit controller opus, implementer opus, reviewer opus, fix rounds 4-5 fable, final review fable' 'Section 2b: handed to controller' >> /repo/.superpowers/sdd/demo/progress.md",
+          "message_text": "Dispatch app-sdd-unit-controller, model opus, description \"Section 2b of demo\":\n\nRun unit Section 2b of OpenSpec change demo (resumed run; Sections 1 and 2 are complete per the ledger, do not touch them).\nBrief: /repo/.superpowers/sdd/demo/section-2b-brief.md\nReport: /repo/.superpowers/sdd/demo/section-2b-report.md\nReview: /repo/.superpowers/sdd/demo/section-2b-review.md\nLedger: /repo/.superpowers/sdd/demo/progress.md\nDecisions: /repo/.superpowers/sdd/demo/decisions.md\nOverrides: /home/longman/.claude/skills/app-subagent-apply/prompts/unit-controller-overrides.md\nTick command: /home/longman/.claude/skills/app-subagent-apply/scripts/openspec-section-tick demo 2b '<ledger line>' [ids]\nTier: opus for implementer and reviewers; fable for fix rounds 4 and 5.\nCommit mode: commit on dev (path-limited)."
+        },
+        "checks": {
+          "next": true,
+          "handoff_2b": true,
+          "no_redispatch_complete": true
+        }
+      }
+    ]
+  },
+  "workflowProgress": [
+    {
+      "type": "workflow_phase",
+      "index": 1,
+      "title": "Green"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 1,
+      "label": "green:S1-fix-small-ctx:1",
+      "phaseIndex": 1,
+      "phaseTitle": "Green",
+      "agentId": "a35e2eca370941761",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1790361962287,
+      "queuedAt": 1790361962259,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "message_same_implementer",
+      "promptPreview": "You are the app-sdd-unit-controller subagent defined at /home/longman/.claude/agents/app-sdd-unit-controller.md (read it), running one unit per /home/longman/.claude/skills/app-subagent-apply/prompts/unit-controller-overrides.md (read it in full) and the sub-skill at /home/longman/.claude/plugins/cache/claude-plugins-official/superpowers/6.4.1/skills/subagent-driven-development/SKILL.md (read it i…",
+      "promptFramed": true,
+      "lastProgressAt": 1790361986717,
+      "tokens": 50126,
+      "toolCalls": 5,
+      "durationMs": 24419,
+      "resultPreview": "{\"next_action\":\"message_same_implementer\",\"ledger_lines\":[\"Section 2: review (spec FAIL, quality needs fixes; 1 Critical, 1 Important, 2 Minor; commits 2b698a3..c1d2e3f; report /repo/.superpowers/sdd/demo/section-2-review.md)\",\"Section 2: minor (deferred): M1 test names in tests/Feature/DepartmentFilterTest.php:12 do not follow the suite's it_ prefix\",\"Section 2: minor (deferred): M2 docblock on D…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 2,
+      "label": "green:S1-fix-small-ctx:2",
+      "phaseIndex": 1,
+      "phaseTitle": "Green",
+      "agentId": "a9fecef835a33fc3a",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1790361962288,
+      "queuedAt": 1790361962260,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "message_same_implementer",
+      "promptPreview": "You are the app-sdd-unit-controller subagent defined at /home/longman/.claude/agents/app-sdd-unit-controller.md (read it), running one unit per /home/longman/.claude/skills/app-subagent-apply/prompts/unit-controller-overrides.md (read it in full) and the sub-skill at /home/longman/.claude/plugins/cache/claude-plugins-official/superpowers/6.4.1/skills/subagent-driven-development/SKILL.md (read it i…",
+      "promptFramed": true,
+      "lastProgressAt": 1790361976114,
+      "tokens": 58385,
+      "toolCalls": 5,
+      "durationMs": 12827,
+      "resultPreview": "{\"next_action\":\"message_same_implementer\",\"round_ids\":[\"C1\",\"I1\"],\"ledger_lines\":[\"Section 2: review (commits 2b698a3..c1d2e3f): Spec FAIL, Quality needs fixes. C1, I1 open; report /repo/.superpowers/sdd/demo/section-2-review.md\",\"Section 2: minor (deferred): M1 test names in tests/Feature/DepartmentFilterTest.php:12 do not follow the suite's it_ prefix\",\"Section 2: minor (deferred): M2 docblock o…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 3,
+      "label": "green:S1-fix-small-ctx:3",
+      "phaseIndex": 1,
+      "phaseTitle": "Green",
+      "agentId": "ada6ecdc57b19f3a7",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1790361962289,
+      "queuedAt": 1790361962260,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "message_same_implementer",
+      "promptPreview": "You are the app-sdd-unit-controller subagent defined at /home/longman/.claude/agents/app-sdd-unit-controller.md (read it), running one unit per /home/longman/.claude/skills/app-subagent-apply/prompts/unit-controller-overrides.md (read it in full) and the sub-skill at /home/longman/.claude/plugins/cache/claude-plugins-official/superpowers/6.4.1/skills/subagent-driven-development/SKILL.md (read it i…",
+      "promptFramed": true,
+      "lastProgressAt": 1790361986959,
+      "tokens": 60517,
+      "toolCalls": 5,
+      "durationMs": 23671,
+      "resultPreview": "{\"next_action\":\"message_same_implementer\",\"round_ids\":[\"C1\",\"I1\"],\"ledger_lines\":[\"Section 2: review verdict Spec FAIL, Quality Needs fixes (C1, I1 open; M1, M2 minor) report /repo/.superpowers/sdd/demo/section-2-review.md; commits 2b698a3..c1d2e3f\",\"Section 2: minor (deferred): M1 test names do not follow the suite's it_ prefix, tests/Feature/DepartmentFilterTest.php:12\",\"Section 2: minor (deferr…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 4,
+      "label": "green:S2-fix-large-ctx:1",
+      "phaseIndex": 1,
+      "phaseTitle": "Green",
+      "agentId": "ad6d0572fcf0f78d7",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1790361962290,
+      "queuedAt": 1790361962260,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "dispatch_fresh_implementer",
+      "promptPreview": "You are the app-sdd-unit-controller subagent defined at /home/longman/.claude/agents/app-sdd-unit-controller.md (read it), running one unit per /home/longman/.claude/skills/app-subagent-apply/prompts/unit-controller-overrides.md (read it in full) and the sub-skill at /home/longman/.claude/plugins/cache/claude-plugins-official/superpowers/6.4.1/skills/subagent-driven-development/SKILL.md (read it i…",
+      "promptFramed": true,
+      "lastProgressAt": 1790361991250,
+      "tokens": 61895,
+      "toolCalls": 5,
+      "durationMs": 27962,
+      "resultPreview": "{\"next_action\":\"dispatch_fresh_implementer\",\"ledger_lines\":[\"Section 2: review verdict Spec FAIL, Quality Needs fixes; open C1, I1 (report /repo/.superpowers/sdd/demo/section-2-review.md, reviewed 2b698a3..c1d2e3f)\",\"Section 2: minor (deferred): M1 test names do not follow the suite's it_ prefix, tests/Feature/DepartmentFilterTest.php:12\",\"Section 2: minor (deferred): M2 docblock on index() out of…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 5,
+      "label": "green:S2-fix-large-ctx:2",
+      "phaseIndex": 1,
+      "phaseTitle": "Green",
+      "agentId": "ae92862d9c1b2707b",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1790361962290,
+      "queuedAt": 1790361962260,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "dispatch_fresh_implementer",
+      "promptPreview": "You are the app-sdd-unit-controller subagent defined at /home/longman/.claude/agents/app-sdd-unit-controller.md (read it), running one unit per /home/longman/.claude/skills/app-subagent-apply/prompts/unit-controller-overrides.md (read it in full) and the sub-skill at /home/longman/.claude/plugins/cache/claude-plugins-official/superpowers/6.4.1/skills/subagent-driven-development/SKILL.md (read it i…",
+      "promptFramed": true,
+      "lastProgressAt": 1790361981263,
+      "tokens": 58383,
+      "toolCalls": 5,
+      "durationMs": 17975,
+      "resultPreview": "{\"next_action\":\"dispatch_fresh_implementer\",\"ledger_lines\":[\"Section 2: review (Spec FAIL, Quality Needs fixes; C1, I1 open; M1, M2 minor) report /repo/.superpowers/sdd/demo/section-2-review.md, commits 2b698a3..c1d2e3f\",\"Section 2: minor (deferred): M1 test names do not follow the suite's it_ prefix, tests/Feature/DepartmentFilterTest.php:12\",\"Section 2: minor (deferred): M2 docblock on index() o…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 6,
+      "label": "green:S2-fix-large-ctx:3",
+      "phaseIndex": 1,
+      "phaseTitle": "Green",
+      "agentId": "a903ffa35652851f2",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1790361962291,
+      "queuedAt": 1790361962260,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "dispatch_fresh_implementer",
+      "promptPreview": "You are the app-sdd-unit-controller subagent defined at /home/longman/.claude/agents/app-sdd-unit-controller.md (read it), running one unit per /home/longman/.claude/skills/app-subagent-apply/prompts/unit-controller-overrides.md (read it in full) and the sub-skill at /home/longman/.claude/plugins/cache/claude-plugins-official/superpowers/6.4.1/skills/subagent-driven-development/SKILL.md (read it i…",
+      "promptFramed": true,
+      "lastProgressAt": 1790361993856,
+      "tokens": 51448,
+      "toolCalls": 5,
+      "durationMs": 30567,
+      "resultPreview": "{\"next_action\":\"dispatch_fresh_implementer\",\"ledger_lines\":[\"Section 2: implementer returned DONE (commits 2b698a3..c1d2e3f)\",\"Section 2: task review (opus): Spec FAIL, Quality Needs fixes; C1, I1 open; report /repo/.superpowers/sdd/demo/section-2-review.md\",\"Section 2: minor (deferred): M1 test names do not follow the suite's it_ prefix (tests/Feature/DepartmentFilterTest.php:12)\",\"Section 2: min…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 7,
+      "label": "green:D1b-prose-return:1",
+      "phaseIndex": 1,
+      "phaseTitle": "Green",
+      "agentId": "a7832b6be2c22b688",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1790361962292,
+      "queuedAt": 1790361962260,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "resume_controller",
+      "promptPreview": "You are a Claude Code session acting as the driver of an implementation run per the skill at /home/longman/.claude/skills/app-subagent-apply/SKILL.md (read it in full first). The unit controller you dispatch follows /home/longman/.claude/skills/app-subagent-apply/prompts/unit-controller-overrides.md (read it) and is the agent type defined at /home/longman/.claude/agents/app-sdd-unit-controller.md.…",
+      "promptFramed": true,
+      "lastProgressAt": 1790361979069,
+      "tokens": 48183,
+      "toolCalls": 3,
+      "durationMs": 16770,
+      "resultPreview": "{\"next_action\":\"resume_controller\",\"command_text\":\"grep -nE '^Section 2:|^(Ruling|Model fallback|Gates):' /repo/.superpowers/sdd/demo/progress.md; tail -n 20 /repo/.superpowers/sdd/demo/progress.md; git -C /repo log --oneline 4b70725..HEAD\",\"message_text\":\"Your final message was prose, not the return block, so section 2 has no status. It reports fix round 1 (commit 7a8b9c0) but no re-review of tha…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 8,
+      "label": "green:D1b-prose-return:2",
+      "phaseIndex": 1,
+      "phaseTitle": "Green",
+      "agentId": "a9a3c13c6abd5147a",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1790361962293,
+      "queuedAt": 1790361962260,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "resume_controller",
+      "promptPreview": "You are a Claude Code session acting as the driver of an implementation run per the skill at /home/longman/.claude/skills/app-subagent-apply/SKILL.md (read it in full first). The unit controller you dispatch follows /home/longman/.claude/skills/app-subagent-apply/prompts/unit-controller-overrides.md (read it) and is the agent type defined at /home/longman/.claude/agents/app-sdd-unit-controller.md.…",
+      "promptFramed": true,
+      "lastProgressAt": 1790361983668,
+      "tokens": 48182,
+      "toolCalls": 3,
+      "durationMs": 20250,
+      "resultPreview": "{\"next_action\":\"resume_controller\",\"ledger_lines\":[],\"command_text\":\"grep -nE '^(Section 2|Gates|Model fallback):' /repo/.superpowers/sdd/demo/progress.md; tail -n 20 /repo/.superpowers/sdd/demo/progress.md\",\"message_text\":\"Your final message was prose, not the return block, so section 2 is not complete for the driver. It shows fix round 1 (7a8b9c0) but no scoped re-review, no gates and no tick. S…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 9,
+      "label": "green:D1b-prose-return:3",
+      "phaseIndex": 1,
+      "phaseTitle": "Green",
+      "agentId": "a367c29519c54c3ad",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1790361962293,
+      "queuedAt": 1790361962260,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "resume_controller",
+      "promptPreview": "You are a Claude Code session acting as the driver of an implementation run per the skill at /home/longman/.claude/skills/app-subagent-apply/SKILL.md (read it in full first). The unit controller you dispatch follows /home/longman/.claude/skills/app-subagent-apply/prompts/unit-controller-overrides.md (read it) and is the agent type defined at /home/longman/.claude/agents/app-sdd-unit-controller.md.…",
+      "promptFramed": true,
+      "lastProgressAt": 1790361986271,
+      "tokens": 48569,
+      "toolCalls": 3,
+      "durationMs": 22853,
+      "resultPreview": "{\"next_action\":\"resume_controller\",\"ledger_lines\":[],\"command_text\":\"grep -nE '^(Section 2:|Gates:|Model fallback:)' /repo/.superpowers/sdd/demo/progress.md; tail -n 20 /repo/.superpowers/sdd/demo/progress.md; grep -nE '^## 2\\\\.|^- \\\\[[ x]\\\\] 2\\\\.' /repo/openspec/changes/demo/tasks.md\",\"message_text\":\"Your final message was prose, not the return block, so section 2 is not complete yet. It reports …"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 10,
+      "label": "green:D4-parked:1",
+      "phaseIndex": 1,
+      "phaseTitle": "Green",
+      "agentId": "a6d8f39a36bd0ee54",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1790361962294,
+      "queuedAt": 1790361962260,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "dispatch_next_unit",
+      "promptPreview": "You are a Claude Code session acting as the driver of an implementation run per the skill at /home/longman/.claude/skills/app-subagent-apply/SKILL.md (read it in full first). The unit controller you dispatch follows /home/longman/.claude/skills/app-subagent-apply/prompts/unit-controller-overrides.md (read it) and is the agent type defined at /home/longman/.claude/agents/app-sdd-unit-controller.md.…",
+      "promptFramed": true,
+      "lastProgressAt": 1790361978406,
+      "tokens": 48619,
+      "toolCalls": 3,
+      "durationMs": 14988,
+      "resultPreview": "{\"next_action\":\"dispatch_next_unit\",\"ledger_lines\":[\"Section 2b: handed to controller\"],\"command_text\":\"cd /repo && ~/.claude/skills/app-subagent-apply/scripts/openspec-section-brief demo 2b /repo/.superpowers/sdd/demo/section-2b-brief.md && echo 'Section 2b: handed to controller' >> /repo/.superpowers/sdd/demo/progress.md\",\"message_text\":\"Run OpenSpec change `demo`, section 2b, as its unit contro…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 11,
+      "label": "green:D4-parked:2",
+      "phaseIndex": 1,
+      "phaseTitle": "Green",
+      "agentId": "afba548a050068c24",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1790361962295,
+      "queuedAt": 1790361962260,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "dispatch_next_unit",
+      "promptPreview": "You are a Claude Code session acting as the driver of an implementation run per the skill at /home/longman/.claude/skills/app-subagent-apply/SKILL.md (read it in full first). The unit controller you dispatch follows /home/longman/.claude/skills/app-subagent-apply/prompts/unit-controller-overrides.md (read it) and is the agent type defined at /home/longman/.claude/agents/app-sdd-unit-controller.md.…",
+      "promptFramed": true,
+      "lastProgressAt": 1790361978363,
+      "tokens": 48635,
+      "toolCalls": 3,
+      "durationMs": 14944,
+      "resultPreview": "{\"next_action\":\"dispatch_next_unit\",\"command_text\":\"/home/longman/.claude/skills/app-subagent-apply/scripts/openspec-section-brief demo 2b /repo/.superpowers/sdd/demo/section-2b-brief.md && printf '%s\\\\n' 'Section 2b: handed to controller' >> /repo/.superpowers/sdd/demo/progress.md\",\"message_text\":\"Dispatch app-sdd-unit-controller (model: opus) for section 2b of OpenSpec change demo. Paths only:\\n…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 12,
+      "label": "green:D4-parked:3",
+      "phaseIndex": 1,
+      "phaseTitle": "Green",
+      "agentId": "a28ed43b25496e38c",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1790361962295,
+      "queuedAt": 1790361962260,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "dispatch_next_unit",
+      "promptPreview": "You are a Claude Code session acting as the driver of an implementation run per the skill at /home/longman/.claude/skills/app-subagent-apply/SKILL.md (read it in full first). The unit controller you dispatch follows /home/longman/.claude/skills/app-subagent-apply/prompts/unit-controller-overrides.md (read it) and is the agent type defined at /home/longman/.claude/agents/app-sdd-unit-controller.md.…",
+      "promptFramed": true,
+      "lastProgressAt": 1790361976700,
+      "tokens": 48542,
+      "toolCalls": 3,
+      "durationMs": 13281,
+      "resultPreview": "{\"next_action\":\"dispatch_next_unit\",\"command_text\":\"/home/longman/.claude/skills/app-subagent-apply/scripts/openspec-section-brief demo 2b /repo/.superpowers/sdd/demo/section-2b-brief.md && printf '%s\\\\n' 'Section 2b: handed to controller' >> /repo/.superpowers/sdd/demo/progress.md\",\"ledger_lines\":[\"Section 2b: handed to controller\"],\"message_text\":\"Dispatch app-sdd-unit-controller on opus with:\\n…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 13,
+      "label": "green:D5b-hands-off-other-host:1",
+      "phaseIndex": 1,
+      "phaseTitle": "Green",
+      "agentId": "aa8aebef94cfd1a3c",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1790361962296,
+      "queuedAt": 1790361962260,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "push_only",
+      "promptPreview": "You are a Claude Code session acting as the driver of an implementation run per the skill at /home/longman/.claude/skills/app-subagent-apply/SKILL.md (read it in full first). The unit controller you dispatch follows /home/longman/.claude/skills/app-subagent-apply/prompts/unit-controller-overrides.md (read it) and is the agent type defined at /home/longman/.claude/agents/app-sdd-unit-controller.md.…",
+      "promptFramed": true,
+      "lastProgressAt": 1790361981326,
+      "tokens": 48310,
+      "toolCalls": 3,
+      "durationMs": 17907,
+      "resultPreview": "{\"next_action\":\"push_only\",\"command_text\":\"cd /repo && git log --oneline origin/feature/demo..HEAD 2>/dev/null; git push -u origin feature/demo && printf 'Hands-off: pushed %s, none\\\\n' \\\"$(git rev-parse --short=7 HEAD)\\\" >> /repo/.superpowers/sdd/demo/progress.md && grep -nE '^(Ruling|Open before merge|Hands-off):|: parked' /repo/.superpowers/sdd/demo/progress.md\",\"ledger_lines\":[\"Hands-off: push…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 14,
+      "label": "green:D5b-hands-off-other-host:2",
+      "phaseIndex": 1,
+      "phaseTitle": "Green",
+      "agentId": "a12262ff39d5ea71e",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1790361962297,
+      "queuedAt": 1790361962260,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "push_only",
+      "promptPreview": "You are a Claude Code session acting as the driver of an implementation run per the skill at /home/longman/.claude/skills/app-subagent-apply/SKILL.md (read it in full first). The unit controller you dispatch follows /home/longman/.claude/skills/app-subagent-apply/prompts/unit-controller-overrides.md (read it) and is the agent type defined at /home/longman/.claude/agents/app-sdd-unit-controller.md.…",
+      "promptFramed": true,
+      "lastProgressAt": 1790361988936,
+      "tokens": 49716,
+      "toolCalls": 4,
+      "durationMs": 25517,
+      "resultPreview": "{\"next_action\":\"push_only\",\"command_text\":\"cd /repo\\ngit log --oneline origin/dev..HEAD\\ngit push -u origin feature/demo\\nsha=$(git rev-parse --short=7 HEAD)\\nprintf 'Hands-off: pushed %s, none\\\\n' \\\"$sha\\\" >> .superpowers/sdd/demo/progress.md\\ngrep -nE '^(Ruling|Open before merge):|: parked' .superpowers/sdd/demo/progress.md\\nopenspec instructions apply --change demo --json | jq '{state, progress…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 15,
+      "label": "green:D5b-hands-off-other-host:3",
+      "phaseIndex": 1,
+      "phaseTitle": "Green",
+      "agentId": "a6d6382d60bd01308",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1790361962297,
+      "queuedAt": 1790361962260,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "push_only",
+      "promptPreview": "You are a Claude Code session acting as the driver of an implementation run per the skill at /home/longman/.claude/skills/app-subagent-apply/SKILL.md (read it in full first). The unit controller you dispatch follows /home/longman/.claude/skills/app-subagent-apply/prompts/unit-controller-overrides.md (read it) and is the agent type defined at /home/longman/.claude/agents/app-sdd-unit-controller.md.…",
+      "promptFramed": true,
+      "lastProgressAt": 1790361986699,
+      "tokens": 47311,
+      "toolCalls": 4,
+      "durationMs": 23280,
+      "resultPreview": "{\"next_action\":\"push_only\",\"command_text\":\"cd /repo && git log --oneline origin/feature/demo..HEAD 2>/dev/null || git log --oneline origin/dev..HEAD\\ngit push -u origin feature/demo\\nsha=$(git rev-parse --short=7 HEAD) && printf 'Hands-off: pushed %s, none\\\\n' \\\"$sha\\\" >> /repo/.superpowers/sdd/demo/progress.md\\ngrep -nE '^(Ruling|Open before merge|Hands-off):|: parked' /repo/.superpowers/sdd/demo…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 16,
+      "label": "green:D9-resume:1",
+      "phaseIndex": 1,
+      "phaseTitle": "Green",
+      "agentId": "a2d23b1111c8043ac",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1790361962298,
+      "queuedAt": 1790361962260,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "dispatch_next_unit",
+      "promptPreview": "You are a Claude Code session acting as the driver of an implementation run per the skill at /home/longman/.claude/skills/app-subagent-apply/SKILL.md (read it in full first). The unit controller you dispatch follows /home/longman/.claude/skills/app-subagent-apply/prompts/unit-controller-overrides.md (read it) and is the agent type defined at /home/longman/.claude/agents/app-sdd-unit-controller.md.…",
+      "promptFramed": true,
+      "lastProgressAt": 1790361977583,
+      "tokens": 48388,
+      "toolCalls": 2,
+      "durationMs": 14163,
+      "resultPreview": "{\"next_action\":\"dispatch_next_unit\",\"command_text\":\"head -n 3 /repo/.superpowers/sdd/demo/progress.md; grep -nE '^(Run base|Commit mode|Model policy|Model fallback|Gates|Ruling|Open before merge|Hands-off):|: (complete|parked)' /repo/.superpowers/sdd/demo/progress.md; tail -n 20 /repo/.superpowers/sdd/demo/progress.md\\n/home/longman/.claude/skills/app-subagent-apply/scripts/openspec-section-brief …"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 17,
+      "label": "green:D9-resume:2",
+      "phaseIndex": 1,
+      "phaseTitle": "Green",
+      "agentId": "adc18d30642022daf",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1790361977381,
+      "queuedAt": 1790361962260,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "dispatch_next_unit",
+      "promptPreview": "You are a Claude Code session acting as the driver of an implementation run per the skill at /home/longman/.claude/skills/app-subagent-apply/SKILL.md (read it in full first). The unit controller you dispatch follows /home/longman/.claude/skills/app-subagent-apply/prompts/unit-controller-overrides.md (read it) and is the agent type defined at /home/longman/.claude/agents/app-sdd-unit-controller.md.…",
+      "promptFramed": true,
+      "lastProgressAt": 1790361994632,
+      "tokens": 48389,
+      "toolCalls": 2,
+      "durationMs": 17251,
+      "resultPreview": "{\"next_action\":\"dispatch_next_unit\",\"command_text\":\"cd /repo && head -n 3 .superpowers/sdd/demo/progress.md && grep -nE '^(Run base|Commit mode|Model policy|Model fallback|Gates|Ruling|Open before merge|Hands-off):|: (complete|parked)' .superpowers/sdd/demo/progress.md; tail -n 20 .superpowers/sdd/demo/progress.md\\ncd /repo && ~/.claude/skills/app-subagent-apply/scripts/openspec-section-brief demo…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 18,
+      "label": "green:D9-resume:3",
+      "phaseIndex": 1,
+      "phaseTitle": "Green",
+      "agentId": "a983cb94a427c78f3",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1790361977883,
+      "queuedAt": 1790361962260,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "dispatch_next_unit",
+      "promptPreview": "You are a Claude Code session acting as the driver of an implementation run per the skill at /home/longman/.claude/skills/app-subagent-apply/SKILL.md (read it in full first). The unit controller you dispatch follows /home/longman/.claude/skills/app-subagent-apply/prompts/unit-controller-overrides.md (read it) and is the agent type defined at /home/longman/.claude/agents/app-sdd-unit-controller.md.…",
+      "promptFramed": true,
+      "lastProgressAt": 1790361998756,
+      "tokens": 51146,
+      "toolCalls": 3,
+      "durationMs": 20873,
+      "resultPreview": "{\"next_action\":\"dispatch_next_unit\",\"ledger_lines\":[\"Model policy: unit controller opus, implementer opus, reviewer opus, fix rounds 4-5 fable, final review fable\",\"Section 2b: handed to controller\"],\"command_text\":\"cd /repo && head -n 3 .superpowers/sdd/demo/progress.md && grep -nE '^(Run base|Commit mode|Model policy|Model fallback|Gates|Ruling|Open before merge|Hands-off):|: (complete|parked)' …"
+    }
+  ],
+  "totalTokens": 924744,
+  "totalToolCalls": 66
+}

@@ -3,8 +3,9 @@
 # with its default path: the size check of skills/apply/SKILL.md, the
 # pause-text guard on that file and then on
 # skills/apply/prompts/unit-controller-overrides.md (two runs, both named
-# check-pause-text), and the tests of run-archive, sdd-checkpoint and
-# sub-skill-check. Each script's own output is followed by one line for it:
+# check-pause-text), the tests of run-archive, sdd-checkpoint and
+# sub-skill-check, and test-tools, the test of the transcript tools in
+# tools/. Each script's own output is followed by one line for it:
 # "ok <name>", "FAIL <name>" or "skip <name> (<reason>)", <name> being the
 # script's file name without .sh. A missing prerequisite skips its test
 # without failing the run: test-run-archive.sh is skipped when the laterbox
@@ -57,6 +58,7 @@ if [ "$rc" -eq 2 ]; then
 else
   check test-sub-skill-check bash "$root/tests/test-sub-skill-check.sh"
 fi
+check test-tools bash "$root/tests/test-tools.sh"
 
 echo "$ok ok, $skipped skipped, $failed failed"
 [ "$failed" -eq 0 ]

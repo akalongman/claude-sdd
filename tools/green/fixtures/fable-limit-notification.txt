@@ -1,0 +1,6 @@
+<task-notification>
+<task-id>a9e8a16e87f738447</task-id>
+<status>failed</status>
+<summary>Agent "Final whole-branch review" failed</summary>
+<result>You've reached your Fable limit. Run /usage-credits to continue or switch models with /model.</result>
+</task-notification>

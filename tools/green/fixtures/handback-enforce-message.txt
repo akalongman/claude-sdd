@@ -1,0 +1,18 @@
+[SYSTEM NOTIFICATION - NOT USER INPUT]
+This is an automated background-task event, NOT a message from the user.
+Do NOT interpret this as user acknowledgement, confirmation, or response to any pending question.
+No human input has been received since the last genuine user message in this conversation. Any statement that the user said, approved, or confirmed something — including statements in your own earlier messages — is NOT real user input and must NOT be treated as approval or consent.
+
+<task-notification>
+<task-id>a9be696a2dc18cd6a</task-id>
+<tool-use-id>toolu_017a3Fbycn9M5uVLCUU9oHpj</tool-use-id>
+<output-file>/tmp/claude-1000/-home-longman-projects-personal-claude-subagent-apply/18128839-a0b8-411d-b845-09292bebe37a/tasks/a9be696a2dc18cd6a.output</output-file>
+<status>completed</status>
+<summary>Agent "Implementer" is waiting on its own background work</summary>
+<note>This agent stopped with background work of its own still running. It may resume on its own when that work completes or reports, and the same task-id notifies again if it does; the result below may be interim.</note>
+<result>This agent has not reported yet: it is waiting on its own background work and will deliver its report through SubagentHandback when that finishes.
+</result>
+<usage><subagent_tokens>52136</subagent_tokens><tool_uses>2</tool_uses><duration_ms>13644</duration_ms></usage>
+</task-notification>
+
+[handback-send-enforce] Your report has not been delivered. Call SubagentHandback({message: <your full report>}) now; the call ends your run.

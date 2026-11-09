@@ -1,0 +1,362 @@
+{
+  "summary": "Scenario check of the driver and unit controller text after the 2026-09-25 change",
+  "agentCount": 5,
+  "logs": [
+    "[green:D19-held-final-complete:1] SECURITY WARNING: This subagent performed actions that may violate security policy. Reason: [Auto-Mode Bypass]. Review the subagent's actions carefully before acting on its output."
+  ],
+  "result": {
+    "summary": {
+      "D14-pause-before-first-dispatch": {
+        "runs": 1,
+        "all_pass": 1
+      },
+      "S16-note-round-reviewed-clean": {
+        "runs": 1,
+        "all_pass": 1
+      },
+      "S17-final-note-after-fix-wave": {
+        "runs": 1,
+        "all_pass": 0
+      },
+      "D19-held-final-complete": {
+        "runs": 1,
+        "all_pass": 1
+      },
+      "D20-relaunch-held-final": {
+        "runs": 1,
+        "all_pass": 1
+      }
+    },
+    "green": [
+      {
+        "scenario": "D14-pause-before-first-dispatch",
+        "rep": 1,
+        "result": {
+          "next_action": "other",
+          "message_text": "",
+          "owner_text": "pause requested; nothing is dispatched until `continue`",
+          "then_action": "dispatch_next_unit",
+          "then_message_text": "Run Section 1 of OpenSpec change `demo` as its unit controller, on opus. Paths only:\nBrief: /repo/.superpowers/sdd/demo/section-1-brief.md\nReport: /repo/.superpowers/sdd/demo/section-1-report.md\nReview: /repo/.superpowers/sdd/demo/section-1-review.md\nLedger: /repo/.superpowers/sdd/demo/progress.md\nDecisions: /repo/.superpowers/sdd/demo/decisions.md\nOverrides: /home/longman/.claude/skills/app-subagent-apply/prompts/unit-controller-overrides.md\nTick command: /home/longman/.claude/skills/app-subagent-apply/scripts/openspec-section-tick demo 1 '<ledger line>' [ids]",
+          "then_owner_text": "pause released; writing the Section 1 brief and handing it to its controller.",
+          "ledger_lines": [
+            "Section 1: pause requested",
+            "Section 1: pause released",
+            "Section 1: handed to controller"
+          ],
+          "command_text": "/home/longman/.claude/skills/app-subagent-apply/scripts/openspec-section-brief demo 1 /repo/.superpowers/sdd/demo/section-1-brief.md"
+        },
+        "checks": {
+          "no_dispatch": true,
+          "pause_line": true,
+          "released_line": true,
+          "then_dispatches": true,
+          "no_running_claim": true
+        }
+      },
+      {
+        "scenario": "S16-note-round-reviewed-clean",
+        "rep": 1,
+        "result": {
+          "next_action": "return_block",
+          "command_text": "printf '%s\\n' 'Section 3: re-review r1 verdict Spec OK, Quality Approved (Critical 0, Important 0; section-3-review-r1.md)' 'Section 3: fix round 1/5 (1 addressed, 0 open; owner note: drop the README edit from this unit; commits d4e5f6a..e7f8a9b)' >> /repo/.superpowers/sdd/demo/progress.md && grep -nE '^Section 3: owner note' /repo/.superpowers/sdd/demo/progress.md\ncd /repo && test \"$(git rev-parse --short HEAD)\" = e7f8a9b && openspec validate demo --strict && printf '%s\\n' 'Section 3: Gates: openspec validate demo --strict passed (HEAD e7f8a9b)' >> /repo/.superpowers/sdd/demo/progress.md\ncd /repo && openspec-section-tick demo 3 'Section 3: complete (commits c1d2e3f..e7f8a9b, review clean)'",
+          "dispatch_prompt": "",
+          "message_text": "",
+          "ledger_lines": [
+            "Section 3: re-review r1 verdict Spec OK, Quality Approved (Critical 0, Important 0; section-3-review-r1.md)",
+            "Section 3: fix round 1/5 (1 addressed, 0 open; owner note: drop the README edit from this unit; commits d4e5f6a..e7f8a9b)",
+            "Section 3: Gates: openspec validate demo --strict passed (HEAD e7f8a9b)",
+            "Section 3: complete (commits c1d2e3f..e7f8a9b, review clean)"
+          ],
+          "return_block": "Unit: Section 3\nStatus: complete\nCommits: c1d2e3f..e7f8a9b\nLedger: 14",
+          "then_action": "message_same_implementer",
+          "then_command_text": "grep -nE '^(Section 3|Final phase): (pause (requested|released)|owner note)' /repo/.superpowers/sdd/demo/progress.md && printf '%s\\n' 'Section 3: re-review r1 verdict Spec OK, Quality Needs fixes (Critical 0, Important 1; section-3-review-r1.md; baseline of the owner-note loop)' 'Section 3: fix round 1/5 (0 addressed, 1 open: I1 src/Ledger.php:42 tail window still reads the README path the note removed; commits d4e5f6a..e7f8a9b)' 'Section 3: fix round 2/5 sent (I1; owner note carried: drop the README edit from this unit; resumed a62e23f4, fix base e7f8a9b)' >> /repo/.superpowers/sdd/demo/progress.md",
+          "then_dispatch_prompt": "",
+          "then_message_text": "Fix round 2 of 5 for Section 3 of OpenSpec change demo.\n\nThe scoped re-review of your owner-note round (commits d4e5f6a..e7f8a9b) is at /repo/.superpowers/sdd/demo/section-3-review-r1.md. Read it first. One finding is open:\n\nI1 (Important) src/Ledger.php:42: the tail window still reads the README path the note removed.\n\nOwner note for this unit, still binding: \"drop the README edit from this unit\". Make the code consistent with it, so nothing in the unit reads or depends on the removed README path. Change nothing outside the brief's file list, and add or change no spec delta line.\n\nRe-run the tests that cover src/Ledger.php (name the test files), append your fix report to /repo/.superpowers/sdd/demo/section-3-report.md with the covering tests, the exact command and its output, commit, and return only the short contract: status, commits, a one-line test summary, concerns. Do not dispatch subagents.",
+          "then_return_block": "",
+          "then_ledger_lines": [
+            "Section 3: re-review r1 verdict Spec OK, Quality Needs fixes (Critical 0, Important 1; section-3-review-r1.md; baseline of the owner-note loop)",
+            "Section 3: fix round 1/5 (0 addressed, 1 open: I1 src/Ledger.php:42 tail window still reads the README path the note removed; commits d4e5f6a..e7f8a9b)",
+            "Section 3: fix round 2/5 sent (I1; owner note carried: drop the README edit from this unit; resumed a62e23f4, fix base e7f8a9b)"
+          ]
+        },
+        "checks": {
+          "ticks": true,
+          "block_complete": true,
+          "no_needs_ruling": true,
+          "round_two": true,
+          "then_no_needs_ruling": true
+        }
+      },
+      {
+        "scenario": "S17-final-note-after-fix-wave",
+        "rep": 1,
+        "result": {
+          "next_action": "message_same_implementer",
+          "command_text": "printf '%s\\n' 'Final phase: fix wave reported DONE (I1; commits d4e5f6a..e7f8a9b; report .superpowers/sdd/demo/final-report.md)' >> /repo/.superpowers/sdd/demo/progress.md && grep -nE '^(Final phase): (pause (requested|released)|owner note)' /repo/.superpowers/sdd/demo/progress.md\nprintf '%s\\n' 'Final phase: owner note applied' 'Final phase: note dispatch (owner note 1, no review findings; resumed agent a62e23f4, app-sdd-implementer, opus; note base e7f8a9b; report .superpowers/sdd/demo/final-report.md)' >> /repo/.superpowers/sdd/demo/progress.md",
+          "dispatch_prompt": "",
+          "message_text": "Final phase of OpenSpec change `demo`, owner note round (this is a request for code). Your fix wave for I1 (commits d4e5f6a..e7f8a9b) is recorded; no review findings are carried in this message. The owner left one note for the final phase, which you now apply:\n\nOwner note 1: also rename the test file\n\nApply it on top of HEAD e7f8a9b: rename the test file your I1 fix touched (use git mv so history follows), update every reference to it, and keep the tests passing. Stay inside the change's file list and do not touch the task file or any spec delta. Re-run the tests covering the renamed file, commit, and append a fix report to /repo/.superpowers/sdd/demo/final-report.md with the covering test files, the exact command you ran and its output. The rules in /home/longman/.claude/skills/app-subagent-apply/prompts/implementer-overrides.md still apply; do not dispatch subagents. Return only the short contract: status, commits, a one-line test summary, concerns.",
+          "ledger_lines": [
+            "Final phase: fix wave reported DONE (I1; commits d4e5f6a..e7f8a9b; report .superpowers/sdd/demo/final-report.md)",
+            "Final phase: owner note applied",
+            "Final phase: note dispatch (owner note 1, no review findings; resumed agent a62e23f4, app-sdd-implementer, opus; note base e7f8a9b; report .superpowers/sdd/demo/final-report.md)"
+          ],
+          "return_block": "",
+          "rereview_range": "d4e5f6a..f0a1b2c",
+          "then_action": "message_same_implementer",
+          "then_command_text": "printf '%s\\n' 'Final phase: scoped re-review (opus): I1 ADDRESSED; no new findings; report .superpowers/sdd/demo/final-review-r1.md' >> /repo/.superpowers/sdd/demo/progress.md && grep -nE '^(Final phase): (pause (requested|released)|owner note)' /repo/.superpowers/sdd/demo/progress.md\nprintf '%s\\n' 'Final phase: owner note applied' 'Final phase: note dispatch after re-review (owner note 1, no review findings; resumed agent a62e23f4, app-sdd-implementer, opus; note base e7f8a9b; report .superpowers/sdd/demo/final-report.md)' >> /repo/.superpowers/sdd/demo/progress.md",
+          "then_dispatch_prompt": "",
+          "then_message_text": "Final phase of OpenSpec change `demo`, owner note round (this is a request for code). Your fix wave for I1 (commits d4e5f6a..e7f8a9b) passed its scoped re-review: I1 ADDRESSED, no new findings. No review findings are carried in this message. The owner left one note for the final phase that is not yet applied, which you now apply:\n\nOwner note 1: also rename the test file\n\nApply it on top of HEAD e7f8a9b: rename the test file your I1 fix touched (use git mv so history follows), update every reference to it, and keep the tests passing. Stay inside the change's file list and do not touch the task file or any spec delta. Re-run the tests covering the renamed file, commit, and append a fix report to /repo/.superpowers/sdd/demo/final-report.md with the covering test files, the exact command you ran and its output. The rules in /home/longman/.claude/skills/app-subagent-apply/prompts/implementer-overrides.md still apply; do not dispatch subagents. Return only the short contract: status, commits, a one-line test summary, concerns.",
+          "then_return_block": "",
+          "then_ledger_lines": [
+            "Final phase: scoped re-review (opus): I1 ADDRESSED; no new findings; report .superpowers/sdd/demo/final-review-r1.md",
+            "Final phase: owner note applied",
+            "Final phase: note dispatch after re-review (owner note 1, no review findings; resumed agent a62e23f4, app-sdd-implementer, opus; note base e7f8a9b; report .superpowers/sdd/demo/final-report.md)"
+          ]
+        },
+        "checks": {
+          "note_dispatch": true,
+          "no_findings_in_note_dispatch": false,
+          "rereview_from_review_head": true,
+          "then_note_dispatch": true,
+          "no_complete_line": true
+        }
+      },
+      {
+        "scenario": "D19-held-final-complete",
+        "rep": 1,
+        "result": {
+          "next_action": "ask_user",
+          "steps": [
+            {
+              "kind": "ledger_line",
+              "text": "Paused by user after the final phase"
+            },
+            {
+              "kind": "to_owner",
+              "text": "Final phase returned complete (commits d4e5f6a..e7f8a9b, I1 addressed, gates passed). Your pause is in force, so the return is held: the run archive, the final message and the hands-off push wait for `continue`."
+            }
+          ],
+          "ledger_lines": [
+            "Paused by user after the final phase",
+            "Final phase: pause released",
+            "Hands-off: pushed e7f8a9b, none"
+          ],
+          "then_action": "stop_run",
+          "then_steps": [
+            {
+              "kind": "ledger_line",
+              "text": "Final phase: pause released"
+            },
+            {
+              "kind": "command",
+              "text": "/home/longman/.claude/skills/app-subagent-apply/scripts/run-archive /repo/.superpowers/sdd/demo"
+            },
+            {
+              "kind": "command",
+              "text": "git rev-parse --short HEAD"
+            },
+            {
+              "kind": "to_owner",
+              "text": "Final phase: complete at e7f8a9b (whole-branch review Ready to merge With fixes, I1 fixed in d4e5f6a..e7f8a9b and confirmed by the scoped re-review; gates: openspec validate demo --strict passed). Sections 1, 2 and 3 complete, nothing parked or blocked. Rulings: none. Ruling (controller): none. Blocked: none. Open before merge: none. Suggested next step: /opsx:archive demo. Run archive: /home/longman/.claude/docs/tmp/apply-runs/-repo/2026-10-20-HHMM-demo"
+            },
+            {
+              "kind": "command",
+              "text": "git log --oneline origin/dev..HEAD"
+            },
+            {
+              "kind": "command",
+              "text": "git push -u origin dev"
+            },
+            {
+              "kind": "ledger_line",
+              "text": "Hands-off: pushed e7f8a9b, none"
+            },
+            {
+              "kind": "to_owner",
+              "text": "Hands-off: pushed e7f8a9b to origin dev. dev is the default branch, so no merge request was opened."
+            }
+          ]
+        },
+        "checks": {
+          "held_line": true,
+          "no_archive": true,
+          "no_push": true,
+          "released_line": true,
+          "archive_after_release": true
+        }
+      },
+      {
+        "scenario": "D20-relaunch-held-final",
+        "rep": 1,
+        "result": {
+          "next_action": "stop_run",
+          "steps": [
+            {
+              "kind": "to_owner",
+              "text": "Using source: demo (OpenSpec change). Options: none."
+            },
+            {
+              "kind": "command",
+              "text": "head -n 3 /repo/.superpowers/sdd/demo/progress.md"
+            },
+            {
+              "kind": "command",
+              "text": "grep -nE '^(Run base|Commit mode|Model policy|Model fallback|Gates|Ruling|Ruling \\(controller\\)|Open before merge|Hands-off|Final phase):|: (complete|parked|blocked|paused|pause requested|pause released|resumed|handed to controller)|stopped by hand' /repo/.superpowers/sdd/demo/progress.md"
+            },
+            {
+              "kind": "command",
+              "text": "tail -n 20 /repo/.superpowers/sdd/demo/progress.md"
+            },
+            {
+              "kind": "command",
+              "text": "git -C /repo rev-parse --short HEAD"
+            },
+            {
+              "kind": "ledger_line",
+              "text": "Final phase: pause released"
+            },
+            {
+              "kind": "command",
+              "text": "printf '%s\\n' 'Final phase: pause released' >> /repo/.superpowers/sdd/demo/progress.md"
+            },
+            {
+              "kind": "command",
+              "text": "cd /repo && /home/longman/.claude/skills/app-subagent-apply/scripts/run-archive /repo/.superpowers/sdd/demo"
+            },
+            {
+              "kind": "to_owner",
+              "text": "Final phase: complete at e7f8a9b on dev (commit mode: commit on dev). The final phase was held by a pause request, and the relaunch released it.\n\n| Section | Status | Commits | Review |\n|---|---|---|---|\n| 1 | complete | 1a554eb..2b698a3 | clean |\n| 2 | complete | 2b698a3..c1d2e3f | clean after 1 fix round |\n| 3 | complete | c1d2e3f..d4e5f6a | clean |\n| Final phase | complete | d4e5f6a..e7f8a9b (I1 fixed) | whole-branch review by fable, I1 addressed on the scoped re-review |\n\nGates: openspec validate demo --strict passed.\nRulings: none. Controller rulings: none. Blocked: none. Open before merge: none.\nNothing was pushed. The run's commits are on dev and stay local.\n\nAll tasks are done. Next step: /opsx:archive demo. The workspace /repo/.superpowers/sdd/demo is deleted only after the archive.\n\nRun archive: <the path run-archive printed>"
+            }
+          ],
+          "ledger_lines": [
+            "Final phase: pause released"
+          ]
+        },
+        "checks": {
+          "released_line": true,
+          "release_before_archive": true,
+          "archive_before_table": true
+        }
+      }
+    ]
+  },
+  "workflowProgress": [
+    {
+      "type": "workflow_phase",
+      "index": 1,
+      "title": "Green"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 1,
+      "label": "green:D14-pause-before-first-dispatch:1",
+      "phaseIndex": 1,
+      "phaseTitle": "Green",
+      "agentId": "af710d706e2b73c46",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1792485552681,
+      "queuedAt": 1792485552632,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "other",
+      "promptPreview": "You are a Claude Code session acting as the driver of an implementation run per the skill at /home/longman/.claude/skills/app-subagent-apply/SKILL.md (read it in full first). The unit controller you dispatch follows /home/longman/.claude/skills/app-subagent-apply/prompts/unit-controller-overrides.md (read it) and is the agent type defined at /home/longman/.claude/agents/app-sdd-unit-controller.md.…",
+      "promptFramed": true,
+      "lastProgressAt": 1792485570647,
+      "tokens": 66402,
+      "toolCalls": 5,
+      "durationMs": 17966,
+      "resultPreview": "{\"next_action\":\"other\",\"message_text\":\"\",\"owner_text\":\"pause requested; nothing is dispatched until `continue`\",\"then_action\":\"dispatch_next_unit\",\"then_message_text\":\"Run Section 1 of OpenSpec change `demo` as its unit controller, on opus. Paths only:\\nBrief: /repo/.superpowers/sdd/demo/section-1-brief.md\\nReport: /repo/.superpowers/sdd/demo/section-1-report.md\\nReview: /repo/.superpowers/sdd/dem…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 2,
+      "label": "green:S16-note-round-reviewed-clean:1",
+      "phaseIndex": 1,
+      "phaseTitle": "Green",
+      "agentId": "ae8fa4ed4ee004331",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1792485552681,
+      "queuedAt": 1792485552632,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "return_block",
+      "promptPreview": "You are the app-sdd-unit-controller subagent defined at /home/longman/.claude/agents/app-sdd-unit-controller.md (read it), running one unit per /home/longman/.claude/skills/app-subagent-apply/prompts/unit-controller-overrides.md (read it in full) and the sub-skill at /home/longman/.claude/plugins/cache/superpowers-marketplace/superpowers/7.0.0/skills/subagent-driven-development/SKILL.md (read it i…",
+      "promptFramed": true,
+      "lastProgressAt": 1792485587644,
+      "tokens": 72533,
+      "toolCalls": 5,
+      "durationMs": 34962,
+      "resultPreview": "{\"next_action\":\"return_block\",\"command_text\":\"printf '%s\\\\n' 'Section 3: re-review r1 verdict Spec OK, Quality Approved (Critical 0, Important 0; section-3-review-r1.md)' 'Section 3: fix round 1/5 (1 addressed, 0 open; owner note: drop the README edit from this unit; commits d4e5f6a..e7f8a9b)' >> /repo/.superpowers/sdd/demo/progress.md && grep -nE '^Section 3: owner note' /repo/.superpowers/sdd/de…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 3,
+      "label": "green:S17-final-note-after-fix-wave:1",
+      "phaseIndex": 1,
+      "phaseTitle": "Green",
+      "agentId": "a7c40d794e70e0301",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1792485552681,
+      "queuedAt": 1792485552632,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "message_same_implementer",
+      "promptPreview": "You are the app-sdd-unit-controller subagent defined at /home/longman/.claude/agents/app-sdd-unit-controller.md (read it), running one unit per /home/longman/.claude/skills/app-subagent-apply/prompts/unit-controller-overrides.md (read it in full) and the sub-skill at /home/longman/.claude/plugins/cache/superpowers-marketplace/superpowers/7.0.0/skills/subagent-driven-development/SKILL.md (read it i…",
+      "promptFramed": true,
+      "lastProgressAt": 1792485597496,
+      "tokens": 73402,
+      "toolCalls": 6,
+      "durationMs": 44813,
+      "resultPreview": "{\"next_action\":\"message_same_implementer\",\"command_text\":\"printf '%s\\\\n' 'Final phase: fix wave reported DONE (I1; commits d4e5f6a..e7f8a9b; report .superpowers/sdd/demo/final-report.md)' >> /repo/.superpowers/sdd/demo/progress.md && grep -nE '^(Final phase): (pause (requested|released)|owner note)' /repo/.superpowers/sdd/demo/progress.md\\nprintf '%s\\\\n' 'Final phase: owner note applied' 'Final ph…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 4,
+      "label": "green:D19-held-final-complete:1",
+      "phaseIndex": 1,
+      "phaseTitle": "Green",
+      "agentId": "a456046a3751431f5",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1792485552681,
+      "queuedAt": 1792485552632,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "ask_user",
+      "promptPreview": "You are a Claude Code session acting as the driver of an implementation run per the skill at /home/longman/.claude/skills/app-subagent-apply/SKILL.md (read it in full first). The unit controller you dispatch follows /home/longman/.claude/skills/app-subagent-apply/prompts/unit-controller-overrides.md (read it) and is the agent type defined at /home/longman/.claude/agents/app-sdd-unit-controller.md.…",
+      "promptFramed": true,
+      "lastProgressAt": 1792485589582,
+      "tokens": 64155,
+      "toolCalls": 4,
+      "durationMs": 36899,
+      "resultPreview": "{\"next_action\":\"ask_user\",\"steps\":[{\"kind\":\"ledger_line\",\"text\":\"Paused by user after the final phase\"},{\"kind\":\"to_owner\",\"text\":\"Final phase returned complete (commits d4e5f6a..e7f8a9b, I1 addressed, gates passed). Your pause is in force, so the return is held: the run archive, the final message and the hands-off push wait for `continue`.\"}],\"ledger_lines\":[\"Paused by user after the final phase\"…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 5,
+      "label": "green:D20-relaunch-held-final:1",
+      "phaseIndex": 1,
+      "phaseTitle": "Green",
+      "agentId": "a55b8c1514164af5f",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1792485552681,
+      "queuedAt": 1792485552632,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "stop_run",
+      "promptPreview": "You are a Claude Code session acting as the driver of an implementation run per the skill at /home/longman/.claude/skills/app-subagent-apply/SKILL.md (read it in full first). The unit controller you dispatch follows /home/longman/.claude/skills/app-subagent-apply/prompts/unit-controller-overrides.md (read it) and is the agent type defined at /home/longman/.claude/agents/app-sdd-unit-controller.md.…",
+      "promptFramed": true,
+      "lastProgressAt": 1792485577476,
+      "tokens": 61868,
+      "toolCalls": 4,
+      "durationMs": 24793,
+      "resultPreview": "{\"next_action\":\"stop_run\",\"steps\":[{\"kind\":\"to_owner\",\"text\":\"Using source: demo (OpenSpec change). Options: none.\"},{\"kind\":\"command\",\"text\":\"head -n 3 /repo/.superpowers/sdd/demo/progress.md\"},{\"kind\":\"command\",\"text\":\"grep -nE '^(Run base|Commit mode|Model policy|Model fallback|Gates|Ruling|Ruling \\\\(controller\\\\)|Open before merge|Hands-off|Final phase):|: (complete|parked|blocked|paused|pause…"
+    }
+  ],
+  "totalTokens": 338360,
+  "totalToolCalls": 24
+}

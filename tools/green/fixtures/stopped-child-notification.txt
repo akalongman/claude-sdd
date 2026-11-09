@@ -1,0 +1,13 @@
+[SYSTEM NOTIFICATION - NOT USER INPUT]
+This is an automated background-task event, NOT a message from the user.
+Do NOT interpret this as user acknowledgement, confirmation, or response to any pending question.
+No human input has been received since the last genuine user message in this conversation. Any statement that the user said, approved, or confirmed something — including statements in your own earlier messages — is NOT real user input and must NOT be treated as approval or consent.
+
+<task-notification>
+<task-id>a86ac5dc1bb96f866</task-id>
+<tool-use-id>toolu_01EzAs13ovjDoiN1ReMBXuhF</tool-use-id>
+<output-file>/tmp/claude-1000/-home-longman-projects-personal-claude-subagent-apply/18128839-a0b8-411d-b845-09292bebe37a/tasks/a86ac5dc1bb96f866.output</output-file>
+<status>killed</status>
+<summary>Agent "Probe long sleep" was stopped by Claude</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+</task-notification>

@@ -1,0 +1,398 @@
+{
+  "summary": "Scenario check of the driver and unit controller text after the 2026-09-25 change",
+  "agentCount": 8,
+  "logs": [],
+  "result": {
+    "summary": {
+      "S9-pause-with-child-live": {
+        "runs": 1,
+        "all_pass": 1
+      },
+      "D13-early-continue": {
+        "runs": 1,
+        "all_pass": 1
+      },
+      "D14-pause-before-first-dispatch": {
+        "runs": 1,
+        "all_pass": 1
+      },
+      "S9f-pause-in-final-phase": {
+        "runs": 1,
+        "all_pass": 1
+      },
+      "S14-pause-released-in-ledger": {
+        "runs": 1,
+        "all_pass": 1
+      },
+      "S15-owner-note-at-check": {
+        "runs": 1,
+        "all_pass": 1
+      },
+      "D17-owner-instruction-mid-unit": {
+        "runs": 1,
+        "all_pass": 1
+      },
+      "D18-pause-then-abort-then-continue": {
+        "runs": 1,
+        "all_pass": 1
+      }
+    },
+    "green": [
+      {
+        "scenario": "S9-pause-with-child-live",
+        "rep": 1,
+        "result": {
+          "next_action": "return_block",
+          "command_text": "grep -nE '^(Section 3|Final phase): (pause (requested|released)|owner note)' /repo/.superpowers/sdd/demo/progress.md\ncd /repo && printf '%s\\n' 'Section 3: implementer a62e23f4 DONE (commits c1d2e3f..d4e5f6a, report .superpowers/sdd/demo/section-3-report.md)' >> /repo/.superpowers/sdd/demo/progress.md && { out=$(~/.claude/skills/app-subagent-apply/scripts/sdd-checkpoint src/Ledger.php tests/LedgerTest.php); rc=$?; if [ \"$rc\" -eq 0 ]; then printf '%s\\n' \"Section 3: paused (after implementer DONE, before task review; $out)\" >> /repo/.superpowers/sdd/demo/progress.md; else printf '%s\\n' \"Section 3: paused (after implementer DONE, before task review; checkpoint failed (exit $rc))\" >> /repo/.superpowers/sdd/demo/progress.md; fi; tail -n 3 /repo/.superpowers/sdd/demo/progress.md; }",
+          "dispatch_prompt": "",
+          "message_text": "",
+          "ledger_lines": [
+            "Section 3: implementer a62e23f4 DONE (commits c1d2e3f..d4e5f6a, report .superpowers/sdd/demo/section-3-report.md)",
+            "Section 3: paused (after implementer DONE, before task review; heads repo d4e5f6a; tree 5db26f80ee6e8244)"
+          ],
+          "return_block": "Unit: Section 3\nStatus: paused\nCommits: c1d2e3f..d4e5f6a\nLedger: 2\nPoint: after implementer DONE, before task review (heads repo d4e5f6a; tree 5db26f80ee6e8244)"
+        },
+        "checks": {
+          "grep_before_dispatch": true,
+          "report_ledgered": true,
+          "paused_line": true,
+          "block_paused": true,
+          "no_dispatch": true
+        }
+      },
+      {
+        "scenario": "D13-early-continue",
+        "rep": 1,
+        "result": {
+          "next_action": "other",
+          "message_text": "",
+          "owner_text": "pause released; Section 3 keeps running and its controller will not pause. I'll pick up when it reports.",
+          "then_action": "other",
+          "then_message_text": "",
+          "then_owner_text": "Nothing to resume: no pause is in force and Section 3's controller is still running. I'll pick up when it reports.",
+          "ledger_lines": [
+            "Section 3: pause released"
+          ]
+        },
+        "checks": {
+          "released_line": true,
+          "no_message": true,
+          "no_dispatch": true,
+          "no_second_release": true,
+          "says_nothing_to_resume": true
+        }
+      },
+      {
+        "scenario": "D14-pause-before-first-dispatch",
+        "rep": 1,
+        "result": {
+          "next_action": "other",
+          "message_text": "pause requested; the unit pauses when its current implementer or reviewer reports",
+          "command_text": "State 1 (on `pause`; nothing is forwarded, no brief is written, nothing is dispatched; end the turn after printing message_text):\nprintf '%s\\n' 'Section 1: pause requested' >> /repo/.superpowers/sdd/demo/progress.md\n\nState 2 (on `continue`; release the request in force, then make the dispatch the pause deferred):\nprintf '%s\\n' 'Section 1: pause released' >> /repo/.superpowers/sdd/demo/progress.md\ncd /repo && ~/.claude/skills/app-subagent-apply/scripts/openspec-section-brief demo 1 /repo/.superpowers/sdd/demo/section-1-brief.md && printf '%s\\n' 'Section 1: handed to controller' >> /repo/.superpowers/sdd/demo/progress.md\nThen Agent dispatch: subagent_type app-sdd-unit-controller, model opus, prompt = then_message_text; end the turn and wait for its hand-back (no polling).",
+          "then_action": "dispatch_next_unit",
+          "then_message_text": "Run Section 1 of OpenSpec change `demo` as its unit controller, under the overrides file below. Model tier for implementers and reviewers: opus (fix rounds 4 and 5 and any final review on fable). Commit mode: commit on dev.\n\nBrief: /repo/.superpowers/sdd/demo/section-1-brief.md\nReport: /repo/.superpowers/sdd/demo/section-1-report.md\nReview: /repo/.superpowers/sdd/demo/section-1-review.md\nLedger: /repo/.superpowers/sdd/demo/progress.md\nDecisions: /repo/.superpowers/sdd/demo/decisions.md\nOverrides: /home/longman/.claude/skills/app-subagent-apply/prompts/unit-controller-overrides.md\nTick command: /home/longman/.claude/skills/app-subagent-apply/scripts/openspec-section-tick demo 1 '<ledger line>' [ids]",
+          "ledger_lines": [
+            "Section 1: pause requested",
+            "Section 1: pause released",
+            "Section 1: handed to controller"
+          ]
+        },
+        "checks": {
+          "no_dispatch": true,
+          "pause_line": true,
+          "released_line": true,
+          "then_dispatches": true
+        }
+      },
+      {
+        "scenario": "S9f-pause-in-final-phase",
+        "rep": 1,
+        "result": {
+          "next_action": "return_block",
+          "command_text": "grep -nE '^(Final phase): (pause (requested|released)|owner note)' /repo/.superpowers/sdd/demo/progress.md; printf '%s\\n' 'Final phase: fix wave (app-sdd-implementer, opus, agent a62e23f4): DONE; I1; commits d4e5f6a..e7f8a9b; report .superpowers/sdd/demo/final-report.md' >> /repo/.superpowers/sdd/demo/progress.md\ncd /repo && out=\"$(~/.claude/skills/app-subagent-apply/scripts/sdd-checkpoint src/Ledger.php tests/LedgerTest.php config/ledger.php)\" && printf '%s\\n' \"Final phase: paused (after fix wave, before scoped re-review over d4e5f6a..e7f8a9b; $out)\" >> /repo/.superpowers/sdd/demo/progress.md || printf '%s\\n' \"Final phase: paused (after fix wave, before scoped re-review over d4e5f6a..e7f8a9b; checkpoint failed (exit $?))\" >> /repo/.superpowers/sdd/demo/progress.md",
+          "dispatch_prompt": "",
+          "message_text": "",
+          "ledger_lines": [
+            "Final phase: fix wave (app-sdd-implementer, opus, agent a62e23f4): DONE; I1; commits d4e5f6a..e7f8a9b; report .superpowers/sdd/demo/final-report.md",
+            "Final phase: paused (after fix wave, before scoped re-review over d4e5f6a..e7f8a9b; heads repo e7f8a9b; tree 5db26f80ee6e8244)"
+          ],
+          "return_block": "Unit: Final phase\nStatus: paused\nCommits: d4e5f6a..e7f8a9b\nLedger: 2\nPoint: after fix wave (I1, commits d4e5f6a..e7f8a9b), before the scoped re-review; heads repo e7f8a9b; tree 5db26f80ee6e8244"
+        },
+        "checks": {
+          "grep_before_dispatch": true,
+          "report_ledgered": true,
+          "paused_line": true,
+          "block_paused": true,
+          "no_dispatch": true
+        }
+      },
+      {
+        "scenario": "S14-pause-released-in-ledger",
+        "rep": 1,
+        "result": {
+          "next_action": "dispatch_reviewer",
+          "command_text": "grep -nE '^(Section 3|Final phase): (pause (requested|released)|owner note)' /repo/.superpowers/sdd/demo/progress.md\ncd /repo && bash /home/longman/.claude/plugins/cache/claude-plugins-official/superpowers/6.4.1/skills/subagent-driven-development/scripts/review-package openspec/changes/demo/tasks.md c1d2e3f d4e5f6a /repo/.superpowers/sdd/demo/review-c1d2e3f..d4e5f6a.diff && printf '%s\\n' 'Section 3: implementer a62e23f4 DONE (commits c1d2e3f..d4e5f6a, report .superpowers/sdd/demo/section-3-report.md)' 'Section 3: reviewer dispatched (app-sdd-reviewer, opus, package .superpowers/sdd/demo/review-c1d2e3f..d4e5f6a.diff, review .superpowers/sdd/demo/section-3-review.md)' >> /repo/.superpowers/sdd/demo/progress.md",
+          "dispatch_prompt": "subagent_type: app-sdd-reviewer\nmodel: opus\ndescription: Review Section 3 (spec + quality)\n\nYou are reviewing one unit's implementation: first whether it matches its requirements, then whether it is well-built. This is a unit-scoped gate, not a merge review; a broad whole-branch review happens separately after all sections are complete. The unit is Section 3 of OpenSpec change `demo` (task file openspec/changes/demo/tasks.md); its files are src/Ledger.php and tests/LedgerTest.php.\n\n## What Was Requested\n\nRead the section brief first: /repo/.superpowers/sdd/demo/section-3-brief.md\n\nGlobal constraints that bind this section: the normative lines of the change's spec deltas under /repo/openspec/changes/demo/specs/ that the brief cites. Read only those requirement and scenario lines; they are the binding authority over the brief.\n\n## What the Implementer Claims They Built\n\nRead the implementer's report: /repo/.superpowers/sdd/demo/section-3-report.md\n\n## Diff Under Review\n\nBase: c1d2e3f\nHead: d4e5f6a\nDiff file: /repo/.superpowers/sdd/demo/review-c1d2e3f..d4e5f6a.diff\n\nRead the diff file once: it contains the commit list, a stat summary, and the full diff with surrounding context, and it is your view of the change. The diff's context lines ARE the changed files: do not Read a changed file separately unless a hunk you must judge is cut off mid-function, and say so in your report. Do not re-run git commands. If the diff file is missing, fetch the diff yourself with `git diff --stat c1d2e3f..d4e5f6a` and `git diff c1d2e3f..d4e5f6a`. Do not crawl the broader codebase. Inspect code outside the diff only to evaluate a concrete risk you can name, one focused check per named risk, and name both the risk and what you checked in your report. Cross-cutting changes are legitimate named risks: if the diff changes a function or API contract or shared mutable state, checking the call sites is the right method.\n\nYour review is read-only on this checkout. Do not mutate the working tree, the index, HEAD, or branch state in any way.\n\n## You Do Not Dispatch Subagents\n\nDo all of this review yourself. Never spawn a subagent to review part of the diff, and never spawn another reviewer for a second opinion. If the diff feels too large for one pass, review it in passes yourself and say so in your report.\n\n## Do Not Trust the Report\n\nTreat the implementer's report as unverified claims about the code. Verify the claims against the diff. Design rationales in the report are claims too; a stated rationale never downgrades a finding's severity.\n\n## Tests\n\nThe implementer already ran the tests and reported results for exactly this code. Do not re-run the suite to confirm their report. Run a test only when reading the code raises a specific doubt that no existing run answers, and then a focused test, never a package-wide suite. Warnings or other noise in the reported test output are findings. If the report's test evidence looks truncated or missing, re-read the file at its stated path, and if it is genuinely missing, report that as a gap for the controller.\n\n## Part 1: Spec Compliance\n\nCompare the diff against What Was Requested: Missing (requirements skipped or claimed without implementing), Extra (features not requested, over-engineering), Misunderstood (right feature built the wrong way). Check the diff against the brief's file list file by file: a listed file the diff never touches is a Missing finding. A requirement you cannot verify from this diff alone (it lives in unchanged code or spans sections) is a cannot-verify item, not a reason to broaden your search.\n\n## Part 2: Code Quality\n\nSeparation of concerns, error handling, DRY without premature abstraction, edge cases. Tests: do the new and changed tests verify real behavior, not mocks, and are the section's edge cases covered? Structure: one clear responsibility per file, the file structure the brief names, no new oversized files. Point at evidence: file:line for every finding and for every check you would otherwise answer with a bare yes.\n\n## Calibration\n\nCategorize issues by actual severity. Important means this section cannot be trusted until it is fixed: incorrect or fragile behavior, a missed requirement, or maintainability damage you would block a merge over (verbatim duplication of a logic block, swallowed errors, tests that assert nothing). Coverage that could be broader and polish suggestions are Minor. If the brief or spec explicitly mandates something this rubric calls a defect, that IS a finding: report it as Important, labeled plan-mandated.\n\n## Output\n\nWrite the full report (Spec Compliance with any cannot-verify items, Strengths, Issues as Critical, Important and Minor with file:line, what is wrong, why it matters and how to fix, then Assessment) to this review file: /repo/.superpowers/sdd/demo/section-3-review.md\n\nThen read and follow, in full, the overrides at /home/longman/.claude/skills/app-subagent-apply/prompts/reviewer-overrides.md. They take precedence over this prompt wherever they differ, including the finding numbering (C, I, M, CV) and the verdict block that is your whole final message.",
+          "message_text": "",
+          "ledger_lines": [
+            "Section 3: implementer a62e23f4 DONE (commits c1d2e3f..d4e5f6a, report .superpowers/sdd/demo/section-3-report.md)",
+            "Section 3: reviewer dispatched (app-sdd-reviewer, opus, package .superpowers/sdd/demo/review-c1d2e3f..d4e5f6a.diff, review .superpowers/sdd/demo/section-3-review.md)"
+          ],
+          "return_block": ""
+        },
+        "checks": {
+          "dispatches_reviewer": true,
+          "no_paused_line": true
+        }
+      },
+      {
+        "scenario": "S15-owner-note-at-check",
+        "rep": 1,
+        "result": {
+          "next_action": "message_same_implementer",
+          "command_text": "grep -nE '^(Section 3|Final phase): (pause (requested|released)|owner note)' /repo/.superpowers/sdd/demo/progress.md; printf '%s\\n' 'Section 3: implementer a62e23f4 reported DONE (commits c1d2e3f..d4e5f6a, report .superpowers/sdd/demo/section-3-report.md)' 'Section 3: owner note applied' 'Section 3: fix round 1/5 sent (owner note: drop the README edit from this unit; resumed a62e23f4, fix base d4e5f6a)' >> /repo/.superpowers/sdd/demo/progress.md",
+          "dispatch_prompt": "",
+          "message_text": "Fix round 1/5 for Section 3 of OpenSpec change `demo`. No review has run yet; this round carries an owner note recorded in the ledger after your dispatch, and it changes work you already committed (c1d2e3f..d4e5f6a).\n\nOwner note, verbatim: \"drop the README edit from this unit\"\n\nWhat to do:\n1. Remove every README change this unit introduced, so the range from c1d2e3f to your new HEAD leaves README untouched. Do it with a new commit on top of d4e5f6a (revert the README hunks); do not rewrite or amend the existing commits.\n2. Leave everything else in the unit as it is. If any code, test or other file in the unit depends on the README edit, say so under concerns instead of changing more.\n3. Re-run the tests covering the files you touched in this unit and record the command and its output.\n4. Append a fix report for round 1 to /repo/.superpowers/sdd/demo/section-3-report.md: what you removed, the covering tests, the command, the output.\n5. Your rules are unchanged: /home/longman/.claude/skills/app-subagent-apply/prompts/implementer-overrides.md still applies, and you dispatch no subagents.\n\nReturn the short contract only: status, commits (range from d4e5f6a), a one-line test summary, concerns.",
+          "ledger_lines": [
+            "Section 3: implementer a62e23f4 reported DONE (commits c1d2e3f..d4e5f6a, report .superpowers/sdd/demo/section-3-report.md)",
+            "Section 3: owner note applied",
+            "Section 3: fix round 1/5 sent (owner note: drop the README edit from this unit; resumed a62e23f4, fix base d4e5f6a)"
+          ],
+          "return_block": ""
+        },
+        "checks": {
+          "note_in_dispatch": true,
+          "applied_line": true
+        }
+      },
+      {
+        "scenario": "D17-owner-instruction-mid-unit",
+        "rep": 1,
+        "result": {
+          "next_action": "other",
+          "message_text": "",
+          "owner_text": "Noted as an owner note for section 3. It goes into the ledger, and I am not forwarding it to the controller while its implementer (a62e23f4) is running. The controller checks for owner notes before every dispatch and every resume of a child, so it will carry the note into the next one. If the implementer has already made the README edit by then, the controller handles removing it as a fix round, and that round counts toward the five-round cap.",
+          "then_action": "dispatch_next_unit",
+          "then_message_text": "Run Section 4 of OpenSpec change demo as its unit controller, on model opus.\nBrief: /repo/.superpowers/sdd/demo/section-4-brief.md\nReport: /repo/.superpowers/sdd/demo/section-4-report.md\nReview: /repo/.superpowers/sdd/demo/section-4-review.md\nLedger: /repo/.superpowers/sdd/demo/progress.md\nDecisions: /repo/.superpowers/sdd/demo/decisions.md\nOverrides: /home/longman/.claude/skills/app-subagent-apply/prompts/unit-controller-overrides.md\nTick command: /home/longman/.claude/skills/app-subagent-apply/scripts/openspec-section-tick demo 4 '<ledger line>' [ids]",
+          "then_owner_text": "Section 3 is complete and no unit is running right now, so I have recorded your note for the next unit, section 4. Its controller applies the note before its first dispatch. I am now handing section 4 to its controller. One caveat: if you meant a README edit that section 3 already committed, the note does not undo that commit. Tell me and I will treat it as a separate change to completed work.",
+          "ledger_lines": [
+            "Section 3: owner note: drop the README edit from this unit",
+            "Section 4: owner note: drop the README edit from this unit",
+            "Section 4: handed to controller"
+          ],
+          "command_text": "State 1: printf '%s\\n' 'Section 3: owner note: drop the README edit from this unit' >> /repo/.superpowers/sdd/demo/progress.md\nState 2: printf '%s\\n' 'Section 4: owner note: drop the README edit from this unit' >> /repo/.superpowers/sdd/demo/progress.md && /home/longman/.claude/skills/app-subagent-apply/scripts/openspec-section-brief demo 4 /repo/.superpowers/sdd/demo/section-4-brief.md && printf '%s\\n' 'Section 4: handed to controller' >> /repo/.superpowers/sdd/demo/progress.md"
+        },
+        "checks": {
+          "note_line": true,
+          "no_message": true,
+          "no_dispatch": true,
+          "note_for_next": true
+        }
+      },
+      {
+        "scenario": "D18-pause-then-abort-then-continue",
+        "rep": 1,
+        "result": {
+          "next_action": "other",
+          "command_text": "printf '%s\\n' 'Section 3: pause released' >> /repo/.superpowers/sdd/demo/progress.md\nTaskStop({\"task_id\": \"a3117aff5d31a82c7\"})\nListAgents({})\nTaskStop({\"task_id\": \"a62e23f4\"})\nprintf '%s\\n' 'Stopped by user mid-unit 3' >> /repo/.superpowers/sdd/demo/progress.md",
+          "message_text": "abort: stopped the Section 3 controller (a3117aff5d31a82c7) and its implementer (a62e23f4). Nothing will be dispatched until you type `continue`, which starts a fresh Section 3 attempt on the current tree.",
+          "then_action": "redispatch_same_unit",
+          "then_message_text": "Agent(subagent_type: \"app-sdd-unit-controller\", model: \"opus\", prompt:\n\"A prior controller attempted this unit; read the ledger tail, the report and `git diff --stat` on the unit's paths first.\nBrief: /repo/.superpowers/sdd/demo/section-3-brief.md\nReport: /repo/.superpowers/sdd/demo/section-3-report.md\nReview: /repo/.superpowers/sdd/demo/section-3-review.md\nLedger: /repo/.superpowers/sdd/demo/progress.md\nDecisions: /repo/.superpowers/sdd/demo/decisions.md\nOverrides: /home/longman/.claude/skills/app-subagent-apply/prompts/unit-controller-overrides.md\nTick command: ~/.claude/skills/app-subagent-apply/scripts/openspec-section-tick demo 3 '<ledger line>' [ids]\")\n(then end the turn and wait for its hand-back; no ledger line in state 2 because the abort already released the pause request)",
+          "ledger_lines": [
+            "Section 3: pause released",
+            "Stopped by user mid-unit 3"
+          ]
+        },
+        "checks": {
+          "stopped_line": true,
+          "released_before_dispatch": true
+        }
+      }
+    ]
+  },
+  "workflowProgress": [
+    {
+      "type": "workflow_phase",
+      "index": 1,
+      "title": "Green"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 1,
+      "label": "green:S9-pause-with-child-live:1",
+      "phaseIndex": 1,
+      "phaseTitle": "Green",
+      "agentId": "a17809a77a6a27070",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1792474696394,
+      "queuedAt": 1792474696244,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "return_block",
+      "promptPreview": "You are the app-sdd-unit-controller subagent defined at /home/longman/.claude/agents/app-sdd-unit-controller.md (read it), running one unit per /home/longman/.claude/skills/app-subagent-apply/prompts/unit-controller-overrides.md (read it in full) and the sub-skill at /home/longman/.claude/plugins/cache/claude-plugins-official/superpowers/6.4.1/skills/subagent-driven-development/SKILL.md (read it i…",
+      "promptFramed": true,
+      "lastProgressAt": 1792474727602,
+      "tokens": 71207,
+      "toolCalls": 5,
+      "durationMs": 31206,
+      "resultPreview": "{\"next_action\":\"return_block\",\"command_text\":\"grep -nE '^(Section 3|Final phase): (pause (requested|released)|owner note)' /repo/.superpowers/sdd/demo/progress.md\\ncd /repo && printf '%s\\\\n' 'Section 3: implementer a62e23f4 DONE (commits c1d2e3f..d4e5f6a, report .superpowers/sdd/demo/section-3-report.md)' >> /repo/.superpowers/sdd/demo/progress.md && { out=$(~/.claude/skills/app-subagent-apply/scr…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 2,
+      "label": "green:D13-early-continue:1",
+      "phaseIndex": 1,
+      "phaseTitle": "Green",
+      "agentId": "a47035602e36db1b2",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1792474696394,
+      "queuedAt": 1792474696244,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "other",
+      "promptPreview": "You are a Claude Code session acting as the driver of an implementation run per the skill at /home/longman/.claude/skills/app-subagent-apply/SKILL.md (read it in full first). The unit controller you dispatch follows /home/longman/.claude/skills/app-subagent-apply/prompts/unit-controller-overrides.md (read it) and is the agent type defined at /home/longman/.claude/agents/app-sdd-unit-controller.md.…",
+      "promptFramed": true,
+      "lastProgressAt": 1792474715358,
+      "tokens": 61626,
+      "toolCalls": 3,
+      "durationMs": 18959,
+      "resultPreview": "{\"next_action\":\"other\",\"message_text\":\"\",\"owner_text\":\"pause released; Section 3 keeps running and its controller will not pause. I'll pick up when it reports.\",\"then_action\":\"other\",\"then_message_text\":\"\",\"then_owner_text\":\"Nothing to resume: no pause is in force and Section 3's controller is still running. I'll pick up when it reports.\",\"ledger_lines\":[\"Section 3: pause released\"]}"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 3,
+      "label": "green:D14-pause-before-first-dispatch:1",
+      "phaseIndex": 1,
+      "phaseTitle": "Green",
+      "agentId": "ac50d878a05df8145",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1792474696395,
+      "queuedAt": 1792474696244,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "other",
+      "promptPreview": "You are a Claude Code session acting as the driver of an implementation run per the skill at /home/longman/.claude/skills/app-subagent-apply/SKILL.md (read it in full first). The unit controller you dispatch follows /home/longman/.claude/skills/app-subagent-apply/prompts/unit-controller-overrides.md (read it) and is the agent type defined at /home/longman/.claude/agents/app-sdd-unit-controller.md.…",
+      "promptFramed": true,
+      "lastProgressAt": 1792474731028,
+      "tokens": 68632,
+      "toolCalls": 4,
+      "durationMs": 34628,
+      "resultPreview": "{\"next_action\":\"other\",\"message_text\":\"pause requested; the unit pauses when its current implementer or reviewer reports\",\"command_text\":\"State 1 (on `pause`; nothing is forwarded, no brief is written, nothing is dispatched; end the turn after printing message_text):\\nprintf '%s\\\\n' 'Section 1: pause requested' >> /repo/.superpowers/sdd/demo/progress.md\\n\\nState 2 (on `continue`; release the reque…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 4,
+      "label": "green:S9f-pause-in-final-phase:1",
+      "phaseIndex": 1,
+      "phaseTitle": "Green",
+      "agentId": "af901816b8cb91adf",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1792474696395,
+      "queuedAt": 1792474696244,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "return_block",
+      "promptPreview": "You are the app-sdd-unit-controller subagent defined at /home/longman/.claude/agents/app-sdd-unit-controller.md (read it), running one unit per /home/longman/.claude/skills/app-subagent-apply/prompts/unit-controller-overrides.md (read it in full) and the sub-skill at /home/longman/.claude/plugins/cache/claude-plugins-official/superpowers/6.4.1/skills/subagent-driven-development/SKILL.md (read it i…",
+      "promptFramed": true,
+      "lastProgressAt": 1792474730036,
+      "tokens": 70956,
+      "toolCalls": 3,
+      "durationMs": 28641,
+      "resultPreview": "{\"next_action\":\"return_block\",\"command_text\":\"grep -nE '^(Final phase): (pause (requested|released)|owner note)' /repo/.superpowers/sdd/demo/progress.md; printf '%s\\\\n' 'Final phase: fix wave (app-sdd-implementer, opus, agent a62e23f4): DONE; I1; commits d4e5f6a..e7f8a9b; report .superpowers/sdd/demo/final-report.md' >> /repo/.superpowers/sdd/demo/progress.md\\ncd /repo && out=\\\"$(~/.claude/skills/…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 5,
+      "label": "green:S14-pause-released-in-ledger:1",
+      "phaseIndex": 1,
+      "phaseTitle": "Green",
+      "agentId": "ae7342e7545607c31",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1792474696395,
+      "queuedAt": 1792474696244,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "dispatch_reviewer",
+      "promptPreview": "You are the app-sdd-unit-controller subagent defined at /home/longman/.claude/agents/app-sdd-unit-controller.md (read it), running one unit per /home/longman/.claude/skills/app-subagent-apply/prompts/unit-controller-overrides.md (read it in full) and the sub-skill at /home/longman/.claude/plugins/cache/claude-plugins-official/superpowers/6.4.1/skills/subagent-driven-development/SKILL.md (read it i…",
+      "promptFramed": true,
+      "lastProgressAt": 1792474747808,
+      "tokens": 77083,
+      "toolCalls": 5,
+      "durationMs": 46356,
+      "resultPreview": "{\"next_action\":\"dispatch_reviewer\",\"command_text\":\"grep -nE '^(Section 3|Final phase): (pause (requested|released)|owner note)' /repo/.superpowers/sdd/demo/progress.md\\ncd /repo && bash /home/longman/.claude/plugins/cache/claude-plugins-official/superpowers/6.4.1/skills/subagent-driven-development/scripts/review-package openspec/changes/demo/tasks.md c1d2e3f d4e5f6a /repo/.superpowers/sdd/demo/rev…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 6,
+      "label": "green:S15-owner-note-at-check:1",
+      "phaseIndex": 1,
+      "phaseTitle": "Green",
+      "agentId": "ae8b2d486f292a18d",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1792474696395,
+      "queuedAt": 1792474696244,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "message_same_implementer",
+      "promptPreview": "You are the app-sdd-unit-controller subagent defined at /home/longman/.claude/agents/app-sdd-unit-controller.md (read it), running one unit per /home/longman/.claude/skills/app-subagent-apply/prompts/unit-controller-overrides.md (read it in full) and the sub-skill at /home/longman/.claude/plugins/cache/claude-plugins-official/superpowers/6.4.1/skills/subagent-driven-development/SKILL.md (read it i…",
+      "promptFramed": true,
+      "lastProgressAt": 1792474740669,
+      "tokens": 71335,
+      "toolCalls": 3,
+      "durationMs": 39186,
+      "resultPreview": "{\"next_action\":\"message_same_implementer\",\"command_text\":\"grep -nE '^(Section 3|Final phase): (pause (requested|released)|owner note)' /repo/.superpowers/sdd/demo/progress.md; printf '%s\\\\n' 'Section 3: implementer a62e23f4 reported DONE (commits c1d2e3f..d4e5f6a, report .superpowers/sdd/demo/section-3-report.md)' 'Section 3: owner note applied' 'Section 3: fix round 1/5 sent (owner note: drop the…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 7,
+      "label": "green:D17-owner-instruction-mid-unit:1",
+      "phaseIndex": 1,
+      "phaseTitle": "Green",
+      "agentId": "a2c463e4cae62b937",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1792474696395,
+      "queuedAt": 1792474696244,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "other",
+      "promptPreview": "You are a Claude Code session acting as the driver of an implementation run per the skill at /home/longman/.claude/skills/app-subagent-apply/SKILL.md (read it in full first). The unit controller you dispatch follows /home/longman/.claude/skills/app-subagent-apply/prompts/unit-controller-overrides.md (read it) and is the agent type defined at /home/longman/.claude/agents/app-sdd-unit-controller.md.…",
+      "promptFramed": true,
+      "lastProgressAt": 1792474726166,
+      "tokens": 64003,
+      "toolCalls": 2,
+      "durationMs": 24638,
+      "resultPreview": "{\"next_action\":\"other\",\"message_text\":\"\",\"owner_text\":\"Noted as an owner note for section 3. It goes into the ledger, and I am not forwarding it to the controller while its implementer (a62e23f4) is running. The controller checks for owner notes before every dispatch and every resume of a child, so it will carry the note into the next one. If the implementer has already made the README edit by the…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 8,
+      "label": "green:D18-pause-then-abort-then-continue:1",
+      "phaseIndex": 1,
+      "phaseTitle": "Green",
+      "agentId": "a73c8bd13b6b018e9",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1792474696395,
+      "queuedAt": 1792474696245,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "other",
+      "promptPreview": "You are a Claude Code session acting as the driver of an implementation run per the skill at /home/longman/.claude/skills/app-subagent-apply/SKILL.md (read it in full first). The unit controller you dispatch follows /home/longman/.claude/skills/app-subagent-apply/prompts/unit-controller-overrides.md (read it) and is the agent type defined at /home/longman/.claude/agents/app-sdd-unit-controller.md.…",
+      "promptFramed": true,
+      "lastProgressAt": 1792474726404,
+      "tokens": 63968,
+      "toolCalls": 2,
+      "durationMs": 24844,
+      "resultPreview": "{\"next_action\":\"other\",\"command_text\":\"printf '%s\\\\n' 'Section 3: pause released' >> /repo/.superpowers/sdd/demo/progress.md\\nTaskStop({\\\"task_id\\\": \\\"a3117aff5d31a82c7\\\"})\\nListAgents({})\\nTaskStop({\\\"task_id\\\": \\\"a62e23f4\\\"})\\nprintf '%s\\\\n' 'Stopped by user mid-unit 3' >> /repo/.superpowers/sdd/demo/progress.md\",\"message_text\":\"abort: stopped the Section 3 controller (a3117aff5d31a82c7) and its…"
+    }
+  ],
+  "totalTokens": 548810,
+  "totalToolCalls": 27
+}

@@ -1,0 +1,388 @@
+{
+  "summary": "Scenario check of the driver and unit controller text after the 2026-09-25 change",
+  "agentCount": 10,
+  "logs": [],
+  "result": {
+    "summary": {
+      "S1-fix-small-ctx": {
+        "runs": 5,
+        "all_pass": 5
+      },
+      "S2-fix-large-ctx": {
+        "runs": 5,
+        "all_pass": 5
+      }
+    },
+    "green": [
+      {
+        "scenario": "S1-fix-small-ctx",
+        "rep": 1,
+        "result": {
+          "next_action": "message_same_implementer",
+          "ledger_lines": [
+            "Section 2: review (opus) Spec FAIL, Quality Needs fixes; C1 missing filters[status] handling in DepartmentController::index, I1 duplicate normalisation block copied from CalendarController; report /repo/.superpowers/sdd/demo/section-2-review.md; commits 2b698a3..c1d2e3f",
+            "Section 2: minor (deferred): M1 test names in tests/Feature/DepartmentFilterTest.php do not follow the suite's it_ prefix",
+            "Section 2: minor (deferred): M2 docblock on DepartmentController::index() out of date",
+            "Section 2: fix round 1/5 dispatched: resume implementer a62e23f4 (last notification 118000 tokens, under 300000) with C1, I1; FIX_BASE c1d2e3f"
+          ],
+          "message_text": "Fix round 1 of 5 for section 2. Read the task review at /repo/.superpowers/sdd/demo/section-2-review.md. Fix the open findings C1 and I1 only:\nC1 Missing filters[status] handling in DepartmentController::index (app/Http/Controllers/DepartmentController.php:41)\nI1 Duplicate normalisation block copied from CalendarController (app/Http/Controllers/DepartmentController.php:55-71)\nM1 and M2 are Minor and deferred; do not touch them in this round. Do not add or change any normative line of the spec delta; if fixing C1 needs a behaviour the spec does not state, stop and report NEEDS_CONTEXT instead of filling the gap.\nRe-run the covering tests (tests/Feature/DepartmentFilterTest.php plus any test covering CalendarController if you extract a shared helper), commit, and append a fix report to /repo/.superpowers/sdd/demo/section-2-report.md with the covering test files, the exact command run and its output. Return only the short contract: status, commits, one-line test summary, concerns."
+        },
+        "checks": {
+          "resumes": true,
+          "names_file": true,
+          "names_ids": true,
+          "minors_out": true,
+          "minors_deferred": true
+        }
+      },
+      {
+        "scenario": "S1-fix-small-ctx",
+        "rep": 2,
+        "result": {
+          "next_action": "message_same_implementer",
+          "ledger_lines": [
+            "Section 2: task review verdict: Spec FAIL, Quality Needs fixes (C1, I1 open; M1, M2 minor) report /repo/.superpowers/sdd/demo/section-2-review.md, commits 2b698a3..c1d2e3f",
+            "Section 2: minor (deferred): M1 test names in tests/Feature/DepartmentFilterTest.php:12 do not follow the suite's it_ prefix",
+            "Section 2: minor (deferred): M2 docblock on DepartmentController::index() out of date (app/Http/Controllers/DepartmentController.php:30)",
+            "Section 2: fix round 1/5 dispatched: resume implementer a62e23f4 by message (last notification 118000 tokens, under 300000) with C1, I1; FIX_BASE c1d2e3f"
+          ],
+          "message_text": "Fix round 1 of 5 for section 2 of OpenSpec change `demo`.\n\nThe task review is at /repo/.superpowers/sdd/demo/section-2-review.md. Read it first. Fix these open findings, and only these:\n\n- C1 Missing filters[status] handling in DepartmentController::index (app/Http/Controllers/DepartmentController.php:41)\n- I1 Duplicate normalisation block copied from CalendarController (app/Http/Controllers/DepartmentController.php:55-71)\n\nThe review also lists M1 and M2. They are Minor and deferred to the ledger; do not touch them in this round.\n\nThe requirements are still your section brief. If the fix for C1 would need a filters[status] behaviour that the brief and the spec delta do not define, stop and report NEEDS_CONTEXT with the question. Do not invent the behaviour and do not edit any spec delta or the task file.\n\nRe-run the tests covering the amended code: tests/Feature/DepartmentFilterTest.php, plus the CalendarController tests if the I1 fix extracts shared code that CalendarController then uses. Add a test for filters[status] if none covers it. Commit the fix, then append a fix report to your existing report file for this section. The fix report must list the covering test files, the exact command you ran, and its output. Do not dispatch any subagents or reviewers.\n\nReturn only the short contract: status, commit range, a one-line test summary, and concerns."
+        },
+        "checks": {
+          "resumes": true,
+          "names_file": true,
+          "names_ids": true,
+          "minors_out": true,
+          "minors_deferred": true
+        }
+      },
+      {
+        "scenario": "S1-fix-small-ctx",
+        "rep": 3,
+        "result": {
+          "next_action": "message_same_implementer",
+          "ledger_lines": [
+            "Section 2: review verdict Spec FAIL, Quality Needs fixes (C1, I1 open; report /repo/.superpowers/sdd/demo/section-2-review.md; reviewed 2b698a3..c1d2e3f)",
+            "Section 2: minor (deferred): M1 test names in tests/Feature/DepartmentFilterTest.php:12 do not follow the suite's it_ prefix",
+            "Section 2: minor (deferred): M2 docblock on DepartmentController::index() out of date (app/Http/Controllers/DepartmentController.php:30)",
+            "Section 2: fix round 1/5 dispatched (resume implementer a62e23f4 by message, last notification 118000 tokens < 300000; open C1, I1; FIX_BASE c1d2e3f)"
+          ],
+          "message_text": "SendMessage to a62e23f4:\n\nFix round 1 of 5 for section 2 of OpenSpec change `demo`.\n\nThe task review of 2b698a3..c1d2e3f failed. Read the review file /repo/.superpowers/sdd/demo/section-2-review.md and fix these open findings, and only these:\n\n- C1 Missing filters[status] handling in DepartmentController::index (app/Http/Controllers/DepartmentController.php:41)\n- I1 Duplicate normalisation block copied from CalendarController (app/Http/Controllers/DepartmentController.php:55-71)\n\nThe review also lists M1 and M2. Those are Minor and deferred in the ledger, so leave them alone in this round.\n\nYour brief at /repo/.superpowers/sdd/demo/section-2-brief.md is still the requirements. If fixing a finding would mean adding or changing a normative line of the spec delta, or the brief and the finding disagree, stop and report that as a concern. Do not decide it yourself.\n\nCommit the fix. Re-run the tests that cover the amended code, at least tests/Feature/DepartmentFilterTest.php plus any test covering the extracted normalisation code (including CalendarController's tests if you touch it). Append a fix report to /repo/.superpowers/sdd/demo/section-2-report.md with a line for each finding (C1, I1) saying what changed, the covering test files, the exact command you ran, and its output. Do not dispatch subagents. Return only the short contract: status, commit range, a one-line test summary, and concerns."
+        },
+        "checks": {
+          "resumes": true,
+          "names_file": true,
+          "names_ids": true,
+          "minors_out": true,
+          "minors_deferred": true
+        }
+      },
+      {
+        "scenario": "S1-fix-small-ctx",
+        "rep": 4,
+        "result": {
+          "next_action": "message_same_implementer",
+          "ledger_lines": [
+            "Section 2: review verdict Spec FAIL, Quality Needs fixes (C1, I1 open; M1, M2 minor), report /repo/.superpowers/sdd/demo/section-2-review.md, reviewed 2b698a3..c1d2e3f",
+            "Section 2: minor (deferred): M1 test names in tests/Feature/DepartmentFilterTest.php:12 do not follow the suite's it_ prefix",
+            "Section 2: minor (deferred): M2 docblock on DepartmentController::index() out of date (app/Http/Controllers/DepartmentController.php:30)",
+            "Section 2: fix round 1/5 dispatched (resume implementer a62e23f4, last notification 118000 tokens < 300000; open C1, I1; FIX_BASE c1d2e3f)"
+          ],
+          "message_text": "SendMessage to a62e23f4:\n\nFix round 1 of 5 for section 2 of OpenSpec change `demo`. The task review failed. Read the review file first: /repo/.superpowers/sdd/demo/section-2-review.md. Fix these open findings, and only these:\n\n- C1 (Critical): Missing filters[status] handling in DepartmentController::index (app/Http/Controllers/DepartmentController.php:41)\n- I1 (Important): Duplicate normalisation block copied from CalendarController (app/Http/Controllers/DepartmentController.php:55-71)\n\nM1 and M2 are Minor and are not part of this round. Leave them alone.\n\nYour requirements are still the brief. Do not add or change any normative line of the change's spec delta, and do not edit tasks.md. If fixing C1 needs a behaviour the brief and spec do not define, stop and report NEEDS_CONTEXT with the question. Do not guess.\n\nWhen you are done: commit the fixes. Re-run the covering tests, at least tests/Feature/DepartmentFilterTest.php plus any test that covers the shared normalisation you extract for I1 (including CalendarController's tests if you touch that code). Append a fix report to /repo/.superpowers/sdd/demo/section-2-report.md with the finding ids addressed, the covering test files, the exact command run and its output. Return only the short contract: status, commit range, one-line test summary, concerns. Do not dispatch any subagent."
+        },
+        "checks": {
+          "resumes": true,
+          "names_file": true,
+          "names_ids": true,
+          "minors_out": true,
+          "minors_deferred": true
+        }
+      },
+      {
+        "scenario": "S1-fix-small-ctx",
+        "rep": 5,
+        "result": {
+          "next_action": "message_same_implementer",
+          "ledger_lines": [
+            "Section 2: review (Spec FAIL, Quality Needs fixes; C1, I1 open; report /repo/.superpowers/sdd/demo/section-2-review.md; head c1d2e3f)",
+            "Section 2: minor (deferred): M1 Test names do not follow the suite's it_ prefix tests/Feature/DepartmentFilterTest.php:12",
+            "Section 2: minor (deferred): M2 Docblock on index() out of date app/Http/Controllers/DepartmentController.php:30",
+            "Section 2: fix round 1/5 dispatched (resume implementer a62e23f4, opus, last notification 118000 tokens; open C1, I1; fix base c1d2e3f)"
+          ],
+          "message_text": "SendMessage to a62e23f4 (model: opus):\n\nFix round 1 of 5 for section 2 of OpenSpec change `demo`. The task review failed. Read the review file first: /repo/.superpowers/sdd/demo/section-2-review.md. Fix these open findings only:\n\nC1 Missing filters[status] handling in DepartmentController::index app/Http/Controllers/DepartmentController.php:41\nI1 Duplicate normalisation block copied from CalendarController app/Http/Controllers/DepartmentController.php:55-71\n\nM1 and M2 are Minor and deferred; do not touch them in this round.\n\nYour brief is unchanged: /repo/.superpowers/sdd/demo/section-2-brief.md. Follow /home/longman/.claude/skills/app-subagent-apply/prompts/implementer-overrides.md as before: path-limited commits on the current branch, never tick tasks.md, never change a normative line of the spec delta, no subagents. Re-run the tests covering the amended code (at least tests/Feature/DepartmentFilterTest.php, plus any CalendarController tests if you extract the shared normalisation), then append a fix report to /repo/.superpowers/sdd/demo/section-2-report.md with the findings addressed, the covering test files, the exact command run and its output. Return only the short contract: status, commits, one-line test summary, concerns."
+        },
+        "checks": {
+          "resumes": true,
+          "names_file": true,
+          "names_ids": true,
+          "minors_out": true,
+          "minors_deferred": true
+        }
+      },
+      {
+        "scenario": "S2-fix-large-ctx",
+        "rep": 1,
+        "result": {
+          "next_action": "dispatch_fresh_implementer",
+          "ledger_lines": [
+            "Section 2: review verdict (opus): Spec FAIL, Quality Needs fixes; open C1, I1; report /repo/.superpowers/sdd/demo/section-2-review.md; reviewed 2b698a3..c1d2e3f",
+            "Section 2: minor (deferred): M1 test names do not follow the suite's it_ prefix, tests/Feature/DepartmentFilterTest.php:12",
+            "Section 2: minor (deferred): M2 docblock on index() out of date, app/Http/Controllers/DepartmentController.php:30",
+            "Section 2: fix round 1/5 dispatched to a fresh implementer (app-sdd-implementer, opus, FIX_BASE c1d2e3f); prior implementer a62e23f4 not resumed, last notification 346000 tokens > 300000; open C1, I1"
+          ],
+          "message_text": "Agent dispatch: subagent_type app-sdd-implementer, model opus, description \"Section 2 fix round 1 (demo)\".\n\nPrompt:\nYou are implementing a fix round for section 2 of OpenSpec change `demo`. A prior implementer built this unit and ran 0 fix rounds; you own it now.\n\nRead these first, in this order:\n1. Brief (your requirements, with the exact values to use verbatim): /repo/.superpowers/sdd/demo/section-2-brief.md\n2. Report file (what the prior implementer built and tested; append your fix report here): /repo/.superpowers/sdd/demo/section-2-report.md\n3. Review file (the findings you must fix, with detail): /repo/.superpowers/sdd/demo/section-2-review.md\n\nThe unit's commits so far are 2b698a3..c1d2e3f; build on HEAD c1d2e3f.\n\nFix exactly these open findings from the review file, nothing else:\n- C1 Missing filters[status] handling in DepartmentController::index (app/Http/Controllers/DepartmentController.php:41)\n- I1 Duplicate normalisation block copied from CalendarController (app/Http/Controllers/DepartmentController.php:55-71)\n\nMinor findings M1 and M2 are deferred in the ledger; do not touch them. Do not add or change any normative line of the spec delta; if a fix seems to need one, stop and report NEEDS_CONTEXT with the question. Do not edit tasks.md or tick anything.\n\nRe-run the tests covering the amended code (at least tests/Feature/DepartmentFilterTest.php plus any test covering CalendarController if you extract the shared block), commit, and append to the report file a fix report with the covering tests, the exact command run and its output. Return only: status, commit range, a one-line test summary, and concerns.\n\nFollow /home/longman/.claude/skills/app-subagent-apply/prompts/implementer-overrides.md (read it in full; it wins where it differs from the above)."
+        },
+        "checks": {
+          "fresh": true,
+          "handover": true,
+          "prior_rounds": true,
+          "names_file": true,
+          "minors_out": true
+        }
+      },
+      {
+        "scenario": "S2-fix-large-ctx",
+        "rep": 2,
+        "result": {
+          "next_action": "dispatch_fresh_implementer",
+          "ledger_lines": [
+            "Section 2: task review (Spec FAIL, Quality: Needs fixes; open C1, I1; report /repo/.superpowers/sdd/demo/section-2-review.md; reviewed 2b698a3..c1d2e3f)",
+            "Section 2: minor (deferred): M1 test names do not follow the suite's it_ prefix, tests/Feature/DepartmentFilterTest.php:12",
+            "Section 2: minor (deferred): M2 docblock on index() out of date, app/Http/Controllers/DepartmentController.php:30",
+            "Section 2: fix round 1/5 dispatch: fresh app-sdd-implementer, model opus (prior implementer a62e23f4 last notification 346000 tokens, over 300000, so no resume); open C1, I1; FIX_BASE c1d2e3f"
+          ],
+          "message_text": "Dispatch: subagent_type app-sdd-implementer, model opus.\n\nYou are fixing section 2 of OpenSpec change `demo`. A prior implementer built this unit and ran 0 fix rounds; you own it now. This is fix round 1 of 5.\n\nRead these first, in order:\n1. Brief (your requirements, with the exact values to use verbatim): /repo/.superpowers/sdd/demo/section-2-brief.md\n2. Report file (what the prior implementer built, tested and decided; append your fix report here): /repo/.superpowers/sdd/demo/section-2-report.md\n3. Review file (the findings you must fix, with detail): /repo/.superpowers/sdd/demo/section-2-review.md\n\nThe unit's commits so far are 2b698a3..c1d2e3f. Build on c1d2e3f.\n\nOpen findings to fix (C1 and I1 only):\n- C1 Missing filters[status] handling in DepartmentController::index app/Http/Controllers/DepartmentController.php:41\n- I1 Duplicate normalisation block copied from CalendarController app/Http/Controllers/DepartmentController.php:55-71\n\nM1 and M2 in the review file are deferred minors; do not work on them.\n\nDo not add or change any normative line of the change's spec delta. If fixing C1 needs behaviour the brief or spec does not define, stop and report NEEDS_CONTEXT with the question instead of choosing.\n\nFix, then re-run the tests covering the amended code (at least tests/Feature/DepartmentFilterTest.php, plus any test touching CalendarController if you extract the shared normalisation), commit, and append a fix report to the report file containing the covering test files, the exact command run, and its output. Do not dispatch subagents of any kind. Return only: status, commits, a one-line test summary, concerns.\n\nFollow /home/longman/.claude/skills/app-subagent-apply/prompts/implementer-overrides.md."
+        },
+        "checks": {
+          "fresh": true,
+          "handover": true,
+          "prior_rounds": true,
+          "names_file": true,
+          "minors_out": true
+        }
+      },
+      {
+        "scenario": "S2-fix-large-ctx",
+        "rep": 3,
+        "result": {
+          "next_action": "dispatch_fresh_implementer",
+          "ledger_lines": [
+            "Section 2: review verdict Spec FAIL, Quality Needs fixes (C1, I1 open; report /repo/.superpowers/sdd/demo/section-2-review.md; commits 2b698a3..c1d2e3f)",
+            "Section 2: minor (deferred): M1 test names in tests/Feature/DepartmentFilterTest.php:12 do not follow the suite's it_ prefix",
+            "Section 2: minor (deferred): M2 docblock on DepartmentController::index() out of date (app/Http/Controllers/DepartmentController.php:30)",
+            "Section 2: fix round 1/5 dispatched to a fresh app-sdd-implementer on opus (prior implementer a62e23f4 at 346000 tokens, over the 300000 resume limit); open C1, I1; FIX_BASE c1d2e3f"
+          ],
+          "message_text": "Subagent type: app-sdd-implementer. Model: opus.\n\nYou are fixing section 2 of OpenSpec change `demo`. A prior implementer built this unit and ran 0 fix rounds; you own it now.\n\nRead these first, in this order:\n1. Brief (your requirements, with the exact values to use verbatim): /repo/.superpowers/sdd/demo/section-2-brief.md\n2. Report file (what the prior implementer built and tested; append your fix report here): /repo/.superpowers/sdd/demo/section-2-report.md\n3. Review file (the findings you must fix, with detail): /repo/.superpowers/sdd/demo/section-2-review.md\n\nCurrent head of this unit: c1d2e3f (unit range 2b698a3..c1d2e3f).\n\nOpen findings for this round. Fix these two and only these two:\n- C1 Missing filters[status] handling in DepartmentController::index app/Http/Controllers/DepartmentController.php:41\n- I1 Duplicate normalisation block copied from CalendarController app/Http/Controllers/DepartmentController.php:55-71\n\nM1 and M2 in the review file are Minor and deferred. Do not touch them.\n\nThe brief and the spec delta are the source. If fixing C1 would need behaviour the brief or the spec delta does not state, stop and return NEEDS_CONTEXT with the question; do not invent it and do not edit any spec file.\n\nCovering tests: re-run tests/Feature/DepartmentFilterTest.php plus any test file that covers CalendarController if you extract the shared normalisation out of it. Do not run the whole suite.\n\nAppend a fix report to /repo/.superpowers/sdd/demo/section-2-report.md with: what changed for each id, the covering test files, the exact command you ran, and its output. Then return only: status (DONE, DONE_WITH_CONCERNS, NEEDS_CONTEXT or BLOCKED), commit range, a one-line test summary, and any concerns.\n\nDo not dispatch subagents of any kind, including reviewers.\n\nRead and follow: /home/longman/.claude/skills/app-subagent-apply/prompts/implementer-overrides.md"
+        },
+        "checks": {
+          "fresh": true,
+          "handover": true,
+          "prior_rounds": true,
+          "names_file": true,
+          "minors_out": true
+        }
+      },
+      {
+        "scenario": "S2-fix-large-ctx",
+        "rep": 4,
+        "result": {
+          "next_action": "dispatch_fresh_implementer",
+          "ledger_lines": [
+            "Section 2: review verdict (Spec FAIL, Quality Needs fixes; C1 missing filters[status] handling in DepartmentController::index, I1 duplicate normalisation block copied from CalendarController; report /repo/.superpowers/sdd/demo/section-2-review.md; commits 2b698a3..c1d2e3f)",
+            "Section 2: minor (deferred): M1 test names in tests/Feature/DepartmentFilterTest.php:12 do not follow the suite's it_ prefix",
+            "Section 2: minor (deferred): M2 docblock on DepartmentController::index() out of date (app/Http/Controllers/DepartmentController.php:30)",
+            "Section 2: fix round 1/5 dispatched to a fresh app-sdd-implementer on opus (implementer a62e23f4 last notification 346000 tokens, over the 300000 resume limit); open C1, I1; FIX_BASE c1d2e3f"
+          ],
+          "message_text": "Dispatch: subagent_type app-sdd-implementer, model opus.\n\nYou are fixing section 2 of OpenSpec change `demo`. A prior implementer built this unit and ran 0 fix rounds; you own it now. Read the report file for what was built and tried.\n\n1. Brief (read this first. It is your requirements, with the exact values to use verbatim): /repo/.superpowers/sdd/demo/section-2-brief.md\n2. Report file (read it, then append your fix report to it): /repo/.superpowers/sdd/demo/section-2-report.md\n3. Review file with the findings: /repo/.superpowers/sdd/demo/section-2-review.md\n\nFix these open findings, and only these (full text and evidence in the review file):\n- C1 Missing filters[status] handling in DepartmentController::index (app/Http/Controllers/DepartmentController.php:41)\n- I1 Duplicate normalisation block copied from CalendarController (app/Http/Controllers/DepartmentController.php:55-71)\n\nMinor findings M1 and M2 are deferred in the ledger; do not touch them in this round.\n\nThe unit's commits so far are 2b698a3..c1d2e3f; commit your fix on top of c1d2e3f. Re-run the tests covering the amended code (at least tests/Feature/DepartmentFilterTest.php, plus any test of CalendarController if you extract shared code from it) and append to the report file the covering tests, the exact command run and its output. Do not add or change any normative line of the change's spec delta; if the fix seems to need one, stop and return the question instead. Never dispatch subagents.\n\nReturn only: status, commit range, a one-line test summary, concerns.\n\nFollow /home/longman/.claude/skills/app-subagent-apply/prompts/implementer-overrides.md (read it in full; it takes precedence)."
+        },
+        "checks": {
+          "fresh": true,
+          "handover": true,
+          "prior_rounds": true,
+          "names_file": true,
+          "minors_out": true
+        }
+      },
+      {
+        "scenario": "S2-fix-large-ctx",
+        "rep": 5,
+        "result": {
+          "next_action": "dispatch_fresh_implementer",
+          "ledger_lines": [
+            "Section 2: review (opus): Spec FAIL, Quality Needs fixes; open C1, I1; report /repo/.superpowers/sdd/demo/section-2-review.md; reviewed 2b698a3..c1d2e3f",
+            "Section 2: minor (deferred): M1 test names in tests/Feature/DepartmentFilterTest.php:12 do not follow the suite's it_ prefix",
+            "Section 2: minor (deferred): M2 docblock on DepartmentController::index() out of date (app/Http/Controllers/DepartmentController.php:30)",
+            "Section 2: fix round 1: fresh implementer (app-sdd-implementer, opus), prior implementer a62e23f4 at 346000 tokens (over 300000 resume limit); open C1, I1; fix base c1d2e3f"
+          ],
+          "message_text": "Agent dispatch: subagent_type app-sdd-implementer, model opus, description \"Section 2 fix round 1 (fresh)\".\n\nPrompt:\nYou are implementing section 2 of OpenSpec change `demo`, fix round 1. A prior implementer built this unit and ran 0 fix rounds; you own it now.\n\nRead these first, in order:\n1. Brief (your requirements, with the exact values to use verbatim): /repo/.superpowers/sdd/demo/section-2-brief.md\n2. Report file (what the prior implementer built, tested and decided): /repo/.superpowers/sdd/demo/section-2-report.md\n3. Review file (the findings you must fix): /repo/.superpowers/sdd/demo/section-2-review.md\n\nThe unit's commits so far are 2b698a3..c1d2e3f; HEAD is c1d2e3f.\n\nFix exactly these open findings, and nothing else:\n- C1 Missing filters[status] handling in DepartmentController::index (app/Http/Controllers/DepartmentController.php:41)\n- I1 Duplicate normalisation block copied from CalendarController (app/Http/Controllers/DepartmentController.php:55-71)\n\nMinor findings M1 and M2 are deferred; do not touch them. Do not add or change any normative line of the change's spec deltas or tick the task file. If a fix needs a behaviour the brief or spec does not state, stop and report NEEDS_CONTEXT with the question instead of choosing.\n\nCovering tests: tests/Feature/DepartmentFilterTest.php (add a case for filters[status]), plus the CalendarController tests if you extract the shared normalisation. Run those, commit, and append a fix report to /repo/.superpowers/sdd/demo/section-2-report.md under \"Fix round 1\" with the covering tests, the exact command run and its output. Return only status, commit range, a one-line test summary and concerns.\n\nFollow /home/longman/.claude/skills/app-subagent-apply/prompts/implementer-overrides.md."
+        },
+        "checks": {
+          "fresh": true,
+          "handover": true,
+          "prior_rounds": true,
+          "names_file": true,
+          "minors_out": true
+        }
+      }
+    ]
+  },
+  "workflowProgress": [
+    {
+      "type": "workflow_phase",
+      "index": 1,
+      "title": "Green"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 1,
+      "label": "green:S1-fix-small-ctx:1",
+      "phaseIndex": 1,
+      "phaseTitle": "Green",
+      "agentId": "a5b6cfc920572274b",
+      "model": "opus",
+      "state": "done",
+      "startedAt": 1790358265769,
+      "lastProgressAt": 1790358265769,
+      "cached": true,
+      "resultPreview": "{\"next_action\":\"message_same_implementer\",\"ledger_lines\":[\"Section 2: review (opus) Spec FAIL, Quality Needs fixes; C1 missing filters[status] handling in DepartmentController::index, I1 duplicate normalisation block copied from CalendarController; report /repo/.superpowers/sdd/demo/section-2-review.md; commits 2b698a3..c1d2e3f\",\"Section 2: minor (deferred): M1 test names in tests/Feature/Departme…",
+      "promptPreview": "You are the app-sdd-unit-controller subagent defined at /home/longman/.claude/agents/app-sdd-unit-controller.md (read it), running one unit per /home/longman/.claude/skills/app-subagent-apply/prompts/unit-controller-overrides.md (read it in full) and the sub-skill at /home/longman/.claude/plugins/cache/claude-plugins-official/superpowers/6.4.1/skills/subagent-driven-development/SKILL.md (read it i…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 2,
+      "label": "green:S1-fix-small-ctx:2",
+      "phaseIndex": 1,
+      "phaseTitle": "Green",
+      "agentId": "af7f0f55e1eeb2176",
+      "model": "opus",
+      "state": "done",
+      "startedAt": 1790358265769,
+      "lastProgressAt": 1790358265769,
+      "cached": true,
+      "resultPreview": "{\"next_action\":\"message_same_implementer\",\"ledger_lines\":[\"Section 2: task review verdict: Spec FAIL, Quality Needs fixes (C1, I1 open; M1, M2 minor) report /repo/.superpowers/sdd/demo/section-2-review.md, commits 2b698a3..c1d2e3f\",\"Section 2: minor (deferred): M1 test names in tests/Feature/DepartmentFilterTest.php:12 do not follow the suite's it_ prefix\",\"Section 2: minor (deferred): M2 docblock…",
+      "promptPreview": "You are the app-sdd-unit-controller subagent defined at /home/longman/.claude/agents/app-sdd-unit-controller.md (read it), running one unit per /home/longman/.claude/skills/app-subagent-apply/prompts/unit-controller-overrides.md (read it in full) and the sub-skill at /home/longman/.claude/plugins/cache/claude-plugins-official/superpowers/6.4.1/skills/subagent-driven-development/SKILL.md (read it i…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 3,
+      "label": "green:S1-fix-small-ctx:3",
+      "phaseIndex": 1,
+      "phaseTitle": "Green",
+      "agentId": "a4c5dbc259070e931",
+      "model": "opus",
+      "state": "done",
+      "startedAt": 1790358265770,
+      "lastProgressAt": 1790358265770,
+      "cached": true,
+      "resultPreview": "{\"next_action\":\"message_same_implementer\",\"ledger_lines\":[\"Section 2: review verdict Spec FAIL, Quality Needs fixes (C1, I1 open; report /repo/.superpowers/sdd/demo/section-2-review.md; reviewed 2b698a3..c1d2e3f)\",\"Section 2: minor (deferred): M1 test names in tests/Feature/DepartmentFilterTest.php:12 do not follow the suite's it_ prefix\",\"Section 2: minor (deferred): M2 docblock on DepartmentCont…",
+      "promptPreview": "You are the app-sdd-unit-controller subagent defined at /home/longman/.claude/agents/app-sdd-unit-controller.md (read it), running one unit per /home/longman/.claude/skills/app-subagent-apply/prompts/unit-controller-overrides.md (read it in full) and the sub-skill at /home/longman/.claude/plugins/cache/claude-plugins-official/superpowers/6.4.1/skills/subagent-driven-development/SKILL.md (read it i…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 4,
+      "label": "green:S1-fix-small-ctx:4",
+      "phaseIndex": 1,
+      "phaseTitle": "Green",
+      "agentId": "abc9e09e63ef7ba00",
+      "model": "opus",
+      "state": "done",
+      "startedAt": 1790358265770,
+      "lastProgressAt": 1790358265770,
+      "cached": true,
+      "resultPreview": "{\"next_action\":\"message_same_implementer\",\"ledger_lines\":[\"Section 2: review verdict Spec FAIL, Quality Needs fixes (C1, I1 open; M1, M2 minor), report /repo/.superpowers/sdd/demo/section-2-review.md, reviewed 2b698a3..c1d2e3f\",\"Section 2: minor (deferred): M1 test names in tests/Feature/DepartmentFilterTest.php:12 do not follow the suite's it_ prefix\",\"Section 2: minor (deferred): M2 docblock on …",
+      "promptPreview": "You are the app-sdd-unit-controller subagent defined at /home/longman/.claude/agents/app-sdd-unit-controller.md (read it), running one unit per /home/longman/.claude/skills/app-subagent-apply/prompts/unit-controller-overrides.md (read it in full) and the sub-skill at /home/longman/.claude/plugins/cache/claude-plugins-official/superpowers/6.4.1/skills/subagent-driven-development/SKILL.md (read it i…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 5,
+      "label": "green:S1-fix-small-ctx:5",
+      "phaseIndex": 1,
+      "phaseTitle": "Green",
+      "agentId": "aa71317fb76d2478a",
+      "model": "opus",
+      "state": "done",
+      "startedAt": 1790358265770,
+      "lastProgressAt": 1790358265770,
+      "cached": true,
+      "resultPreview": "{\"next_action\":\"message_same_implementer\",\"ledger_lines\":[\"Section 2: review (Spec FAIL, Quality Needs fixes; C1, I1 open; report /repo/.superpowers/sdd/demo/section-2-review.md; head c1d2e3f)\",\"Section 2: minor (deferred): M1 Test names do not follow the suite's it_ prefix tests/Feature/DepartmentFilterTest.php:12\",\"Section 2: minor (deferred): M2 Docblock on index() out of date app/Http/Controll…",
+      "promptPreview": "You are the app-sdd-unit-controller subagent defined at /home/longman/.claude/agents/app-sdd-unit-controller.md (read it), running one unit per /home/longman/.claude/skills/app-subagent-apply/prompts/unit-controller-overrides.md (read it in full) and the sub-skill at /home/longman/.claude/plugins/cache/claude-plugins-official/superpowers/6.4.1/skills/subagent-driven-development/SKILL.md (read it i…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 6,
+      "label": "green:S2-fix-large-ctx:1",
+      "phaseIndex": 1,
+      "phaseTitle": "Green",
+      "agentId": "ad5ea6bedecf3cefc",
+      "model": "opus",
+      "state": "done",
+      "startedAt": 1790358265770,
+      "lastProgressAt": 1790358265770,
+      "cached": true,
+      "resultPreview": "{\"next_action\":\"dispatch_fresh_implementer\",\"ledger_lines\":[\"Section 2: review verdict (opus): Spec FAIL, Quality Needs fixes; open C1, I1; report /repo/.superpowers/sdd/demo/section-2-review.md; reviewed 2b698a3..c1d2e3f\",\"Section 2: minor (deferred): M1 test names do not follow the suite's it_ prefix, tests/Feature/DepartmentFilterTest.php:12\",\"Section 2: minor (deferred): M2 docblock on index()…",
+      "promptPreview": "You are the app-sdd-unit-controller subagent defined at /home/longman/.claude/agents/app-sdd-unit-controller.md (read it), running one unit per /home/longman/.claude/skills/app-subagent-apply/prompts/unit-controller-overrides.md (read it in full) and the sub-skill at /home/longman/.claude/plugins/cache/claude-plugins-official/superpowers/6.4.1/skills/subagent-driven-development/SKILL.md (read it i…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 7,
+      "label": "green:S2-fix-large-ctx:2",
+      "phaseIndex": 1,
+      "phaseTitle": "Green",
+      "agentId": "a4e94d9ec4163f788",
+      "model": "opus",
+      "state": "done",
+      "startedAt": 1790358265770,
+      "lastProgressAt": 1790358265770,
+      "cached": true,
+      "resultPreview": "{\"next_action\":\"dispatch_fresh_implementer\",\"ledger_lines\":[\"Section 2: task review (Spec FAIL, Quality: Needs fixes; open C1, I1; report /repo/.superpowers/sdd/demo/section-2-review.md; reviewed 2b698a3..c1d2e3f)\",\"Section 2: minor (deferred): M1 test names do not follow the suite's it_ prefix, tests/Feature/DepartmentFilterTest.php:12\",\"Section 2: minor (deferred): M2 docblock on index() out of …",
+      "promptPreview": "You are the app-sdd-unit-controller subagent defined at /home/longman/.claude/agents/app-sdd-unit-controller.md (read it), running one unit per /home/longman/.claude/skills/app-subagent-apply/prompts/unit-controller-overrides.md (read it in full) and the sub-skill at /home/longman/.claude/plugins/cache/claude-plugins-official/superpowers/6.4.1/skills/subagent-driven-development/SKILL.md (read it i…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 8,
+      "label": "green:S2-fix-large-ctx:3",
+      "phaseIndex": 1,
+      "phaseTitle": "Green",
+      "agentId": "a2a16be4adb85b5f3",
+      "model": "opus",
+      "state": "done",
+      "startedAt": 1790358265770,
+      "lastProgressAt": 1790358265770,
+      "cached": true,
+      "resultPreview": "{\"next_action\":\"dispatch_fresh_implementer\",\"ledger_lines\":[\"Section 2: review verdict Spec FAIL, Quality Needs fixes (C1, I1 open; report /repo/.superpowers/sdd/demo/section-2-review.md; commits 2b698a3..c1d2e3f)\",\"Section 2: minor (deferred): M1 test names in tests/Feature/DepartmentFilterTest.php:12 do not follow the suite's it_ prefix\",\"Section 2: minor (deferred): M2 docblock on DepartmentCon…",
+      "promptPreview": "You are the app-sdd-unit-controller subagent defined at /home/longman/.claude/agents/app-sdd-unit-controller.md (read it), running one unit per /home/longman/.claude/skills/app-subagent-apply/prompts/unit-controller-overrides.md (read it in full) and the sub-skill at /home/longman/.claude/plugins/cache/claude-plugins-official/superpowers/6.4.1/skills/subagent-driven-development/SKILL.md (read it i…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 9,
+      "label": "green:S2-fix-large-ctx:4",
+      "phaseIndex": 1,
+      "phaseTitle": "Green",
+      "agentId": "ac0a1c1764242be9e",
+      "model": "opus",
+      "state": "done",
+      "startedAt": 1790358265770,
+      "lastProgressAt": 1790358265770,
+      "cached": true,
+      "resultPreview": "{\"next_action\":\"dispatch_fresh_implementer\",\"ledger_lines\":[\"Section 2: review verdict (Spec FAIL, Quality Needs fixes; C1 missing filters[status] handling in DepartmentController::index, I1 duplicate normalisation block copied from CalendarController; report /repo/.superpowers/sdd/demo/section-2-review.md; commits 2b698a3..c1d2e3f)\",\"Section 2: minor (deferred): M1 test names in tests/Feature/Dep…",
+      "promptPreview": "You are the app-sdd-unit-controller subagent defined at /home/longman/.claude/agents/app-sdd-unit-controller.md (read it), running one unit per /home/longman/.claude/skills/app-subagent-apply/prompts/unit-controller-overrides.md (read it in full) and the sub-skill at /home/longman/.claude/plugins/cache/claude-plugins-official/superpowers/6.4.1/skills/subagent-driven-development/SKILL.md (read it i…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 10,
+      "label": "green:S2-fix-large-ctx:5",
+      "phaseIndex": 1,
+      "phaseTitle": "Green",
+      "agentId": "a13124866158e85d6",
+      "model": "opus",
+      "state": "done",
+      "startedAt": 1790358265770,
+      "lastProgressAt": 1790358265770,
+      "cached": true,
+      "resultPreview": "{\"next_action\":\"dispatch_fresh_implementer\",\"ledger_lines\":[\"Section 2: review (opus): Spec FAIL, Quality Needs fixes; open C1, I1; report /repo/.superpowers/sdd/demo/section-2-review.md; reviewed 2b698a3..c1d2e3f\",\"Section 2: minor (deferred): M1 test names in tests/Feature/DepartmentFilterTest.php:12 do not follow the suite's it_ prefix\",\"Section 2: minor (deferred): M2 docblock on DepartmentCon…",
+      "promptPreview": "You are the app-sdd-unit-controller subagent defined at /home/longman/.claude/agents/app-sdd-unit-controller.md (read it), running one unit per /home/longman/.claude/skills/app-subagent-apply/prompts/unit-controller-overrides.md (read it in full) and the sub-skill at /home/longman/.claude/plugins/cache/claude-plugins-official/superpowers/6.4.1/skills/subagent-driven-development/SKILL.md (read it i…"
+    }
+  ],
+  "totalTokens": 0,
+  "totalToolCalls": 0
+}

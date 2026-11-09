@@ -1,0 +1,135 @@
+{
+  "summary": "Scenario check of the driver and unit controller text after the 2026-09-25 change",
+  "agentCount": 3,
+  "logs": [],
+  "result": {
+    "summary": {
+      "D1b-prose-return": {
+        "runs": 3,
+        "all_pass": 3
+      }
+    },
+    "green": [
+      {
+        "scenario": "D1b-prose-return",
+        "rep": 1,
+        "result": {
+          "next_action": "resume_controller",
+          "ledger_lines": [],
+          "message_text": "Your final message was prose, not the return block that /home/longman/.claude/skills/app-subagent-apply/prompts/unit-controller-overrides.md defines. It covers fix round 1 (commit 7a8b9c0) but says nothing about a re-review verdict, the gates, or the tick for section 2. Finish whatever is still open for section 2 under the overrides. That means the re-review of round 1 into /repo/.superpowers/sdd/demo/section-2-review-r1.md, any further rounds it calls for, `openspec validate demo --strict` plus the project's gates with a `Gates:` ledger line, and completion only through `openspec-section-tick demo 2 '<ledger line>' [ids]`. Then reply with the return block as your whole message, with nothing before or after it:\n\nUnit: 2\nStatus: complete | parked | needs-ruling | failed\nCommits: <range or none>\nLedger: <number of lines you appended>\nDenied: <tool and command, one per line, only when a permission was denied>\nQuestion: <one paragraph, only with needs-ruling>",
+          "command_text": "SendMessage to the live section-2 app-sdd-unit-controller (same agent, not a new dispatch), with message_text as the message body."
+        },
+        "checks": {
+          "resumes": true,
+          "asks_for_block": true,
+          "no_complete_line": true
+        }
+      },
+      {
+        "scenario": "D1b-prose-return",
+        "rep": 2,
+        "result": {
+          "next_action": "resume_controller",
+          "ledger_lines": [],
+          "message_text": "Your final message was prose with no return block. Do not start new work. Finish Section 2 as the overrides file /home/longman/.claude/skills/app-subagent-apply/prompts/unit-controller-overrides.md requires: the re-review of fix round 1 (commit 7a8b9c0) must pass, the gates must pass with their `Gates:` ledger line, and completion is marked only through the tick command `scripts/openspec-section-tick demo 2 '<ledger line>' [ids]`. Then reply with the return block alone, nothing before or after it:\n\nUnit: <id>\nStatus: complete | parked | needs-ruling | failed\nCommits: <range or none>\nLedger: <number of lines you appended>\nDenied: <tool and command, one per line, only when a permission was denied>\nQuestion: <one paragraph, only with needs-ruling>",
+          "command_text": "SendMessage to the live Section 2 app-sdd-unit-controller (the same agent, resumed by message, not a new dispatch) with message_text"
+        },
+        "checks": {
+          "resumes": true,
+          "asks_for_block": true,
+          "no_complete_line": true
+        }
+      },
+      {
+        "scenario": "D1b-prose-return",
+        "rep": 3,
+        "result": {
+          "next_action": "resume_controller",
+          "ledger_lines": [],
+          "command_text": "SendMessage({to: \"<the live section 2 app-sdd-unit-controller>\", message: <message_text>})",
+          "message_text": "Your final message was prose, not the return block. It does not say whether the re-review approved the fix, whether the gates ran, or whether the tick command ran. Finish whatever section 2 still needs under prompts/unit-controller-overrides.md: the re-review of fix round 1, the gates with a `Gates:` ledger line, and completion only through `scripts/openspec-section-tick demo 2 '<ledger line>' [ids]`. Then reply with the return block as your whole final message and nothing before or after it:\n\nUnit: 2\nStatus: complete | parked | needs-ruling | failed\nCommits: <range or none>\nLedger: <number of lines you appended>\nDenied: <tool and command, one per line, only when a permission was denied>\nQuestion: <one paragraph, only with needs-ruling>\n\nDo not start another section."
+        },
+        "checks": {
+          "resumes": true,
+          "asks_for_block": true,
+          "no_complete_line": true
+        }
+      }
+    ]
+  },
+  "workflowProgress": [
+    {
+      "type": "workflow_phase",
+      "index": 1,
+      "title": "Green"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 1,
+      "label": "green:D1b-prose-return:1",
+      "phaseIndex": 1,
+      "phaseTitle": "Green",
+      "agentId": "a70717bf8b3af2517",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1790367472064,
+      "queuedAt": 1790367472051,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "resume_controller",
+      "promptPreview": "You are a Claude Code session acting as the driver of an implementation run per the skill at /home/longman/.claude/skills/app-subagent-apply/SKILL.md (read it in full first). The unit controller you dispatch follows /home/longman/.claude/skills/app-subagent-apply/prompts/unit-controller-overrides.md (read it) and is the agent type defined at /home/longman/.claude/agents/app-sdd-unit-controller.md.…",
+      "promptFramed": true,
+      "lastProgressAt": 1790367486685,
+      "tokens": 48081,
+      "toolCalls": 3,
+      "durationMs": 14619,
+      "resultPreview": "{\"next_action\":\"resume_controller\",\"ledger_lines\":[],\"message_text\":\"Your final message was prose, not the return block that /home/longman/.claude/skills/app-subagent-apply/prompts/unit-controller-overrides.md defines. It covers fix round 1 (commit 7a8b9c0) but says nothing about a re-review verdict, the gates, or the tick for section 2. Finish whatever is still open for section 2 under the overri…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 2,
+      "label": "green:D1b-prose-return:2",
+      "phaseIndex": 1,
+      "phaseTitle": "Green",
+      "agentId": "a83a774bee74283b3",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1790367472065,
+      "queuedAt": 1790367472051,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "resume_controller",
+      "promptPreview": "You are a Claude Code session acting as the driver of an implementation run per the skill at /home/longman/.claude/skills/app-subagent-apply/SKILL.md (read it in full first). The unit controller you dispatch follows /home/longman/.claude/skills/app-subagent-apply/prompts/unit-controller-overrides.md (read it) and is the agent type defined at /home/longman/.claude/agents/app-sdd-unit-controller.md.…",
+      "promptFramed": true,
+      "lastProgressAt": 1790367484328,
+      "tokens": 48096,
+      "toolCalls": 2,
+      "durationMs": 11234,
+      "resultPreview": "{\"next_action\":\"resume_controller\",\"ledger_lines\":[],\"message_text\":\"Your final message was prose with no return block. Do not start new work. Finish Section 2 as the overrides file /home/longman/.claude/skills/app-subagent-apply/prompts/unit-controller-overrides.md requires: the re-review of fix round 1 (commit 7a8b9c0) must pass, the gates must pass with their `Gates:` ledger line, and completio…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 3,
+      "label": "green:D1b-prose-return:3",
+      "phaseIndex": 1,
+      "phaseTitle": "Green",
+      "agentId": "a340e2ba6b20e0151",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1790367472066,
+      "queuedAt": 1790367472051,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "resume_controller",
+      "promptPreview": "You are a Claude Code session acting as the driver of an implementation run per the skill at /home/longman/.claude/skills/app-subagent-apply/SKILL.md (read it in full first). The unit controller you dispatch follows /home/longman/.claude/skills/app-subagent-apply/prompts/unit-controller-overrides.md (read it) and is the agent type defined at /home/longman/.claude/agents/app-sdd-unit-controller.md.…",
+      "promptFramed": true,
+      "lastProgressAt": 1790367483723,
+      "tokens": 47968,
+      "toolCalls": 4,
+      "durationMs": 10628,
+      "resultPreview": "{\"next_action\":\"resume_controller\",\"ledger_lines\":[],\"command_text\":\"SendMessage({to: \\\"<the live section 2 app-sdd-unit-controller>\\\", message: <message_text>})\",\"message_text\":\"Your final message was prose, not the return block. It does not say whether the re-review approved the fix, whether the gates ran, or whether the tick command ran. Finish whatever section 2 still needs under prompts/unit-…"
+    }
+  ],
+  "totalTokens": 144145,
+  "totalToolCalls": 9
+}

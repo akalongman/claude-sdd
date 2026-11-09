@@ -1,0 +1,106 @@
+{
+  "summary": "Re-run the large-context fix-round scenario against the corrected skill wording, three reps",
+  "agentCount": 3,
+  "logs": [],
+  "result": [
+    {
+      "next_action": "dispatch_fresh_implementer",
+      "model": "opus",
+      "fresh": true,
+      "same_tier": true,
+      "handover": true,
+      "review_file": true
+    },
+    {
+      "next_action": "dispatch_fresh_implementer",
+      "model": "opus",
+      "fresh": true,
+      "same_tier": true,
+      "handover": true,
+      "review_file": true
+    },
+    {
+      "next_action": "dispatch_fresh_implementer",
+      "model": "opus",
+      "fresh": true,
+      "same_tier": true,
+      "handover": true,
+      "review_file": true
+    }
+  ],
+  "workflowProgress": [
+    {
+      "type": "workflow_phase",
+      "index": 1,
+      "title": "Retest"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 1,
+      "label": "retest:S2:1",
+      "phaseIndex": 1,
+      "phaseTitle": "Retest",
+      "agentId": "a06da49e0dbfe4bc5",
+      "model": "claude-opus-5[1m]",
+      "state": "done",
+      "startedAt": 1789995112257,
+      "queuedAt": 1789995112242,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "dispatch_fresh_implementer",
+      "promptPreview": "You are a Claude Code session acting as the controller of an implementation run driven by the skill at /home/longman/.claude/skills/app-subagent-apply/SKILL.md (read it in full first) and its required sub-skill at /home/longman/.claude3/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/subagent-driven-development/SKILL.md (read it in full). Fixture files live under /home/longman/.clau…",
+      "promptFramed": true,
+      "lastProgressAt": 1789995154724,
+      "tokens": 54591,
+      "toolCalls": 7,
+      "durationMs": 42465,
+      "resultPreview": "{\"next_action\":\"dispatch_fresh_implementer\",\"model_for_dispatch\":\"opus\",\"message_text\":\"Fix round 1 of 5 for OpenSpec change `demo`, section 2. A prior implementer attempted this unit 1 time; you own it now. Read the report file for what was tried.\\n\\nRead these files first:\\n- Brief: /repo/.superpowers/sdd/demo/section-2-brief.md\\n- Prior implementer's report: /repo/.superpowers/sdd/demo/section-…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 2,
+      "label": "retest:S2:2",
+      "phaseIndex": 1,
+      "phaseTitle": "Retest",
+      "agentId": "abf5179cd64fd4398",
+      "model": "claude-opus-5[1m]",
+      "state": "done",
+      "startedAt": 1789995112258,
+      "queuedAt": 1789995112242,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "dispatch_fresh_implementer",
+      "promptPreview": "You are a Claude Code session acting as the controller of an implementation run driven by the skill at /home/longman/.claude/skills/app-subagent-apply/SKILL.md (read it in full first) and its required sub-skill at /home/longman/.claude3/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/subagent-driven-development/SKILL.md (read it in full). Fixture files live under /home/longman/.clau…",
+      "promptFramed": true,
+      "lastProgressAt": 1789995153487,
+      "tokens": 55212,
+      "toolCalls": 7,
+      "durationMs": 40061,
+      "resultPreview": "{\"next_action\":\"dispatch_fresh_implementer\",\"model_for_dispatch\":\"opus\",\"message_text\":\"Fix round 1 of 5 for OpenSpec change `demo`, section 2. A prior implementer attempted this unit 1 time; you own it now. Read the report file for what was tried.\\n\\nRead these before you touch code:\\n- Brief: /repo/.superpowers/sdd/demo/section-2-brief.md\\n- Prior implementer's report: /repo/.superpowers/sdd/dem…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 3,
+      "label": "retest:S2:3",
+      "phaseIndex": 1,
+      "phaseTitle": "Retest",
+      "agentId": "a14e332999a96c884",
+      "model": "claude-opus-5[1m]",
+      "state": "done",
+      "startedAt": 1789995112258,
+      "queuedAt": 1789995112242,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "dispatch_fresh_implementer",
+      "promptPreview": "You are a Claude Code session acting as the controller of an implementation run driven by the skill at /home/longman/.claude/skills/app-subagent-apply/SKILL.md (read it in full first) and its required sub-skill at /home/longman/.claude3/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/subagent-driven-development/SKILL.md (read it in full). Fixture files live under /home/longman/.clau…",
+      "promptFramed": true,
+      "lastProgressAt": 1789995148794,
+      "tokens": 57644,
+      "toolCalls": 6,
+      "durationMs": 35369,
+      "resultPreview": "{\"next_action\":\"dispatch_fresh_implementer\",\"model_for_dispatch\":\"opus\",\"message_text\":\"You own section 2 of OpenSpec change `demo` from here. A prior implementer attempted this unit 1 time; you own it now. Read the report file for what was tried.\\n\\nRead these first, in this order:\\n1. /repo/.superpowers/sdd/demo/section-2-brief.md, your requirements, with the exact values to use verbatim.\\n2. /r…"
+    }
+  ],
+  "totalTokens": 167447,
+  "totalToolCalls": 20
+}

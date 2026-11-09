@@ -1,0 +1,381 @@
+{
+  "summary": "Scenario check of the driver and unit controller text after the 2026-09-25 change",
+  "agentCount": 7,
+  "logs": [],
+  "result": {
+    "summary": {
+      "S1-fix-small-ctx": {
+        "runs": 1,
+        "all_pass": 1
+      },
+      "S2-fix-large-ctx": {
+        "runs": 1,
+        "all_pass": 1
+      },
+      "S3-fable-limit": {
+        "runs": 1,
+        "all_pass": 1
+      },
+      "S12-late-notification-earlier-round": {
+        "runs": 1,
+        "all_pass": 1
+      },
+      "S9f-pause-in-final-phase": {
+        "runs": 1,
+        "all_pass": 1
+      },
+      "S16-note-round-reviewed-clean": {
+        "runs": 1,
+        "all_pass": 1
+      },
+      "S17-final-note-after-fix-wave": {
+        "runs": 1,
+        "all_pass": 1
+      }
+    },
+    "green": [
+      {
+        "scenario": "S1-fix-small-ctx",
+        "rep": 1,
+        "result": {
+          "next_action": "message_same_implementer",
+          "ledger_lines": [
+            "Section 2: review (/repo/.superpowers/sdd/demo/section-2-review.md): Spec FAIL, Quality Needs fixes; open C1, I1 (commits 2b698a3..c1d2e3f)",
+            "Section 2: minor (deferred): M1 test names do not follow the suite's it_ prefix (tests/Feature/DepartmentFilterTest.php:12)",
+            "Section 2: minor (deferred): M2 docblock on index() out of date (app/Http/Controllers/DepartmentController.php:30)",
+            "Section 2: fix round 1/5 sent to implementer a62e23f4 by message (last notification 118000 tokens, under 300000); ids C1, I1; FIX_BASE c1d2e3f"
+          ],
+          "message_text": "Fix round 1 of 5 for section 2 of OpenSpec change `demo`.\n\nThe task review is at /repo/.superpowers/sdd/demo/section-2-review.md. Read it for the full findings. Open findings for this round, verbatim:\n\nC1 Missing filters[status] handling in DepartmentController::index app/Http/Controllers/DepartmentController.php:41\nI1 Duplicate normalisation block copied from CalendarController app/Http/Controllers/DepartmentController.php:55-71\n\nFix C1 and I1 only. M1 and M2 are Minor, ledgered as deferred, and are not part of this round; do not touch them. Stay inside the brief's file list, change no spec delta line, and do not tick tasks.md.\n\nThen re-run the tests covering the amended code (at least tests/Feature/DepartmentFilterTest.php), commit, and append a fix report to your report file /repo/.superpowers/sdd/demo/section-2-report.md with, per finding, what you changed, the covering tests, the exact command run and its output. Do not dispatch subagents or a reviewer. Return only the short contract: status, commits, one-line test summary, concerns.",
+          "round_ids": [
+            "C1",
+            "I1"
+          ]
+        },
+        "checks": {
+          "resumes": true,
+          "names_file": true,
+          "names_ids": true,
+          "minors_out": true,
+          "minor_ids_out": true,
+          "open_ids_in_round": true,
+          "minors_deferred": true
+        }
+      },
+      {
+        "scenario": "S2-fix-large-ctx",
+        "rep": 1,
+        "result": {
+          "next_action": "dispatch_fresh_implementer",
+          "round_ids": [
+            "C1",
+            "I1"
+          ],
+          "ledger_lines": [
+            "Section 2: review (opus): Spec FAIL, Quality Needs fixes; open C1, I1; report /repo/.superpowers/sdd/demo/section-2-review.md",
+            "Section 2: minor (deferred): M1 Test names do not follow the suite's it_ prefix tests/Feature/DepartmentFilterTest.php:12",
+            "Section 2: minor (deferred): M2 Docblock on index() out of date app/Http/Controllers/DepartmentController.php:30",
+            "Section 2: fix round 1/5 dispatched: fresh app-sdd-implementer on opus (prior implementer a62e23f4 last notification 346000 tokens, over 300000, so no resume); findings C1, I1; FIX_BASE c1d2e3f"
+          ],
+          "message_text": "Pre-dispatch check (run first, same call as nothing else; if the latest Section 2 pause line is `pause requested`, take the checkpoint and return `paused` instead of dispatching; carry any owner notes found):\ngrep -nE '^(Section 2|Final phase): (pause (requested|released)|owner note)' /repo/.superpowers/sdd/demo/progress.md\n\nDispatch (subagent_type: app-sdd-implementer, model: opus, description: \"Fix round 1: Section 2 of demo\"), with the four ledger lines appended to /repo/.superpowers/sdd/demo/progress.md in the same call:\n\nYou are implementing fix round 1 for Section 2 of OpenSpec change `demo`.\n\nA prior implementer built this unit and ran 0 fix rounds; you own it now. Read the report file for what was built and tested before anything else.\n\nRead these first:\n- Brief (your requirements, with the exact values to use verbatim): /repo/.superpowers/sdd/demo/section-2-brief.md\n- Report file (the prior implementer's report; append your fix report here): /repo/.superpowers/sdd/demo/section-2-report.md\n- Review file (the findings, with their full text): /repo/.superpowers/sdd/demo/section-2-review.md\n\nThe unit's commits so far are 2b698a3..c1d2e3f; HEAD is c1d2e3f.\n\nFix these open findings, and only these (ids as in the review file):\n- C1 Missing filters[status] handling in DepartmentController::index app/Http/Controllers/DepartmentController.php:41\n- I1 Duplicate normalisation block copied from CalendarController app/Http/Controllers/DepartmentController.php:55-71\n\nMinor findings M1 and M2 are deferred; do not touch them.\n\nCovering tests: tests/Feature/DepartmentFilterTest.php. Add a test for C1's filters[status] handling there, re-run that file, and run whatever other test covers code you change for I1.\n\nAfter fixing: append a fix report to /repo/.superpowers/sdd/demo/section-2-report.md (what you changed per finding id, the covering tests, the exact command, and its output), commit path-limited, then reply with only the short status contract (Status, commits, one-line test summary, concerns, report path).\n\nFollow the overrides in /home/longman/.claude/skills/app-subagent-apply/prompts/implementer-overrides.md; they win over this prompt wherever they differ. You do not dispatch subagents."
+        },
+        "checks": {
+          "fresh": true,
+          "handover": true,
+          "prior_rounds": true,
+          "names_file": true,
+          "minors_out": true,
+          "minor_ids_out": true,
+          "open_ids_in_round": true
+        }
+      },
+      {
+        "scenario": "S3-fable-limit",
+        "rep": 1,
+        "result": {
+          "next_action": "redispatch_same_prompt_on_opus",
+          "ledger_lines": [
+            "Final phase: whole-branch review a9e8a16e87f738447 (fable) failed: \"You've reached your Fable limit.\" No report written",
+            "Model fallback: final-review fable -> opus",
+            "Final phase: whole-branch review re-dispatched as app-sdd-reviewer on opus (same prompt, Run base..HEAD, report to final-review.md)"
+          ],
+          "later_fable_use": false
+        },
+        "checks": {
+          "steps_down": true,
+          "ledgered": true,
+          "no_reprobe": true
+        }
+      },
+      {
+        "scenario": "S12-late-notification-earlier-round",
+        "rep": 1,
+        "result": {
+          "next_action": "other",
+          "ledger_lines": [
+            "Section 2: notification for a86ac5dc1bb96f866 (round-1 implementer, superseded; summary \"Probe long sleep\" was stopped by Claude, status killed, no result): not the child in flight, consumed; waiting on fix-round-2 implementer b71c0e22"
+          ],
+          "message_text": "Run this one command, then end the turn without dispatching, stopping or resuming anything, and without returning a block:\n\nprintf '%s\\n' 'Section 2: notification for a86ac5dc1bb96f866 (round-1 implementer, superseded; summary \"Probe long sleep\" was stopped by Claude, status killed, no result): not the child in flight, consumed; waiting on fix-round-2 implementer b71c0e22' >> /repo/.superpowers/sdd/demo/progress.md\n\nWhy:\n- The notification's task-id is a86ac5dc1bb96f866. That is the round-1 implementer, which fix round 2 replaced. The only child in flight is b71c0e22.\n- The overrides treat a killed status with no result as a hand stop (a pause) only when it comes from the child in flight. A notification for any other child id is written to the ledger and consumed.\n- The summary agrees: it says \"was stopped by Claude\" and names a different dispatch (\"Probe long sleep\"). It does not look like an owner pause.\n- No pause line exists, so there is no checkpoint and no paused return.\n- Nothing has finished, so no return block goes out yet. b71c0e22 will notify when it reports, and the harness re-invokes me then."
+        },
+        "checks": {
+          "no_dispatch": true,
+          "consumed_line": true,
+          "not_paused": true
+        }
+      },
+      {
+        "scenario": "S9f-pause-in-final-phase",
+        "rep": 1,
+        "result": {
+          "next_action": "return_block",
+          "command_text": "grep -nE '^(Final phase): (pause (requested|released)|owner note)' /repo/.superpowers/sdd/demo/progress.md\ncd /repo && git rev-parse --short HEAD && out=$(~/.claude/skills/app-subagent-apply/scripts/sdd-checkpoint src/Ledger.php tests/LedgerTest.php config/ledger.php) && printf '%s\\n' \"Final phase: fix wave DONE (I1; commits d4e5f6a..e7f8a9b; app-sdd-implementer, opus, agent a62e23f4, report .superpowers/sdd/demo/final-report.md)\" \"Final phase: paused (after fix wave, before scoped re-review; $out)\" >> /repo/.superpowers/sdd/demo/progress.md",
+          "dispatch_prompt": "",
+          "message_text": "",
+          "ledger_lines": [
+            "Final phase: fix wave DONE (I1; commits d4e5f6a..e7f8a9b; app-sdd-implementer, opus, agent a62e23f4, report .superpowers/sdd/demo/final-report.md)",
+            "Final phase: paused (after fix wave, before scoped re-review; heads repo e7f8a9b; tree 5db26f80ee6e8244)"
+          ],
+          "return_block": "Unit: final phase\nStatus: paused\nCommits: d4e5f6a..e7f8a9b\nLedger: 2\nPoint: after fix wave (I1, commits d4e5f6a..e7f8a9b), before the scoped re-review; checkpoint heads repo e7f8a9b; tree 5db26f80ee6e8244"
+        },
+        "checks": {
+          "grep_before_dispatch": true,
+          "report_ledgered": true,
+          "paused_line": true,
+          "block_paused": true,
+          "no_dispatch": true
+        }
+      },
+      {
+        "scenario": "S16-note-round-reviewed-clean",
+        "rep": 1,
+        "result": {
+          "next_action": "return_block",
+          "command_text": "cd /repo && printf '%s\\n' 'Section 3: re-review r1 verdict Spec OK, Quality Approved (Critical 0, Important 0; section-3-review-r1.md)' 'Section 3: fix round 1/5 (1 addressed, 0 open; commits d4e5f6a..e7f8a9b)' >> .superpowers/sdd/demo/progress.md && git rev-parse --short HEAD && openspec validate demo --strict && printf '%s\\n' 'Section 3: Gates: openspec validate demo --strict passed (HEAD e7f8a9b)' >> .superpowers/sdd/demo/progress.md\ngrep -nE '^Section 3: owner note' /repo/.superpowers/sdd/demo/progress.md\ncd /repo && openspec-section-tick demo 3 'Section 3: complete (commits c1d2e3f..e7f8a9b, review clean)'",
+          "dispatch_prompt": "",
+          "message_text": "",
+          "ledger_lines": [
+            "Section 3: re-review r1 verdict Spec OK, Quality Approved (Critical 0, Important 0; section-3-review-r1.md)",
+            "Section 3: fix round 1/5 (1 addressed, 0 open; commits d4e5f6a..e7f8a9b)",
+            "Section 3: Gates: openspec validate demo --strict passed (HEAD e7f8a9b)",
+            "Section 3: complete (commits c1d2e3f..e7f8a9b, review clean)"
+          ],
+          "return_block": "Unit: Section 3\nStatus: complete\nCommits: c1d2e3f..e7f8a9b\nLedger: 4",
+          "then_action": "message_same_implementer",
+          "then_command_text": "cd /repo && printf '%s\\n' 'Section 3: re-review r1 verdict Spec OK, Quality Needs fixes (Critical 0, Important 1; section-3-review-r1.md)' 'Section 3: fix round 1/5 (1 addressed, 1 open: I1 src/Ledger.php:42 tail window still reads the README path the note removed; commits d4e5f6a..e7f8a9b)' >> .superpowers/sdd/demo/progress.md && grep -nE '^(Section 3|Final phase): (pause (requested|released)|owner note)' .superpowers/sdd/demo/progress.md && printf '%s\\n' 'Section 3: fix round 2/5 sent (I1; resumed a62e23f4 at 118000 tokens, fix base e7f8a9b)' >> .superpowers/sdd/demo/progress.md",
+          "then_dispatch_prompt": "",
+          "then_message_text": "Fix round 2 of 5 for Section 3 of OpenSpec change `demo`.\n\nThe re-review of your owner-note round (fix base d4e5f6a, head e7f8a9b) is at /repo/.superpowers/sdd/demo/section-3-review-r1.md. Read it first. One finding is open:\n\n- I1 src/Ledger.php:42: the tail window still reads the README path the note removed.\n\nOwner note for this unit, still binding: \"drop the README edit from this unit\". Fix I1 so that nothing in the unit refers to the README path the note removed, without reintroducing the README edit. Change nothing else.\n\nRe-run the tests covering src/Ledger.php (name the test files), commit, and append your fix report to /repo/.superpowers/sdd/demo/section-3-report.md with the covering tests, the command you ran and its output. Do not dispatch subagents. Return only your status, the commit range, a one-line test summary and any concerns.",
+          "then_return_block": "",
+          "then_ledger_lines": [
+            "Section 3: re-review r1 verdict Spec OK, Quality Needs fixes (Critical 0, Important 1; section-3-review-r1.md)",
+            "Section 3: fix round 1/5 (1 addressed, 1 open: I1 src/Ledger.php:42 tail window still reads the README path the note removed; commits d4e5f6a..e7f8a9b)",
+            "Section 3: fix round 2/5 sent (I1; resumed a62e23f4 at 118000 tokens, fix base e7f8a9b)"
+          ]
+        },
+        "checks": {
+          "ticks": true,
+          "block_complete": true,
+          "no_needs_ruling": true,
+          "round_two": true,
+          "then_no_needs_ruling": true
+        }
+      },
+      {
+        "scenario": "S17-final-note-after-fix-wave",
+        "rep": 1,
+        "result": {
+          "next_action": "message_same_implementer",
+          "command_text": "grep -nE '^(Final phase): (pause (requested|released)|owner note)' /repo/.superpowers/sdd/demo/progress.md\nprintf '%s\\n' 'Final phase: fix wave reported DONE (I1; commits d4e5f6a..e7f8a9b; report .superpowers/sdd/demo/final-report.md)' 'Final phase: note dispatch (owner note 1, read after the fix dispatch and before the scoped re-review; resume app-sdd-implementer a62e23f4, opus, last notification 118000 tokens; base e7f8a9b; report .superpowers/sdd/demo/final-report.md)' 'Final phase: owner note applied' >> /repo/.superpowers/sdd/demo/progress.md",
+          "dispatch_prompt": "",
+          "message_text": "Your fix wave for I1 (commits d4e5f6a..e7f8a9b) is recorded. The owner has added one note for the final phase, and it is the whole of this round; it carries no review findings:\n\nOwner note 1: \"also rename the test file\"\n\nApply it on top of your fix wave. The test file meant is the one covering the code your fix wave touched; rename it to match the code it covers, and update every reference to the old name (imports, test config, CI lists). If the brief at /repo/.superpowers/sdd/demo/final-brief.md and your report do not settle which file or which new name, stop and return NEEDS_CONTEXT with the candidates instead of guessing.\n\nRules as before (/home/longman/.claude/skills/app-subagent-apply/prompts/implementer-overrides.md): commit on the current branch, path-limited (`git add <paths> && git commit -m \"<title>\" -- <paths>`, with `git mv` for the rename), never tick tasks.md, never push, never dispatch subagents. Re-run the renamed test file and any test that imports it, not the whole suite.\n\nAppend a fix report headed \"Owner note 1\" to /repo/.superpowers/sdd/demo/final-report.md with the old and new path, the covering tests, the command you ran and its output. Then return only: status, commit range from e7f8a9b, a one-line test summary, and concerns.",
+          "ledger_lines": [
+            "Final phase: fix wave reported DONE (I1; commits d4e5f6a..e7f8a9b; report .superpowers/sdd/demo/final-report.md)",
+            "Final phase: note dispatch (owner note 1, read after the fix dispatch and before the scoped re-review; resume app-sdd-implementer a62e23f4, opus, last notification 118000 tokens; base e7f8a9b; report .superpowers/sdd/demo/final-report.md)",
+            "Final phase: owner note applied"
+          ],
+          "return_block": "",
+          "then_action": "message_same_implementer",
+          "then_command_text": "printf '%s\\n' 'Final phase: scoped re-review (opus): I1 ADDRESSED; no new findings; round all addressed; report .superpowers/sdd/demo/final-review-r1.md' >> /repo/.superpowers/sdd/demo/progress.md && grep -nE '^Final phase: owner note' /repo/.superpowers/sdd/demo/progress.md\ngrep -nE '^(Final phase): (pause (requested|released)|owner note)' /repo/.superpowers/sdd/demo/progress.md\nprintf '%s\\n' 'Final phase: note dispatch (owner note 1, unapplied at the read before the tick; resume app-sdd-implementer a62e23f4, opus; base e7f8a9b; report .superpowers/sdd/demo/final-report.md)' 'Final phase: owner note applied' >> /repo/.superpowers/sdd/demo/progress.md",
+          "then_dispatch_prompt": "",
+          "then_message_text": "Your fix wave for I1 (commits d4e5f6a..e7f8a9b) passed its scoped re-review. The owner has added one note for the final phase, and it is the whole of this round; it carries no review findings:\n\nOwner note 1: \"also rename the test file\"\n\nApply it on top of e7f8a9b. The test file meant is the one covering the code your fix wave touched; rename it to match the code it covers, and update every reference to the old name (imports, test config, CI lists). If the brief at /repo/.superpowers/sdd/demo/final-brief.md and your report do not settle which file or which new name, stop and return NEEDS_CONTEXT with the candidates instead of guessing.\n\nRules as before (/home/longman/.claude/skills/app-subagent-apply/prompts/implementer-overrides.md): commit on the current branch, path-limited (`git add <paths> && git commit -m \"<title>\" -- <paths>`, with `git mv` for the rename), never tick tasks.md, never push, never dispatch subagents. Re-run the renamed test file and any test that imports it, not the whole suite.\n\nAppend a fix report headed \"Owner note 1\" to /repo/.superpowers/sdd/demo/final-report.md with the old and new path, the covering tests, the command you ran and its output. Then return only: status, commit range from e7f8a9b, a one-line test summary, and concerns.",
+          "then_return_block": "",
+          "then_ledger_lines": [
+            "Final phase: scoped re-review (opus): I1 ADDRESSED; no new findings; round all addressed; report .superpowers/sdd/demo/final-review-r1.md",
+            "Final phase: note dispatch (owner note 1, unapplied at the read before the tick; resume app-sdd-implementer a62e23f4, opus; base e7f8a9b; report .superpowers/sdd/demo/final-report.md)",
+            "Final phase: owner note applied"
+          ],
+          "rereview_range": "d4e5f6a..f0a1b2c",
+          "round_ids": []
+        },
+        "checks": {
+          "note_dispatch": true,
+          "no_findings_in_note_dispatch": true,
+          "rereview_from_review_head": true,
+          "then_note_dispatch": true,
+          "no_complete_line": true
+        }
+      }
+    ]
+  },
+  "workflowProgress": [
+    {
+      "type": "workflow_phase",
+      "index": 1,
+      "title": "Green"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 1,
+      "label": "green:S1-fix-small-ctx:1",
+      "phaseIndex": 1,
+      "phaseTitle": "Green",
+      "agentId": "a4635302c8c271751",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1792756458711,
+      "queuedAt": 1792756458652,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "message_same_implementer",
+      "promptPreview": "You are the app-sdd-unit-controller subagent defined at /home/longman/.claude/agents/app-sdd-unit-controller.md (read it), running one unit per /home/longman/.claude/skills/app-subagent-apply/prompts/unit-controller-overrides.md (read it in full) and the sub-skill in /tmp/claude-1000/-home-longman-projects-personal-claude-subagent-apply/7d667528-f531-42e7-a7af-c8902667667f/scratchpad/candidate-7.0…",
+      "promptFramed": true,
+      "lastProgressAt": 1792756477996,
+      "tokens": 65705,
+      "toolCalls": 3,
+      "durationMs": 19284,
+      "resultPreview": "{\"next_action\":\"message_same_implementer\",\"ledger_lines\":[\"Section 2: review (/repo/.superpowers/sdd/demo/section-2-review.md): Spec FAIL, Quality Needs fixes; open C1, I1 (commits 2b698a3..c1d2e3f)\",\"Section 2: minor (deferred): M1 test names do not follow the suite's it_ prefix (tests/Feature/DepartmentFilterTest.php:12)\",\"Section 2: minor (deferred): M2 docblock on index() out of date (app/Http…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 2,
+      "label": "green:S2-fix-large-ctx:1",
+      "phaseIndex": 1,
+      "phaseTitle": "Green",
+      "agentId": "a8e4bdff066f4324c",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1792756458711,
+      "queuedAt": 1792756458653,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "dispatch_fresh_implementer",
+      "promptPreview": "You are the app-sdd-unit-controller subagent defined at /home/longman/.claude/agents/app-sdd-unit-controller.md (read it), running one unit per /home/longman/.claude/skills/app-subagent-apply/prompts/unit-controller-overrides.md (read it in full) and the sub-skill in /tmp/claude-1000/-home-longman-projects-personal-claude-subagent-apply/7d667528-f531-42e7-a7af-c8902667667f/scratchpad/candidate-7.0…",
+      "promptFramed": true,
+      "lastProgressAt": 1792756484706,
+      "tokens": 68509,
+      "toolCalls": 4,
+      "durationMs": 25093,
+      "resultPreview": "{\"next_action\":\"dispatch_fresh_implementer\",\"round_ids\":[\"C1\",\"I1\"],\"ledger_lines\":[\"Section 2: review (opus): Spec FAIL, Quality Needs fixes; open C1, I1; report /repo/.superpowers/sdd/demo/section-2-review.md\",\"Section 2: minor (deferred): M1 Test names do not follow the suite's it_ prefix tests/Feature/DepartmentFilterTest.php:12\",\"Section 2: minor (deferred): M2 Docblock on index() out of date…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 3,
+      "label": "green:S3-fable-limit:1",
+      "phaseIndex": 1,
+      "phaseTitle": "Green",
+      "agentId": "ab542f5c68af3f7eb",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1792756458711,
+      "queuedAt": 1792756458653,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "redispatch_same_prompt_on_opus",
+      "promptPreview": "You are the app-sdd-unit-controller subagent defined at /home/longman/.claude/agents/app-sdd-unit-controller.md (read it), running one unit per /home/longman/.claude/skills/app-subagent-apply/prompts/unit-controller-overrides.md (read it in full) and the sub-skill in /tmp/claude-1000/-home-longman-projects-personal-claude-subagent-apply/7d667528-f531-42e7-a7af-c8902667667f/scratchpad/candidate-7.0…",
+      "promptFramed": true,
+      "lastProgressAt": 1792756469463,
+      "tokens": 64523,
+      "toolCalls": 3,
+      "durationMs": 10750,
+      "resultPreview": "{\"next_action\":\"redispatch_same_prompt_on_opus\",\"ledger_lines\":[\"Final phase: whole-branch review a9e8a16e87f738447 (fable) failed: \\\"You've reached your Fable limit.\\\" No report written\",\"Model fallback: final-review fable -> opus\",\"Final phase: whole-branch review re-dispatched as app-sdd-reviewer on opus (same prompt, Run base..HEAD, report to final-review.md)\"],\"later_fable_use\":false}"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 4,
+      "label": "green:S12-late-notification-earlier-round:1",
+      "phaseIndex": 1,
+      "phaseTitle": "Green",
+      "agentId": "a70bbd163db175042",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1792756458712,
+      "queuedAt": 1792756458653,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "other",
+      "promptPreview": "You are the app-sdd-unit-controller subagent defined at /home/longman/.claude/agents/app-sdd-unit-controller.md (read it), running one unit per /home/longman/.claude/skills/app-subagent-apply/prompts/unit-controller-overrides.md (read it in full) and the sub-skill in /tmp/claude-1000/-home-longman-projects-personal-claude-subagent-apply/7d667528-f531-42e7-a7af-c8902667667f/scratchpad/candidate-7.0…",
+      "promptFramed": true,
+      "lastProgressAt": 1792756473081,
+      "tokens": 64394,
+      "toolCalls": 3,
+      "durationMs": 14368,
+      "resultPreview": "{\"next_action\":\"other\",\"ledger_lines\":[\"Section 2: notification for a86ac5dc1bb96f866 (round-1 implementer, superseded; summary \\\"Probe long sleep\\\" was stopped by Claude, status killed, no result): not the child in flight, consumed; waiting on fix-round-2 implementer b71c0e22\"],\"message_text\":\"Run this one command, then end the turn without dispatching, stopping or resuming anything, and without …"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 5,
+      "label": "green:S9f-pause-in-final-phase:1",
+      "phaseIndex": 1,
+      "phaseTitle": "Green",
+      "agentId": "a185c0bb5cc32e0a4",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1792756458712,
+      "queuedAt": 1792756458653,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "return_block",
+      "promptPreview": "You are the app-sdd-unit-controller subagent defined at /home/longman/.claude/agents/app-sdd-unit-controller.md (read it), running one unit per /home/longman/.claude/skills/app-subagent-apply/prompts/unit-controller-overrides.md (read it in full) and the sub-skill in /tmp/claude-1000/-home-longman-projects-personal-claude-subagent-apply/7d667528-f531-42e7-a7af-c8902667667f/scratchpad/candidate-7.0…",
+      "promptFramed": true,
+      "lastProgressAt": 1792756480858,
+      "tokens": 67171,
+      "toolCalls": 4,
+      "durationMs": 22144,
+      "resultPreview": "{\"next_action\":\"return_block\",\"command_text\":\"grep -nE '^(Final phase): (pause (requested|released)|owner note)' /repo/.superpowers/sdd/demo/progress.md\\ncd /repo && git rev-parse --short HEAD && out=$(~/.claude/skills/app-subagent-apply/scripts/sdd-checkpoint src/Ledger.php tests/LedgerTest.php config/ledger.php) && printf '%s\\\\n' \\\"Final phase: fix wave DONE (I1; commits d4e5f6a..e7f8a9b; app-sd…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 6,
+      "label": "green:S16-note-round-reviewed-clean:1",
+      "phaseIndex": 1,
+      "phaseTitle": "Green",
+      "agentId": "a9eb3c7ba27777087",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1792756458712,
+      "queuedAt": 1792756458653,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "return_block",
+      "promptPreview": "You are the app-sdd-unit-controller subagent defined at /home/longman/.claude/agents/app-sdd-unit-controller.md (read it), running one unit per /home/longman/.claude/skills/app-subagent-apply/prompts/unit-controller-overrides.md (read it in full) and the sub-skill in /tmp/claude-1000/-home-longman-projects-personal-claude-subagent-apply/7d667528-f531-42e7-a7af-c8902667667f/scratchpad/candidate-7.0…",
+      "promptFramed": true,
+      "lastProgressAt": 1792756499088,
+      "tokens": 68330,
+      "toolCalls": 3,
+      "durationMs": 40374,
+      "resultPreview": "{\"next_action\":\"return_block\",\"command_text\":\"cd /repo && printf '%s\\\\n' 'Section 3: re-review r1 verdict Spec OK, Quality Approved (Critical 0, Important 0; section-3-review-r1.md)' 'Section 3: fix round 1/5 (1 addressed, 0 open; commits d4e5f6a..e7f8a9b)' >> .superpowers/sdd/demo/progress.md && git rev-parse --short HEAD && openspec validate demo --strict && printf '%s\\\\n' 'Section 3: Gates: ope…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 7,
+      "label": "green:S17-final-note-after-fix-wave:1",
+      "phaseIndex": 1,
+      "phaseTitle": "Green",
+      "agentId": "ac67e6cc15db8de58",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1792756458712,
+      "queuedAt": 1792756458653,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "message_same_implementer",
+      "promptPreview": "You are the app-sdd-unit-controller subagent defined at /home/longman/.claude/agents/app-sdd-unit-controller.md (read it), running one unit per /home/longman/.claude/skills/app-subagent-apply/prompts/unit-controller-overrides.md (read it in full) and the sub-skill in /tmp/claude-1000/-home-longman-projects-personal-claude-subagent-apply/7d667528-f531-42e7-a7af-c8902667667f/scratchpad/candidate-7.0…",
+      "promptFramed": true,
+      "lastProgressAt": 1792756508687,
+      "tokens": 79153,
+      "toolCalls": 4,
+      "durationMs": 49973,
+      "resultPreview": "{\"next_action\":\"message_same_implementer\",\"command_text\":\"grep -nE '^(Final phase): (pause (requested|released)|owner note)' /repo/.superpowers/sdd/demo/progress.md\\nprintf '%s\\\\n' 'Final phase: fix wave reported DONE (I1; commits d4e5f6a..e7f8a9b; report .superpowers/sdd/demo/final-report.md)' 'Final phase: note dispatch (owner note 1, read after the fix dispatch and before the scoped re-review; …"
+    }
+  ],
+  "totalTokens": 477785,
+  "totalToolCalls": 24
+}
