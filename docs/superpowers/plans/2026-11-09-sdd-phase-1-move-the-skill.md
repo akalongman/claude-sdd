@@ -12,7 +12,7 @@
 
 **Revision 3 (2026-11-09):** revision 2 followed two external reviews of revision 1; revision 3 moves the retirement of the private copy and the acceptance out of the run, into the section "After the run's archive". The changes are listed under "Self-review notes".
 
-**Revision 4 (2026-11-09, during the run, by the owner's ruling):** the private `SKILL.md` grew to 20,261 characters after revision 3 was measured (private commit 3e83ca5, the routed-to-driver rule), so Task 5 carries fourteen further wording-only cuts, rows 10 to 23, and its counts are recomputed.
+**Revision 4 (2026-11-09, during the run, by the owner's ruling):** the private `SKILL.md` grew to 20,261 characters after revision 3 was measured (private commit 3e83ca5, the routed-to-driver rule), so Task 5 carries fourteen further wording-only cuts, rows 10 to 23, and its counts are recomputed. By later rulings of the same run, Task 9 renames the record's `CLAUDE.md` to `docs/history/record-instructions.md`, and the agents' `description` reads "for `sdd:apply`".
 
 ## Global Constraints
 
@@ -261,7 +261,7 @@ git add skills/apply/SKILL.md && git commit -m "Move the apply skill as /sdd:app
 
 - [ ] **Step 1: Copy the three private files and edit**
 
-`name:` drops the `app-sdd-` prefix. `description:` reads "for the sdd plugin's apply skill dispatches only" where it reads "for app-subagent-apply dispatches only". The body's "run by app-subagent-apply" and "for app-subagent-apply" read "run by the sdd plugin's apply skill" and "for the sdd plugin's apply skill". Every other line is unchanged.
+`name:` drops the `app-sdd-` prefix. `description:` reads "for `sdd:apply` dispatches only" where it reads "for app-subagent-apply dispatches only" (revision 4; the run's first version read "for the sdd plugin's apply skill dispatches only", reworded in its final fix wave). The body's "run by app-subagent-apply" and "for app-subagent-apply" read "run by the sdd plugin's apply skill" and "for the sdd plugin's apply skill". Every other line is unchanged.
 
 - [ ] **Step 2: Verify**
 
@@ -368,7 +368,7 @@ git add tools tests/test-tools.sh tests/run.sh && git commit -m "Port the transc
 ### Task 9: Absorb the record's documents
 
 **Files:**
-- Create: `docs/history/README.md` (the record's `README.md`), `docs/history/CLAUDE.md` (the record's instruction file, kept as history), `docs/history/decisions.md`, `findings.md`, `lessons.md`, `measurements.md`, `skill.md`, `upstream.md`, `docs/history/specs/*` and `docs/history/plans/*` (from the record's `docs/superpowers/`), `docs/history/reviews/*` (every file under the record's `reviews/`, the five untracked ones included), `docs/history/upstream/*` only by the owner's word. The record's `.superpowers/sdd/` is a run workspace, not history, and does not move.
+- Create: `docs/history/README.md` (the record's `README.md`), `docs/history/record-instructions.md` (the record's `CLAUDE.md`, renamed so that a session reading `docs/history/` does not load it as instructions), `docs/history/decisions.md`, `findings.md`, `lessons.md`, `measurements.md`, `skill.md`, `upstream.md`, `docs/history/specs/*` and `docs/history/plans/*` (from the record's `docs/superpowers/`), `docs/history/reviews/*` (every file under the record's `reviews/`, the five untracked ones included), `docs/history/upstream/*` only by the owner's word. The record's `.superpowers/sdd/` is a run workspace, not history, and does not move.
 - Create: `docs/history/INDEX.md` (one line per file: what it is, its date)
 
 **Interfaces:**
@@ -385,7 +385,7 @@ The closing entry in `docs/history/decisions.md`, numbered after the last, dated
 - [ ] **Step 3: Verify completeness**
 
 Run: `cd ~/projects/personal/claude-subagent-apply && for f in $(git ls-files docs reviews README.md CLAUDE.md; git ls-files --others --exclude-standard reviews); do b=$(basename "$f"); [ -n "$(find ~/projects/akalongman/claude-sdd/docs/history -name "$b" -print -quit)" ] || echo "missing $f"; done`
-Expected: no `missing` line (two record files share no basename, so a name found is the file moved; the command is recorded in `docs/history/INDEX.md`).
+Expected: one line, `missing CLAUDE.md`, the record's instruction file moved as `docs/history/record-instructions.md` (two record files share no basename, so a name found is the file moved; the command and this expected line are recorded in `docs/history/INDEX.md`).
 
 - [ ] **Step 4: Commit**
 

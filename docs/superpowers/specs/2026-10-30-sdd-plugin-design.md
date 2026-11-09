@@ -537,8 +537,9 @@ What moves, and the only edits made to it:
 - `skills/apply/scripts/*`: byte-identical copies of six scripts;
   `sdd-checkpoint` moves to `bin/` byte-identical.
 - `agents/*.md`: the three definitions, `name` without the `app-sdd-`
-  prefix, `description` and body reading "for the sdd plugin's apply
-  skill" where they read "for app-subagent-apply", every other frontmatter
+  prefix, `description` reading "for `sdd:apply`" and the body "for the sdd
+  plugin's apply skill" where they read "for app-subagent-apply"
+  (owner, 2026-11-09, during the phase 1 run), every other frontmatter
   field preserved as it is (`model`, `skills`, `experimental: cacheTtl`;
   whether a plugin agent honours `experimental` is checked in the
   throwaway test, since losing it drops the controller's prompt cache).
