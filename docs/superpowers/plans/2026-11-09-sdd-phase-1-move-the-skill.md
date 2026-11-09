@@ -202,7 +202,7 @@ Expected: `FAIL 20201/19500 (substituted)` (the private file is 20,261 character
 
 - [ ] **Step 3: Apply the twenty-three wording-only cuts, in order, until the measure passes**
 
-Each cut is a wording change that keeps every rule, ledger line, exit code, tool name and incident date. The savings were measured on the private file on 2026-11-09 (rows 1 to 9 for revision 3, rows 10 to 23 for revision 4); the running count after each, from the 20,261-character file, is in the last column.
+Each cut is a wording change that keeps every rule, ledger line, exit code, tool name and incident date. The savings were measured on the private file on 2026-11-09 (rows 1 to 9 for revision 3, rows 10 to 23 for revision 4); the running count after each, from the 20,201 characters Step 1 leaves, is in the last column.
 
 | # | Where | From | To | Saves | Count |
 |---|---|---|---|---|---|
@@ -234,8 +234,8 @@ Cut 2 keeps the "no `Final phase: complete` line" condition: without it a comple
 
 - [ ] **Step 4: Run the guards**
 
-Run: `bash tests/check-skill-size.sh skills/apply/SKILL.md && bash tests/check-pause-text.sh skills/apply/SKILL.md && /bin/grep -c 'app-sdd-\|app-subagent-apply\|~/.claude/agents' skills/apply/SKILL.md`
-Expected: `ok 19488/19500 (substituted)`, no `missing:` line, grep count `0`.
+Run: `bash tests/check-skill-size.sh skills/apply/SKILL.md && bash tests/check-pause-text.sh skills/apply/SKILL.md && ! /bin/grep -q 'app-sdd-\|app-subagent-apply\|~/.claude/agents' skills/apply/SKILL.md`
+Expected: `ok 19488/19500 (substituted)`, no `missing:` line, no grep match, exit 0.
 
 - [ ] **Step 5: Review the diff for dropped rules**
 
