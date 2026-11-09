@@ -1,5 +1,9 @@
 # Scenario check of the skill text
 
+Decision numbers in this file are those of `docs/decisions.md` in the
+record repository (`akalongman/claude-subagent-apply`, private), not of
+this repository's own log.
+
 `claude-code-workflow.js` is the after-edit test: it puts a controller in
 six situations the five measured runs actually produced, runs each one
 against the new skill text and against the old, and checks the literal
