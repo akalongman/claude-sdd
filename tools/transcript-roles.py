@@ -33,9 +33,11 @@ def strip_prefix(agent_type):
 def role_of_meta(path, head):
     """Role from the sidecar agent-*.meta.json (agentType, description) when the
     harness wrote one (2026-09-25 layout) and its agentType carries one of the
-    three prefixes strip_prefix names, read after the prefix (a bare name, such
-    as a project's own reviewer, is no sdd role, as in transcript-clock.py); the
-    prompt head otherwise."""
+    three prefixes strip_prefix names, read after the prefix. A bare
+    unit-controller, implementer or reviewer, such as a project's own reviewer,
+    is other whatever the prompt opens with, as in transcript-clock.py. Any
+    other type, general-purpose included (the loop's own dispatches before the
+    sdd agents existed), and a missing sidecar take the prompt head."""
     meta = path[:-6] + '.meta.json'
     try:
         with open(meta) as fh: m = json.load(fh)
@@ -48,6 +50,7 @@ def role_of_meta(path, head):
         if 're-review' in d or 'rereview' in d: return 'rereview'
         if 'final' in d or 'whole-branch' in d: return 'final-review'
         return 'task-review'
+    if t in ('unit-controller', 'implementer', 'reviewer'): return 'other'
     return role_of(head)
 
 def dur(a,b):

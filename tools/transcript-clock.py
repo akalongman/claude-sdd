@@ -41,9 +41,10 @@ minutes, active minutes (elapsed minus every long gap), the agent share of
 active split into the union of subagent busy time and the remainder (the
 controller alone), the user share (short prompt and ruling gaps),
 the number of units (unit-controller dispatches, or implementer dispatches
-when the run has no unit controllers; the role comes from the subagent's
-meta file from 2026-09-23 on, before that from the opening words of its
-dispatch prompt), dispatches, subagent files, human
+when the run has no unit controllers; the role comes from a prefixed agent
+type in the subagent's meta file, 2026-09-23 on, is none for a bare
+unit-controller, implementer or reviewer, and otherwise comes from the
+opening words of its dispatch prompt), dispatches, subagent files, human
 prompts, compactions and the sum of the harness's own turn_duration
 records. --tsv prints one tab-separated line per run with a header;
 --runs adds a block that merges runs with the same project and target
@@ -221,9 +222,13 @@ def strip_prefix(agent_type):
 
 
 def role_of(agent_type, head):
-    """Role from the meta type (2026-09-23 onwards) or the dispatch template's opening words."""
+    """Role from a prefixed meta type (2026-09-23 onwards); other for a bare
+    unit-controller, implementer or reviewer (a project's own agent); for any
+    other type, general-purpose included, the dispatch template's opening words."""
     if strip_prefix(agent_type) != agent_type:
         return strip_prefix(agent_type)
+    if agent_type in ("unit-controller", "implementer", "reviewer"):
+        return "other"
     h = head.lower()
     if h.startswith("you are implementing") or h.startswith("implement "):
         return "implementer"

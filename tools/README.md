@@ -108,10 +108,12 @@ the private skill's (`app-sdd-unit-controller`), the plugin's
 alike: `unit-controller` is `unit-controller`, `implementer` is
 `implementer` (or `final-fix` when the description says final and fix),
 `reviewer` is `rereview`, `final-review` or `task-review` by its
-description. A bare type, such as a project's own agent named `reviewer`,
-is no sdd role. Without a meta file, or for a bare or any other type, the
-first 200 characters of the subagent's first user message, lowercased,
-first match wins:
+description. A bare type that names one of the three roles, such as a
+project's own agent named `reviewer`, is no sdd role whatever its prompt
+opens with: it counts as `other`. Without a meta file, or for any other
+type, `general-purpose` included (the type the loop's own dispatches ran as
+before the sdd agents existed), the first 200 characters of the subagent's
+first user message, lowercased, first match wins:
 
 | Role | Matched when the head |
 |---|---|
@@ -278,8 +280,11 @@ Caveats:
 - Subagent busy time is a union, so parallel subagents compress it and the
   controller-alone figure (active agent time minus busy) is an upper bound.
 - The role of a subagent comes from its `.meta.json` (`agentType`,
-  2026-09-23 on) or, before that, from the opening words of its dispatch
-  prompt; a unit is a unit controller, or an implementer in runs without
+  2026-09-23 on) when the type carries an `app-sdd-`, `sdd:` or `sdd-`
+  prefix. A bare `unit-controller`, `implementer` or `reviewer` is no sdd
+  role; any other type, `general-purpose` included, and a subagent from
+  before 2026-09-23 take the role from the opening words of the dispatch
+  prompt. A unit is a unit controller, or an implementer in runs without
   unit controllers.
 - The harness's own `turn_duration` records overlap waits on background
   agents, so their sum (column `turn_sum`) exceeds elapsed and is printed
@@ -334,11 +339,13 @@ the script's own pin (the record repository's
 `docs/superpowers/specs/2026-10-23-sub-skill-upgrade-content-pin-design.md`).
 `test-tools.sh` tests the
 transcript tools here on fixture transcripts and prints `ok <n>` or
-`FAIL <n>` for each of nine cases: the three agent name forms
+`FAIL <n>` for each of twelve cases: the three agent name forms
 (`app-sdd-<role>`, `sdd:<role>`, `sdd-<role>`) and the prefix they need (a
-bare `<role>` is no sdd role) in `transcript-roles.py`, both skill names,
-the three agent name forms and the adding `--skill` in
-`transcript-clock.py`, and both skill names in `transcript-tokens.py`.
+bare `<role>` is no sdd role whatever its prompt opens with, while
+`general-purpose` keeps the head rules) in `transcript-roles.py`, both skill
+names, the three agent name forms, the adding `--skill` and a bare
+`implementer` that is no unit in `transcript-clock.py`, and both skill names
+in `transcript-tokens.py`.
 `test-run.sh` tests the runner on a
 copy beside stub scripts, never the real suite, with a PATH built per case,
 and prints `ok <n>` or `FAIL <n>` for each of five cases: the skip when
