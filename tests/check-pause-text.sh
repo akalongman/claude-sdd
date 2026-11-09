@@ -50,6 +50,7 @@ needline 'ack with a unit live' 'say "pause requested; the unit pauses when its 
 need 'note carry rule' 'owner note: <text>` \(with none live, for the next unit\), which its controller reads before every dispatch and before the tick and applies at the note.s first carry to an implementer'
 needline 'archive points to final hold' 'Either way, once item 3 has acted on the return \(a held return only on `continue`, after the `Final phase: pause released` line\), run `scripts/run-archive <ws>`'
 needline 'push points to final hold' 'After a final phase that returned `complete`, once the driver loop.s item 3 has acted on the return \(a held return only on `continue`, after the `Final phase: pause released` line\): `git push -u <remote> <branch>`'
+need 'skill never names the checkpoint' '!sdd-checkpoint'
 exit $fail
 fi
 needline 'Pause bullet' '^- \*\*Pause\.\*\*'
@@ -61,6 +62,7 @@ needline 'check before every dispatch' "grep -nE '\^\(Section N\|Final phase\): 
 needline 'latest pause line wins' 'latest.*wins'
 need 'owner note applied line' 'Section N: owner note applied'
 need 'checkpoint script' 'sdd-checkpoint'
+need 'no checkpoint path' '!scripts/sdd-checkpoint'
 needline 'stop keyed on status' 'status killed.*no result|killed.*no <result>'
 need 'no summary match' '!stopped by (user|Claude)'
 needline 'tick wins' 'tick.*complete.*whatever'
