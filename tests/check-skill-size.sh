@@ -3,11 +3,10 @@
 # compaction the harness re-attaches an invoked or
 # preloaded skill cut at 20,000 characters: the frontmatter is not
 # re-attached, while the "Base directory for this skill:" line and, when the
-# text does not fit, a 98-character truncation note are
-# (docs/decisions.md, decision 23, in the record repository
-# (akalongman/claude-subagent-apply, private); the re-attach shape is
-# measured in the record repository's
-# docs/superpowers/specs/2026-10-23-sub-skill-upgrade-content-pin-design.md).
+# text does not fit, a 98-character truncation note are. The record
+# repository (akalongman/claude-subagent-apply, private) holds the evidence:
+# decision 23 in its docs/decisions.md, and the re-attach shape measured in
+# its docs/superpowers/specs/2026-10-23-sub-skill-upgrade-content-pin-design.md.
 # The 19,500 limit leaves room for that line and that note. Characters are
 # counted with LC_ALL=C.UTF-8 wc -m, so a multibyte character counts once.
 #
