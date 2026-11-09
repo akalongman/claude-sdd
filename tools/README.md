@@ -296,17 +296,24 @@ and 22); the runner gives it `skills/apply/SKILL.md` and then
 `test-sdd-checkpoint.sh` tests the checkpoint script, `bin/sdd-checkpoint`,
 in two temporary git repositories and prints `ok <n>` or `FAIL <n>` for each
 of six cases (decision 22). `test-run-archive.sh` tests the `Sub-skill:`
-line (decision 23) and the park step (the spec of 2026-10-27) of
+line (decision 23), the park step (the spec of 2026-10-27) and the `Skill:`
+line, whose two hashes must be those of `skills/apply/SKILL.md` and
+`skills/apply/prompts/unit-controller-overrides.md`, of
 `skills/apply/scripts/run-archive` in an isolated temporary directory, with
 the laterbox engine (`later`) linked on PATH, and prints `ok <n>` or
-`FAIL <n>` for each of sixteen cases.
+`FAIL <n>` for each of seventeen cases.
 `check-skill-size.sh` counts the characters of `skills/apply/SKILL.md` on a
 copy in which every `${CLAUDE_PLUGIN_ROOT}` is a 120-character stand-in
 install path and every `${CLAUDE_SKILL_DIR}` that path plus
 `/skills/apply`, and prints `ok <n>/<limit> (substituted)`, or
 `FAIL <n>/<limit> (substituted)` with exit 1 at or over the limit; the
 default limit of 19,500 leaves room under the 20,000 characters a
-compaction re-attaches (decision 23). `test-sub-skill-check.sh` tests
+compaction re-attaches (decision 23). `test-check-skill-size.sh` tests
+that check on fixtures and prints `ok <n>` or `FAIL <n>` for each of four
+cases: a `${CLAUDE_PLUGIN_ROOT}` reference (`ok 125/200 (substituted)`), a
+`${CLAUDE_SKILL_DIR}` reference (`ok 138/200 (substituted)`), the limit
+(ok below it, `FAIL` with exit 1 at it and over it) and exit 2 on a
+missing file. `test-sub-skill-check.sh` tests
 `skills/apply/scripts/sub-skill-check` on copies of the sub-skill directory
 that `sub-skill-check --dir` resolves, in a temporary plugin tree, and prints
 `ok <n>` or `FAIL <n>` for each of seven cases: the pinned copy (also with
@@ -318,4 +325,10 @@ transcript tools here on fixture transcripts and prints `ok <n>` or
 `FAIL <n>` for each of six cases: the three agent name forms
 (`app-sdd-<role>`, `sdd:<role>`, `sdd-<role>`) in `transcript-roles.py`,
 both skill names and the adding `--skill` in `transcript-clock.py`, and
-`sdd:apply` in `transcript-tokens.py`.
+`sdd:apply` in `transcript-tokens.py`. `test-run.sh` tests the runner on a
+copy beside stub scripts, never the real suite, with a PATH built per case,
+and prints `ok <n>` or `FAIL <n>` for each of five cases: the skip when
+`later` is absent, the skip with the reason from stderr when
+`sub-skill-check --dir` exits 2, the test run on any other status, the test
+run with its failure counted when `sub-skill-check` is missing, and all
+three counts of the totals line at once, with exit 1 when any test failed.

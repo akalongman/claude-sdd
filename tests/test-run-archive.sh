@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 # Test for skills/apply/scripts/run-archive of the sdd plugin: the Sub-skill
-# line of the run facts (cases 1 to 3), and the park
+# line of the run facts (cases 1 to 3), the park
 # step of 2026-10-27, which parks the ledger's "Handed to" lines in the
-# project's queue through the laterbox engine (cases 4 onward). Builds
+# project's queue through the laterbox engine (cases 4 to 16), and the run
+# facts' Skill line (case 17), whose two hashes must be those of the
+# SKILL.md and prompts/unit-controller-overrides.md beside the script, so a
+# missing file, which the script hashes as empty, fails the case. Builds
 # workspaces under a temporary config directory that holds a 6.4.1 directory
 # in the claude-plugins-official cache, as this machine's cache did from
 # 2026-10-12, runs the script and prints "ok <n>" or "FAIL <n>" per case;
@@ -664,5 +667,18 @@ quiet && archived && [ "$out" = "$(printf '%s\n' \
   "not parked (later not on PATH): (cd '$tmp/home' && later -- 'Plan x: in the home directory Archive: $path')" \
   "$path")" ] || broken+=" home"
 verdict 16
+
+# 17. The Skill line: each value is 12 hexadecimal characters, the start of
+#     the sha256 of SKILL.md and of prompts/unit-controller-overrides.md in
+#     the script's skill directory (the parent of its scripts/ directory).
+skill_dir=$(cd "$(dirname "$script")/.." && pwd)
+mkdir -p "$tmp/ws/seventeen"
+run "$tmp/ws/seventeen" seventeen
+line=$(grep '^Skill:' "$out/run-facts.md" 2>/dev/null || true)
+form='^Skill: SKILL\.md ([0-9a-f]{12}), unit-controller-overrides\.md ([0-9a-f]{12})$'
+if quiet && [[ $line =~ $form ]] \
+  && [ "${BASH_REMATCH[1]}" = "$(sha256sum < "$skill_dir/SKILL.md" | cut -c1-12)" ] \
+  && [ "${BASH_REMATCH[2]}" = "$(sha256sum < "$skill_dir/prompts/unit-controller-overrides.md" | cut -c1-12)" ]; then
+  pass 17; else echo "FAIL 17: ${line:-no Skill line}${err:+; stderr: $err}"; fail=1; fi
 
 exit "$fail"

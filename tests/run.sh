@@ -4,8 +4,9 @@
 # pause-text guard on that file and then on
 # skills/apply/prompts/unit-controller-overrides.md (two runs, both named
 # check-pause-text), the tests of run-archive, sdd-checkpoint and
-# sub-skill-check, and test-tools, the test of the transcript tools in
-# tools/. Each script's own output is followed by one line for it:
+# sub-skill-check, test-tools (the transcript tools in tools/),
+# test-check-skill-size (the size check) and test-run (this runner, on a
+# copy beside stubs). Each script's own output is followed by one line for it:
 # "ok <name>", "FAIL <name>" or "skip <name> (<reason>)", <name> being the
 # script's file name without .sh. A missing prerequisite skips its test
 # without failing the run: test-run-archive.sh is skipped when the laterbox
@@ -59,6 +60,8 @@ else
   check test-sub-skill-check bash "$root/tests/test-sub-skill-check.sh"
 fi
 check test-tools bash "$root/tests/test-tools.sh"
+check test-check-skill-size bash "$root/tests/test-check-skill-size.sh"
+check test-run bash "$root/tests/test-run.sh"
 
 echo "$ok ok, $skipped skipped, $failed failed"
 [ "$failed" -eq 0 ]
