@@ -1,6 +1,6 @@
 ---
 name: implementer
-description: Implementer for the sdd plugin's apply skill dispatches only. Implements one unit of a superpowers plan or an OpenSpec change from a brief file, per the dispatch prompt's template and override lines. Used by the apply loop with the model named on the dispatch; not for ad hoc tasks or main-session work.
+description: Implementer for `sdd:apply` dispatches only. Implements one unit of a superpowers plan or an OpenSpec change from a brief file, per the dispatch prompt's template and override lines. Used by the apply loop with the model named on the dispatch; not for ad hoc tasks or main-session work.
 model: opus
 ---
 

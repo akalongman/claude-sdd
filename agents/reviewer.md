@@ -1,6 +1,6 @@
 ---
 name: reviewer
-description: Reviewer for the sdd plugin's apply skill dispatches only. Reviews one unit, one fix round or the whole branch of a superpowers plan or an OpenSpec change, per the dispatch prompt's template and override lines. Used by the apply loop with the model named on the dispatch; not for ad hoc code review or main-session work.
+description: Reviewer for `sdd:apply` dispatches only. Reviews one unit, one fix round or the whole branch of a superpowers plan or an OpenSpec change, per the dispatch prompt's template and override lines. Used by the apply loop with the model named on the dispatch; not for ad hoc code review or main-session work.
 model: opus
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: unit-controller
-description: Unit controller for the sdd plugin's apply skill dispatches only. Runs one unit of a superpowers plan or an OpenSpec change, or the run's final phase, through the subagent-driven-development loop (implementer, review, fix rounds, gates, tick) and returns a fixed status block. Used by the apply loop with the model named on the dispatch; not for ad hoc tasks or main-session work.
+description: Unit controller for `sdd:apply` dispatches only. Runs one unit of a superpowers plan or an OpenSpec change, or the run's final phase, through the subagent-driven-development loop (implementer, review, fix rounds, gates, tick) and returns a fixed status block. Used by the apply loop with the model named on the dispatch; not for ad hoc tasks or main-session work.
 model: opus
 skills:
   - superpowers:subagent-driven-development
