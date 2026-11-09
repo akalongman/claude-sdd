@@ -1,0 +1,64 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# bash with -eo pipefail in every step.
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  linux:
+    # The latest LTS image. Ubuntu 24.04, ubuntu-latest in November 2026,
+    # ships shellcheck 0.9.0, which reports two SC2015 notes in the scripts
+    # that the 0.11.0 of this image does not.
+    runs-on: ubuntu-26.04
+    # The suite runs in under a minute; the rest is installs.
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code@2.1.319
+      - name: Log the Claude Code version
+        run: claude --version
+      - name: Validate the plugin
+        run: claude plugin validate . --strict
+      - name: Put the laterbox engine on PATH
+        # test-run-archive is skipped when later is not on PATH.
+        run: |
+          git clone --depth 1 https://github.com/akalongman/claude-laterbox "$RUNNER_TEMP/laterbox"
+          echo "$RUNNER_TEMP/laterbox/scripts" >> "$GITHUB_PATH"
+      - name: Install superpowers at the verified release
+        # The suite checks the installed copy against the pin in
+        # skills/apply/scripts/sub-skill-check, and claude plugin install takes
+        # no version, so this writes the layout that script reads. The version
+        # moves with that pin, in the same commit.
+        run: |
+          dir="$HOME/.claude/plugins/cache/superpowers-marketplace/superpowers/7.0.1"
+          git clone --depth 1 --branch v7.0.1 https://github.com/obra/superpowers "$dir"
+          jq -n --arg p "$dir" '{"version": 2, "plugins": {"superpowers@superpowers-marketplace": [{"scope": "user", "installPath": $p, "version": "7.0.1"}]}}' > "$HOME/.claude/plugins/installed_plugins.json"
+      - name: Set a git identity
+        # The suite commits in throwaway repositories, and the runner has none.
+        run: |
+          git config --global user.name 'sdd tests'
+          git config --global user.email 'tests@example.invalid'
+      - name: Make the transcripts directory
+        # run-archive looks for the session transcript under ~/.claude*/projects
+        # and exits 1 when no such directory exists. A machine that has run a
+        # Claude Code session has one; the runner does not.
+        run: mkdir -p "$HOME/.claude/projects"
+      - name: Run the tests
+        run: bash tests/run.sh
+      - name: Run shellcheck
+        # The six bash scripts by name; section-span.awk is not shell.
+        run: shellcheck bin/sdd-checkpoint skills/apply/scripts/openspec-section-brief skills/apply/scripts/openspec-section-tick skills/apply/scripts/run-archive skills/apply/scripts/sub-skill-check skills/apply/scripts/task-brief tests/*.sh
