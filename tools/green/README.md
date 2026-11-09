@@ -7,7 +7,7 @@ text the controller says it would send, print or run. The agent never
 grades itself; every check is a plain function over the structured fields
 it returns, matching a pattern against the literal text or comparing a
 declared field to an expected value. Decision 7 in
-`../../docs/decisions.md` records why the test is shaped this way.
+`../../docs/history/decisions.md` records why the test is shaped this way.
 `claude-code-workflow.js` is kept as the record of the 2026-09-21 run and
 is not runnable: the superpowers 6.3.0 copy and the fork clone it names
 are no longer at those paths, and the review directory under
@@ -15,8 +15,8 @@ are no longer at those paths, and the review directory under
 
 The script has two phases. Phase Green is this test. Phase Upstream drafts
 the superpowers pull request in the fork working tree and is recorded in
-`../../docs/upstream.md`; it is described here only because it shares the
-results file.
+`../../docs/history/upstream.md`; it is described here only because it
+shares the results file.
 
 ## Fixtures
 
@@ -126,15 +126,16 @@ The old text failed S5 on all three checks and dispatched the next section
 instead.
 
 On 2026-09-22 the checkpoint's printed command became `/clear` plus the
-re-invocation line (`../../docs/decisions.md` 12). The S5 and S6 checks in
-`claude-code-workflow.js` now expect that (`clear_line`, `reinvokes`,
-`no_clear`); the recorded results above were scored against the compaction
-form, and the new text has not been re-run.
+re-invocation line (`../../docs/history/decisions.md` 12). The S5 and S6
+checks in `claude-code-workflow.js` now expect that (`clear_line`,
+`reinvokes`, `no_clear`); the recorded results above were scored against
+the compaction form, and the new text has not been re-run.
 
 ## The 2026-09-25 check: driver and unit controller
 
 `2026-09-25-unit-controller-workflow.js` checks the wrapper after the
-unit-controller change (`../../docs/superpowers/specs/2026-09-25-unit-controller-design.md`).
+unit-controller change
+(`../../docs/history/specs/2026-09-25-unit-controller-design.md`).
 Fourteen driver scenarios put the driver in front of a unit controller's
 return, or at a fixed point of the run, and check the literal next action:
 
@@ -696,7 +697,7 @@ amendment apply's Task 3 deferred minor M5) until its correction on
 ## The sub-skill directory, S17's check and the rescore tool (2026-10-23)
 
 This section records three changes of 2026-10-23, made for
-`../../docs/superpowers/specs/2026-10-23-sub-skill-upgrade-content-pin-design.md`
+`../../docs/history/specs/2026-10-23-sub-skill-upgrade-content-pin-design.md`
 (sections 5 and 6).
 
 The harness takes the sub-skill directory as `args.sdd` and stops,
@@ -794,7 +795,7 @@ effort, the harness at `dce33fb`, the skill at dotfiles `87c113d`, and
 
 The owner's criterion was the candidate alone, one rep, every check
 passing; it held, and 7.0.1 was installed and pinned on 2026-10-26
-(decision 24 in `../../docs/decisions.md`). The agents read the
+(decision 24 in `../../docs/history/decisions.md`). The agents read the
 candidate's `SKILL.md` and the `references/` files it names (S1 and S2
 `fix-loop.md`, S3 and S17 `final-review.md`), so the run exercised the
 new layout and not only the overrides. `rescore.mjs` on the file
@@ -819,4 +820,4 @@ backtick and tilde fences are never items for the brief's count or the
 tick; an id that exists only inside a fence is unknown; and the default
 with no ids ticks only the named section. Run on 2026-09-26: 8 of 8 on
 the new scripts, 2 of 8 on the scripts at dotfiles HEAD before the change
-(decision 18 in `../../docs/decisions.md`).
+(decision 18 in `../../docs/history/decisions.md`).

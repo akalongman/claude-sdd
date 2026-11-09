@@ -292,14 +292,16 @@ when any failed. It skips `test-run-archive.sh` when `later` is not on
 PATH, and `test-sub-skill-check.sh` when `sub-skill-check --dir` exits 2
 (no installed superpowers copy), and runs the rest unconditionally.
 `check-pause-text.sh` checks a prompt file for the pause rule (decisions 21
-and 22); the runner gives it `skills/apply/SKILL.md` and then
+and 22 of `../docs/history/decisions.md`, as are the decision numbers
+below); the runner gives it `skills/apply/SKILL.md` and then
 `skills/apply/prompts/unit-controller-overrides.md`.
 `test-sdd-checkpoint.sh` tests the checkpoint script, `bin/sdd-checkpoint`,
 in two temporary git repositories and prints `ok <n>` or `FAIL <n>` for each
 of six cases (decision 22). `test-run-archive.sh` tests the `Sub-skill:`
-line (decision 23), the park step (the spec of 2026-10-27) and the `Skill:`
-line, whose two hashes must be those of `skills/apply/SKILL.md` and
-`skills/apply/prompts/unit-controller-overrides.md`, of
+line (decision 23), the park step
+(`../docs/history/specs/2026-10-27-handed-items-design.md`) and the
+`Skill:` line, whose two hashes must be those of `skills/apply/SKILL.md`
+and `skills/apply/prompts/unit-controller-overrides.md`, of
 `skills/apply/scripts/run-archive` in an isolated temporary directory, with
 the laterbox engine (`later`) linked on PATH, and prints `ok <n>` or
 `FAIL <n>` for each of seventeen cases.
@@ -321,7 +323,9 @@ that `sub-skill-check --dir` resolves, in a temporary plugin tree, and prints
 a trailing slash and through a symlinked config directory), a change inside
 the loop's files, a change in a sibling skill, the install path read from
 `installed_plugins.json`, a missing directory, a missing `plugin.json`, and
-the script's own pin (the spec of 2026-10-23). `test-tools.sh` tests the
+the script's own pin
+(`../docs/history/specs/2026-10-23-sub-skill-upgrade-content-pin-design.md`).
+`test-tools.sh` tests the
 transcript tools here on fixture transcripts and prints `ok <n>` or
 `FAIL <n>` for each of six cases: the three agent name forms
 (`app-sdd-<role>`, `sdd:<role>`, `sdd-<role>`) in `transcript-roles.py`,
