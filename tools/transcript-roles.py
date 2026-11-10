@@ -31,9 +31,9 @@ def strip_prefix(agent_type):
     return agent_type
 
 def role_of_meta(path, head):
-    """Role from the sidecar agent-*.meta.json (agentType, description) when the
-    harness wrote one (2026-09-25 layout) and its agentType carries one of the
-    three prefixes strip_prefix names, read after the prefix. A bare
+    """Role from the sidecar agent-*.meta.json (agentType, description) the
+    harness writes beside each subagent transcript, when its agentType carries
+    one of the three prefixes strip_prefix names, read after the prefix. A bare
     unit-controller, implementer or reviewer, such as a project's own reviewer,
     is other whatever the prompt opens with, as in transcript-clock.py. Any
     other type, general-purpose included (the loop's own dispatches before the

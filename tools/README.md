@@ -100,7 +100,7 @@ read tokens, which is the 650k to 781k column in the record repository's
 `README.md`.
 
 Roles are classified first from the sidecar `agent-*.meta.json` the harness
-writes beside each subagent transcript (since the 2026-09-25 layout). Its
+writes beside each subagent transcript. Its
 `agentType` must carry one of three prefixes, as in `transcript-clock.py`:
 the private skill's (`app-sdd-unit-controller`), the plugin's
 (`sdd:unit-controller`) or the plugin's name fallback's
@@ -279,17 +279,18 @@ Caveats:
   to the user.
 - Subagent busy time is a union, so parallel subagents compress it and the
   controller-alone figure (active agent time minus busy) is an upper bound.
-- The role of a subagent comes from its `.meta.json` (`agentType`,
-  2026-09-23 on) when the type carries an `app-sdd-`, `sdd:` or `sdd-`
-  prefix, and only a prefixed type makes a unit controller. A bare
+- The role of a subagent comes from its `.meta.json` (`agentType`) when
+  the type carries an `app-sdd-`, `sdd:` or `sdd-` prefix, and only a
+  prefixed type makes a unit controller. The first prefixed type dates
+  from 2026-09-23, so an earlier subagent's type is unprefixed. A bare
   `unit-controller`, `implementer` or `reviewer` is no sdd role; any other
-  type, `general-purpose` included, and a subagent from before 2026-09-23
+  type, `general-purpose` included, and a subagent without a meta file
   take only `implementer` or `reviewer` from the opening words of the
   dispatch prompt. A unit is a unit controller, or an implementer in runs
   without unit controllers. So a `general-purpose` subagent opening "You
   run one unit", which `transcript-roles.py` counts as a unit controller,
-  is `other` here, and a run of it and two `general-purpose` implementers
-  counts two units.
+  is no unit controller here, and a run of it and two `general-purpose`
+  implementers counts two units.
 - The harness's own `turn_duration` records overlap waits on background
   agents, so their sum (column `turn_sum`) exceeds elapsed and is printed
   only for reference.
