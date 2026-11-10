@@ -41,17 +41,20 @@ minutes, active minutes (elapsed minus every long gap), the agent share of
 active split into the union of subagent busy time and the remainder (the
 controller alone), the user share (short prompt and ruling gaps),
 the number of units (unit-controller subagents, or implementer subagents
-when the run has no unit controllers, by the role rule below), dispatches,
-subagent files, human prompts, compactions and the sum of the harness's
-own turn_duration records. --tsv prints one tab-separated line per run
-with a header; --runs adds a block that merges runs with the same project
-and target across sessions (continuations after a context reset); --gaps
-lists every gap over the threshold with the event on each side.
+when the run has no unit controllers, by the role rule below), dispatches
+(Agent calls whose subagent_type carries an app-sdd-, sdd: or sdd- prefix,
+read case-insensitively, so a run from before the prefixed agents prints
+dispatches 0 even where it counts units), subagent files, human prompts,
+compactions and the sum of the harness's own turn_duration records. --tsv
+prints one tab-separated line per run with a header; --runs adds a block
+that merges runs with the same project and target across sessions
+(continuations after a context reset); --gaps lists every gap over the
+threshold with the event on each side.
 
 A subagent's role comes from the agent type in its meta file when that
 type carries an app-sdd-, sdd: or sdd- prefix, and only a prefixed type
-gives unit-controller. The first prefixed type dates from 2026-09-23, so
-an earlier subagent's type is unprefixed. A bare unit-controller,
+gives unit-controller. The first prefixed type dates from 2026-09-22 UTC,
+so an earlier subagent's type is unprefixed. A bare unit-controller,
 implementer or reviewer is "other". Any other type, general-purpose
 included, and a subagent without a meta file take implementer or
 reviewer from the opening words of the dispatch prompt, or "other" when
@@ -235,11 +238,11 @@ def strip_prefix(agent_type):
 
 def role_of(agent_type, head):
     """Role from the meta type, lowercased as transcript-roles.py does: a
-    prefixed type (the first dates from 2026-09-23) gives the role after
-    its prefix and is the only source of unit-controller; other for a bare
-    unit-controller, implementer or reviewer (a project's own agent); for
-    any other type, general-purpose included, implementer or reviewer from
-    the dispatch template's opening words, else other."""
+    prefixed type (the first dates from 2026-09-22 UTC) gives the role
+    after its prefix and is the only source of unit-controller; other for
+    a bare unit-controller, implementer or reviewer (a project's own
+    agent); for any other type, general-purpose included, implementer or
+    reviewer from the dispatch template's opening words, else other."""
     t = agent_type.lower()
     if strip_prefix(t) != t:
         return strip_prefix(t)

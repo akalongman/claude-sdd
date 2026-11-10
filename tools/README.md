@@ -100,21 +100,20 @@ read tokens, which is the 650k to 781k column in the record repository's
 `README.md`.
 
 Roles are classified first from the sidecar `agent-*.meta.json` the harness
-writes beside each subagent transcript. Its
-`agentType` must carry one of three prefixes, as in `transcript-clock.py`:
-the private skill's (`app-sdd-unit-controller`), the plugin's
-(`sdd:unit-controller`) or the plugin's name fallback's
-(`sdd-unit-controller`). With the prefix removed the three forms classify
-alike: `unit-controller` is `unit-controller`, `implementer` is
-`implementer` (or `final-fix` when the description says final and fix),
-`reviewer` is `rereview`, `final-review` or `task-review` by its
-description. A bare type that names one of the three roles, such as a
-project's own agent named `reviewer`, is no sdd role whatever its prompt
+writes beside each subagent transcript. Its `agentType` must carry one of
+three prefixes, as in `transcript-clock.py`: the private skill's
+(`app-sdd-unit-controller`), the plugin's (`sdd:unit-controller`) or the
+plugin's name fallback's (`sdd-unit-controller`). With the prefix removed
+the three forms classify alike: `unit-controller` is `unit-controller`,
+`implementer` is `implementer` (or `final-fix` when the description says
+final and fix), `reviewer` is `rereview`, `final-review` or `task-review`
+by its description. A bare type that names one of the three roles, such as
+a project's own agent named `reviewer`, is no sdd role whatever its prompt
 opens with: it counts as `other`. This script and `transcript-clock.py`
 read the type case-insensitively for both rules: `SDD:Implementer` is the
 plugin's implementer and `Reviewer` a bare `reviewer`, while the built-in
-`Explore` is unprefixed. Without a meta file, or for any other
-type, `general-purpose` included (the type the loop's own dispatches ran as
+`Explore` is unprefixed. Without a meta file, or for any other type,
+`general-purpose` included (the type the loop's own dispatches ran as
 before the sdd agents existed), the first 200 characters of the subagent's
 first user message, lowercased, first match wins:
 
@@ -259,7 +258,10 @@ last subagent finished) and prints one line per run: start and end in UTC,
 elapsed minutes, active minutes (elapsed minus every gap over `--gap`
 minutes, default 10) split into subagent busy time, controller-alone time
 and the user's short answers, then the long gaps by bucket (prompt wait,
-ruling wait, idle, stall), units, dispatches, prompts and questions.
+ruling wait, idle, stall), units, dispatches (`Agent` calls whose
+`subagent_type` carries one of those prefixes, read case-insensitively, so
+a run from before the prefixed agents prints `dispatches 0` even where it
+counts units), prompts and questions.
 `--skill NAME` adds a skill whose calls start a run to those two;
 `--tsv` prints the same as a table; `--runs` merges runs with the same
 project and target across sessions; `--gaps` lists every long gap with the
@@ -285,7 +287,7 @@ Caveats:
 - The role of a subagent comes from its `.meta.json` (`agentType`) when
   the type carries an `app-sdd-`, `sdd:` or `sdd-` prefix, and only a
   prefixed type makes a unit controller. The first prefixed type dates
-  from 2026-09-23, so an earlier subagent's type is unprefixed. A bare
+  from 2026-09-22 UTC, so an earlier subagent's type is unprefixed. A bare
   `unit-controller`, `implementer` or `reviewer` is no sdd role; any other
   type, `general-purpose` included, and a subagent without a meta file
   take only `implementer` or `reviewer` from the opening words of the

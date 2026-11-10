@@ -46,13 +46,12 @@
 # so of three general-purpose subagents it counts the one opening "You run
 # one unit" as other, and in a run without unit controllers the two
 # opening "You are implementing" as its units. Case 14 holds the letter
-# case: both tools read an agent type case-insensitively, so of three
+# case: both tools read an agent type case-insensitively, so of four
 # subagents whose sidecars name SDD:Implementer (opening with words no head
-# rule matches), Explore (opening "You are implementing") and Reviewer
-# (opening "You are reviewing"), transcript-roles.py counts two
-# implementers and one other, and transcript-clock.py, on the same session
-# with one dispatch of each of the first two types, counts units 2 and
-# dispatches 1.
+# rule matches), Explore, Reviewer and Implementer (all three opening "You
+# are implementing"), transcript-roles.py counts two implementers and two
+# others, and transcript-clock.py, on the same session with one dispatch of
+# each of the first two types, counts units 2 and dispatches 1.
 #
 # Usage: bash tests/test-tools.sh
 set -euo pipefail
@@ -297,15 +296,21 @@ if [ "$rc" -eq 0 ] && [[ $out != *$'\n'* && $out == 'proj jjjjjjjj head-plan: '*
 # 14. Both tools read an agent type case-insensitively. A timestamped
 #     session whose controller invokes sdd:apply with the argument case-plan
 #     and dispatches one SDD:Implementer and one Explore (the harness's
-#     built-in type); three subagents: sidecar SDD:Implementer opening with
-#     words no head rule matches, sidecar Explore opening "You are
-#     implementing" and sidecar Reviewer opening "You are reviewing".
-#     transcript-roles.py counts implementer 2 (SDD:Implementer by its type,
-#     Explore by its head) and other 1 (Reviewer, a bare name); the clock
-#     finds one run with units 2 and dispatches 1, the prefixed one alone. A
-#     clock reading the raw type prints units 1, dispatches 0; one that
-#     lowercased inside strip_prefix would read Explore as prefixed and
-#     print units 1, dispatches 2.
+#     built-in type); four subagents: sidecar SDD:Implementer opening with
+#     words no head rule matches, and sidecars Explore, Reviewer and
+#     Implementer all opening "You are implementing", the head under which a
+#     bare name shows in the clock (case 12). transcript-roles.py counts
+#     implementer 2 (SDD:Implementer by its type, Explore by its head) and
+#     other 2 (Reviewer and Implementer, bare names); the clock finds one
+#     run with units 2 and dispatches 1, the prefixed one alone. Wrong
+#     clocks print different figures: with no lowercasing at all, units 3,
+#     dispatches 0; with the lowercasing moved inside strip_prefix, so that
+#     Explore reads as prefixed, units 2, dispatches 2; with the raw type in
+#     the bare-name test only, units 4, dispatches 1; in both role_of tests,
+#     units 3, dispatches 1; in the prefix test only, units 1, dispatches 1.
+#     The second bare name is what shows the raw type in both tests: with
+#     Reviewer alone, its gain of an implementer would cancel
+#     SDD:Implementer's loss of one.
 letter_case=$p/kkkkkkkk-letter-case
 cat > "$letter_case.jsonl" <<EOF
 {"type": "assistant", "timestamp": "2026-11-09T15:00:00Z", "message": {"model": "m", $usage, "content": [{"type": "tool_use", "id": "t9", "name": "Skill", "input": {"skill": "sdd:apply", "args": "case-plan"}}]}}
@@ -313,9 +318,9 @@ cat > "$letter_case.jsonl" <<EOF
 {"type": "assistant", "timestamp": "2026-11-09T15:01:30Z", "message": {"model": "m", $usage, "content": [{"type": "tool_use", "id": "t11", "name": "Agent", "input": {"subagent_type": "Explore", "description": "unit", "prompt": "You are implementing Task 1."}}]}}
 {"type": "system", "subtype": "turn_duration", "timestamp": "2026-11-09T15:06:00Z", "durationMs": 360000}
 EOF
-declare -A openings=([SDD:Implementer]='Read the brief first' [Explore]="${heads[implementer]}" [Reviewer]="${heads[reviewer]}")
+declare -A openings=([SDD:Implementer]='Read the brief first' [Explore]="${heads[implementer]}" [Reviewer]="${heads[implementer]}" [Implementer]="${heads[implementer]}")
 i=0
-for t in SDD:Implementer Explore Reviewer; do
+for t in SDD:Implementer Explore Reviewer Implementer; do
   i=$((i + 1))
   pair "$letter_case" "k$i" "$t" <<EOF
 {"type": "user", "timestamp": "2026-11-09T15:02:00Z", "message": {"role": "user", "content": "${openings[$t]}."}}
@@ -323,7 +328,7 @@ for t in SDD:Implementer Explore Reviewer; do
 EOF
 done
 run transcript-roles.py "$letter_case.jsonl"
-if [ "$rc" -ne 0 ] || [ "$(rows)" != $'implementer 2\nother 1' ]; then
+if [ "$rc" -ne 0 ] || [ "$(rows)" != $'implementer 2\nother 2' ]; then
   miss 14
 else
   run transcript-clock.py "$letter_case.jsonl"
