@@ -57,7 +57,11 @@ included, and a subagent without a meta file take implementer or
 reviewer from the opening words of the dispatch prompt, or "other" when
 neither matches: a general-purpose subagent opening "You run one unit"
 is no unit controller, so a run of it and two general-purpose
-implementers counts two units.
+implementers counts two units. Every agent type, a dispatch's as well as
+a meta file's, is read case-insensitively, the meta file's as in
+transcript-roles.py: SDD:Implementer is a prefixed implementer and
+Reviewer a bare reviewer, while the built-in Explore stays unprefixed and
+takes the opening words.
 
 Timestamps are the records' ISO UTC `timestamp` fields. The script reads
 in place and writes nothing. Written 2026-10-08 for the slowdown question.
@@ -181,7 +185,7 @@ def load_controller(path):
                 inp = b.get("input") or {}
                 if b.get("name") == "Skill" and str(inp.get("skill")) in SKILLS:
                     skills.append((t, str(inp.get("args") or "")))
-                st = str(inp.get("subagent_type") or "")
+                st = str(inp.get("subagent_type") or "").lower()
                 if strip_prefix(st) != st:
                     disps.append((t, st, target_from_prompt(str(inp.get("prompt") or ""))))
     return ev, skills, disps, turns, humans, compactions, last_assist, questions
@@ -230,14 +234,16 @@ def strip_prefix(agent_type):
 
 
 def role_of(agent_type, head):
-    """Role from a prefixed meta type (the first dates from 2026-09-23),
-    the only source of unit-controller; other for a bare unit-controller,
-    implementer or reviewer (a project's own agent); for any other type,
-    general-purpose included, implementer or reviewer from the dispatch
-    template's opening words, else other."""
-    if strip_prefix(agent_type) != agent_type:
-        return strip_prefix(agent_type)
-    if agent_type in ("unit-controller", "implementer", "reviewer"):
+    """Role from the meta type, lowercased as transcript-roles.py does: a
+    prefixed type (the first dates from 2026-09-23) gives the role after
+    its prefix and is the only source of unit-controller; other for a bare
+    unit-controller, implementer or reviewer (a project's own agent); for
+    any other type, general-purpose included, implementer or reviewer from
+    the dispatch template's opening words, else other."""
+    t = agent_type.lower()
+    if strip_prefix(t) != t:
+        return strip_prefix(t)
+    if t in ("unit-controller", "implementer", "reviewer"):
         return "other"
     h = head.lower()
     if h.startswith("you are implementing") or h.startswith("implement "):

@@ -110,7 +110,10 @@ alike: `unit-controller` is `unit-controller`, `implementer` is
 `reviewer` is `rereview`, `final-review` or `task-review` by its
 description. A bare type that names one of the three roles, such as a
 project's own agent named `reviewer`, is no sdd role whatever its prompt
-opens with: it counts as `other`. Without a meta file, or for any other
+opens with: it counts as `other`. This script and `transcript-clock.py`
+read the type case-insensitively for both rules: `SDD:Implementer` is the
+plugin's implementer and `Reviewer` a bare `reviewer`, while the built-in
+`Explore` is unprefixed. Without a meta file, or for any other
 type, `general-purpose` included (the type the loop's own dispatches ran as
 before the sdd agents existed), the first 200 characters of the subagent's
 first user message, lowercased, first match wins:
@@ -290,7 +293,11 @@ Caveats:
   without unit controllers. So a `general-purpose` subagent opening "You
   run one unit", which `transcript-roles.py` counts as a unit controller,
   is no unit controller here, and a run of it and two `general-purpose`
-  implementers counts two units.
+  implementers counts two units. Every agent type, a dispatch's as well
+  as a meta file's, is read case-insensitively, the meta file's as in
+  `transcript-roles.py`: `SDD:Implementer` is a prefixed implementer and
+  `Reviewer` a bare `reviewer`, while the built-in `Explore` stays
+  unprefixed and takes the opening words.
 - The harness's own `turn_duration` records overlap waits on background
   agents, so their sum (column `turn_sum`) exceeds elapsed and is printed
   only for reference.
@@ -344,15 +351,17 @@ the script's own pin (the record repository's
 `docs/superpowers/specs/2026-10-23-sub-skill-upgrade-content-pin-design.md`).
 `test-tools.sh` tests the
 transcript tools here on fixture transcripts and prints `ok <n>` or
-`FAIL <n>` for each of thirteen cases: the three agent name forms
+`FAIL <n>` for each of fourteen cases: the three agent name forms
 (`app-sdd-<role>`, `sdd:<role>`, `sdd-<role>`) and the prefix they need (a
 bare `<role>` is no sdd role whatever its prompt opens with, while
 `general-purpose` keeps the head rules) in `transcript-roles.py`, both skill
 names, the three agent name forms, the adding `--skill`, a bare
 `unit-controller`, `implementer` or `reviewer` that is no unit, and a
 `general-purpose` subagent opening "You run one unit" that is no unit
-controller in `transcript-clock.py`, and both skill names in
-`transcript-tokens.py`.
+controller in `transcript-clock.py`, both skill names in
+`transcript-tokens.py`, and an agent type read case-insensitively by both
+`transcript-roles.py` and `transcript-clock.py` (`SDD:Implementer` is
+prefixed, the built-in `Explore` is not).
 `test-run.sh` tests the runner on a
 copy beside stub scripts, never the real suite, with a PATH built per case,
 and prints `ok <n>` or `FAIL <n>` for each of five cases: the skip when

@@ -37,7 +37,9 @@ def role_of_meta(path, head):
     unit-controller, implementer or reviewer, such as a project's own reviewer,
     is other whatever the prompt opens with, as in transcript-clock.py. Any
     other type, general-purpose included (the loop's own dispatches before the
-    sdd agents existed), and a missing sidecar take the prompt head."""
+    sdd agents existed), and a missing sidecar take the prompt head. The
+    agentType is lowercased before both tests, as in transcript-clock.py, so
+    SDD:Implementer is an implementer and Reviewer a bare reviewer."""
     meta = path[:-6] + '.meta.json'
     try:
         with open(meta) as fh: m = json.load(fh)

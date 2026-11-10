@@ -45,7 +45,14 @@
 # 13, transcript-clock.py takes unit-controller only from a prefixed type,
 # so of three general-purpose subagents it counts the one opening "You run
 # one unit" as other, and in a run without unit controllers the two
-# opening "You are implementing" as its units.
+# opening "You are implementing" as its units. Case 14 holds the letter
+# case: both tools read an agent type case-insensitively, so of three
+# subagents whose sidecars name SDD:Implementer (opening with words no head
+# rule matches), Explore (opening "You are implementing") and Reviewer
+# (opening "You are reviewing"), transcript-roles.py counts two
+# implementers and one other, and transcript-clock.py, on the same session
+# with one dispatch of each of the first two types, counts units 2 and
+# dispatches 1.
 #
 # Usage: bash tests/test-tools.sh
 set -euo pipefail
@@ -286,5 +293,42 @@ done
 run transcript-clock.py "$general_head.jsonl"
 if [ "$rc" -eq 0 ] && [[ $out != *$'\n'* && $out == 'proj jjjjjjjj head-plan: '*'; units 2, dispatches 0, '* ]]; then
   pass 13; else miss 13; fi
+
+# 14. Both tools read an agent type case-insensitively. A timestamped
+#     session whose controller invokes sdd:apply with the argument case-plan
+#     and dispatches one SDD:Implementer and one Explore (the harness's
+#     built-in type); three subagents: sidecar SDD:Implementer opening with
+#     words no head rule matches, sidecar Explore opening "You are
+#     implementing" and sidecar Reviewer opening "You are reviewing".
+#     transcript-roles.py counts implementer 2 (SDD:Implementer by its type,
+#     Explore by its head) and other 1 (Reviewer, a bare name); the clock
+#     finds one run with units 2 and dispatches 1, the prefixed one alone. A
+#     clock reading the raw type prints units 1, dispatches 0; one that
+#     lowercased inside strip_prefix would read Explore as prefixed and
+#     print units 1, dispatches 2.
+letter_case=$p/kkkkkkkk-letter-case
+cat > "$letter_case.jsonl" <<EOF
+{"type": "assistant", "timestamp": "2026-11-09T15:00:00Z", "message": {"model": "m", $usage, "content": [{"type": "tool_use", "id": "t9", "name": "Skill", "input": {"skill": "sdd:apply", "args": "case-plan"}}]}}
+{"type": "assistant", "timestamp": "2026-11-09T15:01:00Z", "message": {"model": "m", $usage, "content": [{"type": "tool_use", "id": "t10", "name": "Agent", "input": {"subagent_type": "SDD:Implementer", "description": "unit", "prompt": "Read the brief first."}}]}}
+{"type": "assistant", "timestamp": "2026-11-09T15:01:30Z", "message": {"model": "m", $usage, "content": [{"type": "tool_use", "id": "t11", "name": "Agent", "input": {"subagent_type": "Explore", "description": "unit", "prompt": "You are implementing Task 1."}}]}}
+{"type": "system", "subtype": "turn_duration", "timestamp": "2026-11-09T15:06:00Z", "durationMs": 360000}
+EOF
+declare -A openings=([SDD:Implementer]='Read the brief first' [Explore]="${heads[implementer]}" [Reviewer]="${heads[reviewer]}")
+i=0
+for t in SDD:Implementer Explore Reviewer; do
+  i=$((i + 1))
+  pair "$letter_case" "k$i" "$t" <<EOF
+{"type": "user", "timestamp": "2026-11-09T15:02:00Z", "message": {"role": "user", "content": "${openings[$t]}."}}
+{"type": "assistant", "timestamp": "2026-11-09T15:05:00Z", "message": {"model": "m", "content": [{"type": "text", "text": "done"}]}}
+EOF
+done
+run transcript-roles.py "$letter_case.jsonl"
+if [ "$rc" -ne 0 ] || [ "$(rows)" != $'implementer 2\nother 1' ]; then
+  miss 14
+else
+  run transcript-clock.py "$letter_case.jsonl"
+  if [ "$rc" -eq 0 ] && [[ $out != *$'\n'* && $out == 'proj kkkkkkkk case-plan: '*'; units 2, dispatches 1, '* ]]; then
+    pass 14; else miss 14; fi
+fi
 
 exit "$fail"
