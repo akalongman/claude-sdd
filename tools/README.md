@@ -281,11 +281,15 @@ Caveats:
   controller-alone figure (active agent time minus busy) is an upper bound.
 - The role of a subagent comes from its `.meta.json` (`agentType`,
   2026-09-23 on) when the type carries an `app-sdd-`, `sdd:` or `sdd-`
-  prefix. A bare `unit-controller`, `implementer` or `reviewer` is no sdd
-  role; any other type, `general-purpose` included, and a subagent from
-  before 2026-09-23 take the role from the opening words of the dispatch
-  prompt. A unit is a unit controller, or an implementer in runs without
-  unit controllers.
+  prefix, and only a prefixed type makes a unit controller. A bare
+  `unit-controller`, `implementer` or `reviewer` is no sdd role; any other
+  type, `general-purpose` included, and a subagent from before 2026-09-23
+  take only `implementer` or `reviewer` from the opening words of the
+  dispatch prompt. A unit is a unit controller, or an implementer in runs
+  without unit controllers. So a `general-purpose` subagent opening "You
+  run one unit", which `transcript-roles.py` counts as a unit controller,
+  is `other` here, and a run of it and two `general-purpose` implementers
+  counts two units.
 - The harness's own `turn_duration` records overlap waits on background
   agents, so their sum (column `turn_sum`) exceeds elapsed and is printed
   only for reference.
@@ -339,13 +343,15 @@ the script's own pin (the record repository's
 `docs/superpowers/specs/2026-10-23-sub-skill-upgrade-content-pin-design.md`).
 `test-tools.sh` tests the
 transcript tools here on fixture transcripts and prints `ok <n>` or
-`FAIL <n>` for each of twelve cases: the three agent name forms
+`FAIL <n>` for each of thirteen cases: the three agent name forms
 (`app-sdd-<role>`, `sdd:<role>`, `sdd-<role>`) and the prefix they need (a
 bare `<role>` is no sdd role whatever its prompt opens with, while
 `general-purpose` keeps the head rules) in `transcript-roles.py`, both skill
-names, the three agent name forms, the adding `--skill` and a bare
-`implementer` that is no unit in `transcript-clock.py`, and both skill names
-in `transcript-tokens.py`.
+names, the three agent name forms, the adding `--skill`, a bare
+`unit-controller`, `implementer` or `reviewer` that is no unit, and a
+`general-purpose` subagent opening "You run one unit" that is no unit
+controller in `transcript-clock.py`, and both skill names in
+`transcript-tokens.py`.
 `test-run.sh` tests the runner on a
 copy beside stub scripts, never the real suite, with a PATH built per case,
 and prints `ok <n>` or `FAIL <n>` for each of five cases: the skip when

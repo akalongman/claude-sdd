@@ -28,7 +28,7 @@
 # finds the run of a session whose controller invokes app-subagent-apply and
 # dispatches app-sdd-unit-controller and sdd-unit-controller, names it after
 # the skill's argument and counts two units; 9, transcript-tokens.py counts
-# that app-subagent-apply invocation as a skill mention. Cases 10 to 12 hold
+# that app-subagent-apply invocation as a skill mention. Cases 10 to 13 hold
 # the head rules beside the bare names: 10, three subagents whose sidecars
 # name a bare unit-controller, implementer or reviewer and whose prompts
 # open with that role's head ("You run one unit", "You are implementing",
@@ -41,7 +41,11 @@
 # unit-controller, implementer and reviewer opening the same words (the
 # clock reads no unit controller from a prompt head, and its reviewer role
 # reaches no printed field, so the implementer head is the one under which
-# a bare name shows) nor a general-purpose one opening "You are reviewing".
+# a bare name shows) nor a general-purpose one opening "You are reviewing";
+# 13, transcript-clock.py takes unit-controller only from a prefixed type,
+# so of three general-purpose subagents it counts the one opening "You run
+# one unit" as other, and in a run without unit controllers the two
+# opening "You are implementing" as its units.
 #
 # Usage: bash tests/test-tools.sh
 set -euo pipefail
@@ -214,8 +218,9 @@ if [ "$rc" -eq 0 ] && [ "$(rows)" = 'other 3' ]; then pass 10; else miss 10; fi
 # 11. Three subagents whose sidecars name general-purpose, the type the
 #     loop's own dispatches ran as before the sdd agents existed, each
 #     opening with one of case 10's heads: every unprefixed type but the
-#     three bare names keeps the head rules, so they count as
-#     unit-controller, implementer and task-review, 1 each, and no other row.
+#     three bare names keeps transcript-roles.py's head rules, so they
+#     count as unit-controller, implementer and task-review, 1 each, and no
+#     other row (the clock counts the first as other, case 13).
 general=$p/hhhhhhhh-general
 printf '{"type": "assistant", "message": {"model": "m", %s, "content": []}}\n' "$usage" > "$general.jsonl"
 i=0
@@ -255,5 +260,31 @@ EOF
 run transcript-clock.py "$mixed.jsonl"
 if [ "$rc" -eq 0 ] && [[ $out != *$'\n'* && $out == 'proj iiiiiiii mixed-plan: '*'; units 1, dispatches 0, '* ]]; then
   pass 12; else miss 12; fi
+
+# 13. The clock on a timestamped session whose controller invokes sdd:apply
+#     with the argument head-plan, and three subagents whose sidecars name
+#     general-purpose: one opens case 10's unit-controller head "You run one
+#     unit", which transcript-roles.py reads as a unit controller (case 11),
+#     and two open "You are implementing". The clock takes unit-controller
+#     only from a prefixed type and counts the first as other, so the run
+#     has no unit controller and its two implementers are its units: one
+#     run, units 2. A head rule that read "You run one unit" as a unit
+#     controller would make it units 1.
+general_head=$p/jjjjjjjj-general-head
+cat > "$general_head.jsonl" <<EOF
+{"type": "assistant", "timestamp": "2026-11-09T14:00:00Z", "message": {"model": "m", $usage, "content": [{"type": "tool_use", "id": "t8", "name": "Skill", "input": {"skill": "sdd:apply", "args": "head-plan"}}]}}
+{"type": "system", "subtype": "turn_duration", "timestamp": "2026-11-09T14:06:00Z", "durationMs": 360000}
+EOF
+i=0
+for r in unit-controller implementer implementer; do
+  i=$((i + 1))
+  pair "$general_head" "j$i" general-purpose <<EOF
+{"type": "user", "timestamp": "2026-11-09T14:01:00Z", "message": {"role": "user", "content": "${heads[$r]}."}}
+{"type": "assistant", "timestamp": "2026-11-09T14:05:00Z", "message": {"model": "m", "content": [{"type": "text", "text": "done"}]}}
+EOF
+done
+run transcript-clock.py "$general_head.jsonl"
+if [ "$rc" -eq 0 ] && [[ $out != *$'\n'* && $out == 'proj jjjjjjjj head-plan: '*'; units 2, dispatches 0, '* ]]; then
+  pass 13; else miss 13; fi
 
 exit "$fail"

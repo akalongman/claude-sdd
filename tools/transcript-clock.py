@@ -41,15 +41,21 @@ minutes, active minutes (elapsed minus every long gap), the agent share of
 active split into the union of subagent busy time and the remainder (the
 controller alone), the user share (short prompt and ruling gaps),
 the number of units (unit-controller dispatches, or implementer dispatches
-when the run has no unit controllers; the role comes from a prefixed agent
-type in the subagent's meta file, 2026-09-23 on, is "other" for a bare
-unit-controller, implementer or reviewer, and otherwise comes from the
-opening words of its dispatch prompt), dispatches, subagent files, human
-prompts, compactions and the sum of the harness's own turn_duration
-records. --tsv prints one tab-separated line per run with a header;
---runs adds a block that merges runs with the same project and target
-across sessions (continuations after a context reset); --gaps lists every
-gap over the threshold with the event on each side.
+when the run has no unit controllers, by the role rule below), dispatches,
+subagent files, human prompts, compactions and the sum of the harness's
+own turn_duration records. --tsv prints one tab-separated line per run
+with a header; --runs adds a block that merges runs with the same project
+and target across sessions (continuations after a context reset); --gaps
+lists every gap over the threshold with the event on each side.
+
+A subagent's role comes from the agent type in its meta file, 2026-09-23
+on, when that type carries an app-sdd-, sdd: or sdd- prefix, and only a
+prefixed type gives unit-controller. A bare unit-controller, implementer
+or reviewer is "other". Any other type, general-purpose included, and a
+subagent without a meta file take implementer or reviewer from the
+opening words of the dispatch prompt, or "other" when neither matches: a
+general-purpose subagent opening "You run one unit" is "other", so a run
+of it and two general-purpose implementers counts two units.
 
 Timestamps are the records' ISO UTC `timestamp` fields. The script reads
 in place and writes nothing. Written 2026-10-08 for the slowdown question.
@@ -222,9 +228,11 @@ def strip_prefix(agent_type):
 
 
 def role_of(agent_type, head):
-    """Role from a prefixed meta type (2026-09-23 onwards); other for a bare
-    unit-controller, implementer or reviewer (a project's own agent); for any
-    other type, general-purpose included, the dispatch template's opening words."""
+    """Role from a prefixed meta type (2026-09-23 onwards), the only source
+    of unit-controller; other for a bare unit-controller, implementer or
+    reviewer (a project's own agent); for any other type, general-purpose
+    included, implementer or reviewer from the dispatch template's opening
+    words, else other."""
     if strip_prefix(agent_type) != agent_type:
         return strip_prefix(agent_type)
     if agent_type in ("unit-controller", "implementer", "reviewer"):
