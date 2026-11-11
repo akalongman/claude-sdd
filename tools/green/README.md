@@ -892,5 +892,4 @@ every fix round, for S1 (the first round after a failing review) and S16
 (a note round's re-review, then round 2), and
 `references/final-review.md` for S17 (an owner note after the final fix
 wave). The file keeps the agents' answers and not their transcripts, so
-unlike the 7.0.1 record it does not show which `references/` files each
-agent read.
+it does not show which `references/` files each agent read.
