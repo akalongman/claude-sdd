@@ -864,12 +864,13 @@ each script by absolute path.
 | e | `task-brief PLAN 2` and `PLAN 2b`, the root | 7.0.2: Task 2's brief holds no Task 2b, Task 2b's ends with `## Self-review`. The plugin's copy: neither, in either brief. 7.0.1: Task 2's holds both |
 
 Probe d is Review Focus 4 of the plan
-(`docs/superpowers/plans/2026-11-11-sdd-sub-skill-7-0-2-pin.md`): both
-versions act on the dotfiles repository and fail only for want of the
-probe's commits. Of the two defects the plugin's `task-brief` copy names
-in its header, 7.0.2 fixes `Task 3b` merging into `Task 3`; a task still
-ends only at the next Task heading, so a trailing section stays in the
-last task's brief, and `skills/apply/scripts/task-brief` stays.
+(`docs/superpowers/plans/2026-11-11-sdd-sub-skill-7-0-2-pin.md` at
+`8cbe21e`): both versions act on the dotfiles repository and fail only
+for want of the probe's commits. Of the two defects the plugin's
+`task-brief` copy names in its header, 7.0.2 fixes `Task 3b` merging
+into `Task 3`; a task still ends only at the next Task heading, so a
+trailing section stays in the last task's brief, and
+`skills/apply/scripts/task-brief` stays.
 
 The scenario run of 2026-11-11, made by the driving session with
 `args.sdd` at the candidate and the harness, the unit-controller agent

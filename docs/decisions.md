@@ -279,9 +279,10 @@ section 6 of the pin spec in the record repository
 `docs/superpowers/specs/2026-10-23-sub-skill-upgrade-content-pin-design.md`,
 run a second time; the record's decision 24 is its first run, for 7.0.1.
 The plan is `docs/superpowers/plans/2026-11-11-sdd-sub-skill-7-0-2-pin.md`
-(`8cbe21e`). A candidate copy was compared with the verified one and put
-through the controller scenarios before anything on the machine changed;
-on their pass the machine upgraded and both pins moved.
+(`8cbe21e`; plans are no longer tracked, so it is read at that commit).
+A candidate copy was compared with the verified one and put through the
+controller scenarios before anything on the machine changed; on their
+pass the machine upgraded and both pins moved.
 
 ### The candidate
 
