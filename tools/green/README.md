@@ -827,3 +827,44 @@ tick; an id that exists only inside a fence is unknown; and the default
 with no ids ticks only the named section. Run on 2026-09-26: 8 of 8 on
 the new scripts, 2 of 8 on the scripts at dotfiles HEAD before the change
 (decision 18 in the record repository's `docs/decisions.md`).
+
+## Superpowers 7.0.2 (2026-11-11)
+
+The candidate is `obra/superpowers` tag `v7.0.2` (commit
+`22f0b463e7a5e579904dd6211a520321035526f7`, plugin version `7.0.2`, loop
+hash `c95cdd95b49a`), cloned at `~/projects/scratch/superpowers-7.0.2`;
+the verified copy is `7.0.1` (`49e0f5325d56`, commit
+`2ce8aa15d05bd57213e6f746f953aafb7ded7a8b`). `diff -rq` of the two skill
+directories, `code-reviewer.md` identical; every script call in the
+prose gains "by its absolute path, from the working tree you're
+executing in":
+
+- `SKILL.md`: four calls; DONE drops "from this skill's directory"
+- `references/final-review.md`: its two `review-package` calls
+- `references/fix-loop.md`: the scoped re-review's `review-package` call
+- `re-review-prompt.md`: the `[DIFF_FILE]` entry
+- `task-reviewer-prompt.md`: the `[BRIEF_FILE]` and `[DIFF_FILE]` entries
+- `scripts/review-package`: `-C DIR`; git runs in `sdd-repo`'s repository
+- `scripts/sdd-workspace`: `-C DIR`, `sdd-repo` root, `C:/` on Windows
+- `scripts/task-brief`: `-C DIR`, whole-string ids, unclosed-fence exit 4
+- `scripts/sdd-repo` (new): the current directory's top level, else exit 2
+
+The probes ran in `~/projects/scratch/sdd-7.0.2-probe` (BASE `af8d63a`,
+HEAD `0fa9cbb`; a plan with Tasks 1, 2 and 2b and a trailing
+`## Self-review`; a detached worktree), each script by absolute path.
+
+| Probe | Call, working directory | Observed, 7.0.1 and 7.0.2 |
+|---|---|---|
+| a | `sdd-workspace PLAN`, the root and the worktree | exit 0, the same path from both in each place, fresh or after the other version |
+| b | `review-package PLAN BASE HEAD OUTFILE`, the root | exit 0; `cmp` finds the two packages identical |
+| c | the same, the worktree | exit 0; identical |
+| d | the same, the installed 7.0.1 skill directory (`sub-skill-check --dir`; git resolves it to the home dotfiles repository, while the candidate's lies in its own clone) | both exit 3, `fatal: Not a valid commit name` for BASE, then `HEAD is not a descendant of BASE`; nothing written. A short BASE gives exit 2, `bad BASE`: `rev-parse --verify` passes any full-length hash |
+| e | `task-brief PLAN 2` and `PLAN 2b`, the root | 7.0.2: Task 2's brief holds no Task 2b, Task 2b's ends with `## Self-review`. The plugin's copy: neither, in either brief. 7.0.1: Task 2's holds both |
+
+Probe d is Review Focus 4 of the plan
+(`docs/superpowers/plans/2026-11-11-sdd-sub-skill-7-0-2-pin.md`): both
+versions act on the dotfiles repository and fail only for want of the
+probe's commits. Of the two defects the plugin's `task-brief` copy names
+in its header, 7.0.2 fixes `Task 3b` merging into `Task 3`; a task still
+ends only at the next Task heading, so a trailing section stays in the
+last task's brief, and `skills/apply/scripts/task-brief` stays.
