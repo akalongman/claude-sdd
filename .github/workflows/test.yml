@@ -53,8 +53,8 @@ jobs:
         # one tag v<version> of obra/superpowers peels to, fetched by hash
         # because a tag can move.
         run: |
-          version=7.0.1
-          commit=2ce8aa15d05bd57213e6f746f953aafb7ded7a8b
+          version=7.0.2
+          commit=22f0b463e7a5e579904dd6211a520321035526f7
           dir="$HOME/.claude/plugins/cache/superpowers-marketplace/superpowers/$version"
           git init -q "$dir"
           git -C "$dir" fetch -q --depth 1 https://github.com/obra/superpowers "$commit"

@@ -264,3 +264,248 @@ alone explains the controller's 1h writes. No plugin agent with the preload
 and without `experimental` was run, so the probes do not tell the block
 apart from that combination. The debug log says nothing about it; the
 transcript usage is where it shows.
+
+## 2. Move the sub-skill pin to superpowers 7.0.2 (2026-11-11)
+
+On 2026-11-11 the pin of `skills/apply/scripts/sub-skill-check`, its two
+constants at lines 31 and 32, moved from superpowers 7.0.1 (loop hash
+`49e0f5325d56`) to 7.0.2 (loop hash `c95cdd95b49a`), together with the
+private copy of that script,
+`~/.claude/skills/app-subagent-apply/scripts/sub-skill-check`, and the
+release CI installs in `.github/workflows/test.yml`; the machine's
+superpowers install moved to 7.0.2 in the same sitting. The procedure is
+section 6 of the pin spec in the record repository
+(`akalongman/claude-subagent-apply`, private),
+`docs/superpowers/specs/2026-10-23-sub-skill-upgrade-content-pin-design.md`,
+run a second time; the record's decision 24 is its first run, for 7.0.1.
+The plan is `docs/superpowers/plans/2026-11-11-sdd-sub-skill-7-0-2-pin.md`
+(`8cbe21e`). A candidate copy was compared with the verified one and put
+through the controller scenarios before anything on the machine changed;
+on their pass the machine upgraded and both pins moved.
+
+### The candidate
+
+`obra/superpowers` tag `v7.0.2`, which peels to commit
+`22f0b463e7a5e579904dd6211a520321035526f7`: plugin version `7.0.2`, loop
+hash `c95cdd95b49a`, cloned at `~/projects/scratch/superpowers-7.0.2`. The
+verified copy before this entry: `7.0.1`, loop `49e0f5325d56`, commit
+`2ce8aa15d05bd57213e6f746f953aafb7ded7a8b`.
+
+### The comparison
+
+`b1ec5bc` records it in `tools/green/README.md`, section "Superpowers
+7.0.2 (2026-11-11)". Against 7.0.1, eight of the loop's files changed and
+one is new, `scripts/sdd-repo`; `code-reviewer.md` is identical. Every
+script call in the prose gains "by its absolute path, from the working
+tree you're executing in", and the scripts take `-C DIR`, with git
+running in the repository `sdd-repo` names. Five probes called the
+scripts of both versions by absolute path, from a scratch repository's
+root and its detached worktree, and once from outside it.
+`sdd-workspace` and `review-package` behaved alike in the root and the
+worktree under both versions, and the two versions' review packages were
+identical (`cmp`). Run from the installed 7.0.1 copy's skill
+directory, which git resolves to the home dotfiles repository, both
+versions exited 3 and wrote nothing: they act on that repository and
+fail only for want of the probe's commits (the plan's Review Focus 4; no
+change was expected and none was made). 7.0.2's `task-brief` no longer
+merges a `Task 2b` into `Task 2`'s brief, but a task still ends only at
+the next Task heading, so a trailing section stays in the last task's
+brief, and the plugin's own `skills/apply/scripts/task-brief` stays.
+
+### The scenario run
+
+`00ba513` and `6da552b` record it, in the same README section and in
+`tools/green/2026-11-11-results-7.0.2.json`. Three controller scenarios
+ran, one rep each, with `args.sdd` at the candidate, and with this
+repository's harness, unit-controller agent and overrides as of
+`b1ec5bc`: `S1-fix-small-ctx` and `S16-note-round-reviewed-clean`, which the
+candidate's `SKILL.md` sends to `references/fix-loop.md`, and
+`S17-final-note-after-fix-wave`, which it sends to
+`references/final-review.md`; 7.0.2 changed both files.
+
+The run was emulated, because the workflow tool was switched off in the
+session that drove it. The harness,
+`tools/green/2026-09-25-unit-controller-workflow.js`, ran under a
+recording stand-in for its agent call; each recorded prompt went to its
+own fresh subagent on opus, told to answer with one JSON object matching
+the recorded schema; and `tools/green/rescore.mjs` scored the answers
+with the harness's own checks. This differs from a workflow run in two
+ways: the output is not schema-enforced, so a malformed answer fails
+rather than being retried, and no effort is set, where the harness asks
+for medium. The results file's `logs` entry names this method "decision
+R10 of the 7.0.2 pin run"; R10 is a ruling in that run's working files,
+which are not committed, and this entry stands for it in this
+repository.
+
+```
+$ cd ~/projects/akalongman/claude-sdd && jq -c '{agentCount, totalTokens, totalToolCalls, summary: .result.summary}' tools/green/2026-11-11-results-7.0.2.json
+{"agentCount":3,"totalTokens":290664,"totalToolCalls":49,"summary":{"S1-fix-small-ctx":{"runs":1,"all_pass":1},"S16-note-round-reviewed-clean":{"runs":1,"all_pass":1},"S17-final-note-after-fix-wave":{"runs":1,"all_pass":1}}}
+```
+
+Result: pass. Every check of every scenario passed, `S1-fix-small-ctx` 7
+of 7, `S16-note-round-reviewed-clean` 5 of 5,
+`S17-final-note-after-fix-wave` 5 of 5, which meets the owner's criterion
+of 2026-10-23, one rep with every check passing. The counters are the
+three scenario subagents' own figures and nothing of the driving
+session's: `totalTokens` 290,664 is 81,003 (S1) + 102,169 (S16) + 107,492
+(S17), `totalToolCalls` 49 is 10 + 18 + 21, and `agentCount` is 3. The
+token figure is not like for like with the 2026-10-23 rate of about
+68,000 per scenario (477,785 tokens over seven scenarios in
+`tools/green/2026-10-23-results-7.0.1.json`): those agents ran at the
+medium effort the harness sets, these at the default.
+
+### The wait
+
+The unit controller's agent definition preloads the sub-skill by name,
+so an upgrade under a running apply gives that run's later controllers
+the new copy while its ledger names the old one. The update therefore
+waited for the apply runs in flight, counting a run as ended by decision
+24's rule (its newest archive holds the live ledger, trailing
+`Hands-off:` lines aside), with trailing `Driver:` lines set aside too.
+The first check found 15 apply ledgers changed in the last seven days,
+this run's own among them, and 2 other runs active; ledgers idle for 37
+to 134 hours that had grown past their newest archive by post-run
+bookkeeping only were counted as ended, on the owner's word. While the 2
+finished, 1 new run started and 1 of the 2 reopened after its archive
+for a minors fix wave; the update waited for both. At the final check
+one more new run was live, and the owner let the update go ahead on the
+condition that live sessions do not break.
+
+Before the update, a probe in a throwaway `CLAUDE_CONFIG_DIR`, with a
+two-version test plugin installed from a git url source, showed that
+`claude plugin update --scope user` keeps the replaced version's folder
+byte-unchanged, marks it with an `.orphaned_at` file and prints "Restart
+to apply changes". The installed 7.0.1 copy held `.in_use` files for 17
+running sessions. Sessions open at the update keep 7.0.1 until
+restarted; a restarted one loads the verified 7.0.2. Until then, a
+pre-flight that passes a 7.0.1 base directory gets the line marked
+unverified, with the warning:
+
+```
+$ cd ~/projects/akalongman/claude-sdd && bash skills/apply/scripts/sub-skill-check ~/.claude/plugins/cache/superpowers-marketplace/superpowers/7.0.1/skills/subagent-driven-development; echo "exit $?"
+Sub-skill: 7.0.1 loop 49e0f5325d56 unverified (verified: 7.0.2 c95cdd95b49a)
+Warning: the loop's files differ from the copy verified with superpowers 7.0.2; this run uses an unverified sub-skill.
+exit 0
+```
+
+### The update and the installed copy
+
+The plan's compare gate,
+`gh api repos/obra/superpowers/compare/v7.0.2...main --jq '[.files[]?.filename | select(startswith("skills/subagent-driven-development/") or . == "skills/requesting-code-review/code-reviewer.md")] | length'`,
+found 0 loop files changed, with the comparison's status `identical`, so
+the default branch, which the marketplace entry installs because it
+names no ref, carried the candidate's loop. Then
+`claude plugin marketplace update superpowers-marketplace` moved the
+marketplace clone to `5c90728` ("Update superpowers to v7.0.2"), and
+`claude plugin update superpowers@superpowers-marketplace`, run with
+`--scope user` and, from `~`, with `--scope project`, moved both registry
+entries from 7.0.1 to 7.0.2. The 7.0.1 folder stays in the cache, marked
+orphaned. Read again before this entry's commit, as one command:
+
+```
+$ jq -c '.plugins["superpowers@superpowers-marketplace"][] | {scope, version, gitCommitSha}' ~/.claude/plugins/installed_plugins.json && git -C ~/.claude/plugins/marketplaces/superpowers-marketplace log --format='%h %s' -1
+{"scope":"user","version":"7.0.2","gitCommitSha":"22f0b463e7a5e579904dd6211a520321035526f7"}
+{"scope":"project","version":"7.0.2","gitCommitSha":"22f0b463e7a5e579904dd6211a520321035526f7"}
+5c90728 Update superpowers to v7.0.2
+```
+
+`diff -r` of the installed sub-skill directory against the candidate's,
+and `diff` of `code-reviewer.md`, printed nothing, and each of the four
+Claude Code configuration directories in the home resolved loop
+`c95cdd95b49a`. The diff, run again before this entry's commit:
+
+```
+$ cd ~/projects/akalongman/claude-sdd && diff -r "$(bash skills/apply/scripts/sub-skill-check --dir)" ~/projects/scratch/superpowers-7.0.2/skills/subagent-driven-development; echo "diff exit $?"; diff "$(bash skills/apply/scripts/sub-skill-check --dir)/../requesting-code-review/code-reviewer.md" ~/projects/scratch/superpowers-7.0.2/skills/requesting-code-review/code-reviewer.md; echo "diff exit $?"
+diff exit 0
+diff exit 0
+```
+
+The registry's install paths ran through `~/<second config dir>` before
+the update and now run through the configuration directory the update
+ran from; all four configuration directories link one plugins directory,
+so the copy is the same whichever path names it.
+
+### The pins
+
+Both copies of `sub-skill-check` now set, at lines 31 and 32:
+
+```
+verified_version=7.0.2
+verified_loop=c95cdd95b49a
+```
+
+Nothing else in either file changed. The private copy is committed in
+the dotfiles at `154f038` ("Pin superpowers 7.0.2 in the apply skill's
+sub-skill check"), the plugin's copy in this entry's commit. The two are
+byte-identical:
+
+```
+$ cd ~/projects/akalongman/claude-sdd && cmp skills/apply/scripts/sub-skill-check ~/.claude/skills/app-subagent-apply/scripts/sub-skill-check; echo "cmp exit $?"
+cmp exit 0
+```
+
+CI's step "Install superpowers at the verified release" moves in the
+same commit to `version=7.0.2` and
+`commit=22f0b463e7a5e579904dd6211a520321035526f7`, the commit the tag
+peels to, fetched by hash because a tag can move; CI's
+`test-sub-skill-check` case 7 fails if the fetched copy's hash is not the
+pin's.
+
+### Checks
+
+After the edits, on this machine. The plugin's check on the installed
+copy, with no warning line:
+
+```
+$ cd ~/projects/akalongman/claude-sdd && bash skills/apply/scripts/sub-skill-check; echo "exit $?"
+Sub-skill: 7.0.2 loop c95cdd95b49a verified
+exit 0
+```
+
+The suite; its 63 lines before the totals, every one an `ok` line (one
+per check or case, then `ok <name>` per script), are left out:
+
+```
+$ cd ~/projects/akalongman/claude-sdd && bash tests/run.sh; echo "exit $?"
+9 ok, 0 skipped, 0 failed
+exit 0
+```
+
+The test of `sub-skill-check`, on the private copy:
+
+```
+$ cd ~/projects/akalongman/claude-sdd && bash tests/test-sub-skill-check.sh ~/.claude/skills/app-subagent-apply/scripts/sub-skill-check; echo "exit $?"
+ok 1
+ok 2
+ok 3
+ok 4
+ok 5
+ok 6
+ok 7
+exit 0
+```
+
+shellcheck, which printed nothing:
+
+```
+$ cd ~/projects/akalongman/claude-sdd && shellcheck skills/apply/scripts/sub-skill-check; echo "exit $?"
+exit 0
+```
+
+The client-name check over the repository and the dash check over this
+commit's three paths, in the working tree before the commit; `git grep`
+exits 1 when nothing matches:
+
+```
+$ cd ~/projects/akalongman/claude-sdd && git grep -nIiE -f .superpowers/sdd/2026-11-09-sdd-phase-1-move-the-skill/client-names.pattern -- .; echo "exit $?"
+exit 1
+$ cd ~/projects/akalongman/claude-sdd && git grep -nP '[\x{2014}\x{2013}]' -- skills/apply/scripts/sub-skill-check .github/workflows/test.yml docs/decisions.md; echo "exit $?"
+exit 1
+```
+
+Result: pass. The pin, the private copy and the installed copy agree on
+7.0.2 and `c95cdd95b49a`.
+
+Open: the push of this commit and CI's run on it, whose linux job is to
+end `9 ok, 0 skipped, 0 failed` on the copy it fetches by commit; the
+dotfiles commit `154f038` is pushed on the owner's word.
