@@ -1,0 +1,125 @@
+{
+  "agentCount": 3,
+  "logs": [
+    "Emulated run, 2026-11-11 (decision R10 of the 7.0.2 pin run): the workflow tool was switched off in the session, so the harness ran under a recording stand-in for its agent call with args.sdd at the candidate (~/projects/scratch/superpowers-7.0.2/skills/subagent-driven-development, v7.0.2, loop c95cdd95b49a), each recorded prompt went to its own fresh subagent on opus told to answer with one JSON object matching the recorded schema, and tools/green/rescore.mjs scored the answers with the harness checks. Differences from a workflow run: no schema-enforced output and no effort setting (the harness asks medium)."
+  ],
+  "result": {
+    "summary": {
+      "S1-fix-small-ctx": {
+        "runs": 1,
+        "all_pass": 1
+      },
+      "S16-note-round-reviewed-clean": {
+        "runs": 1,
+        "all_pass": 1
+      },
+      "S17-final-note-after-fix-wave": {
+        "runs": 1,
+        "all_pass": 1
+      }
+    },
+    "green": [
+      {
+        "scenario": "S1-fix-small-ctx",
+        "rep": 1,
+        "result": {
+          "next_action": "message_same_implementer",
+          "message_text": "Fix round 1 of 5 for Section 2 of OpenSpec change `demo`. The task review of 2b698a3..c1d2e3f returned Spec: FAIL, Quality: Needs fixes. The review file is /repo/.superpowers/sdd/demo/section-2-review.md; read its sections for the two open findings of this round, C1 and I1:\n\nC1 Missing filters[status] handling in DepartmentController::index app/Http/Controllers/DepartmentController.php:41\nI1 Duplicate normalisation block copied from CalendarController app/Http/Controllers/DepartmentController.php:55-71\n\nFix C1 and I1 only, inside the brief's file list (/repo/.superpowers/sdd/demo/section-2-brief.md stays your requirements); leave every other finding in the review file alone. Re-run the tests covering the amended code, tests/Feature/DepartmentFilterTest.php, not the whole suite. Commit path-limited on the current branch as before. Append your fix report to /repo/.superpowers/sdd/demo/section-2-report.md with the covering tests, the exact command you ran and its output. Return only the short contract: status, commits, a one-line test summary, concerns.",
+          "ledger_lines": [
+            "Section 2: task review of 2b698a3..c1d2e3f: Spec FAIL, Quality Needs fixes; open C1, I1; minor M1, M2; report /repo/.superpowers/sdd/demo/section-2-review.md",
+            "Section 2: minor (deferred): M1 Test names do not follow the suite's it_ prefix tests/Feature/DepartmentFilterTest.php:12",
+            "Section 2: minor (deferred): M2 Docblock on index() out of date app/Http/Controllers/DepartmentController.php:30",
+            "Section 2: fix round 1/5 sent by message to implementer a62e23f4 (last notification 118000 tokens, under 300000); open C1, I1; fix base c1d2e3f; review /repo/.superpowers/sdd/demo/section-2-review.md"
+          ],
+          "round_ids": [
+            "C1",
+            "I1"
+          ]
+        },
+        "checks": {
+          "resumes": true,
+          "names_file": true,
+          "names_ids": true,
+          "minors_out": true,
+          "minor_ids_out": true,
+          "open_ids_in_round": true,
+          "minors_deferred": true
+        }
+      },
+      {
+        "scenario": "S16-note-round-reviewed-clean",
+        "rep": 1,
+        "result": {
+          "next_action": "return_block",
+          "command_text": "printf '%s\\n' 'Section 3: re-review r1 verdict Spec OK, Quality Approved (Critical 0, Important 0; section-3-review-r1.md)' 'Section 3: fix round 1/5 (1 addressed, 0 open; commits d4e5f6a..e7f8a9b)' >> /repo/.superpowers/sdd/demo/progress.md && [ \"$(git rev-parse --short HEAD)\" = e7f8a9b ] && openspec validate demo --strict && printf '%s\\n' 'Section 3: Gates: openspec validate demo --strict passed' >> /repo/.superpowers/sdd/demo/progress.md\ngrep -nE '^(Section 3|Final phase): (pause (requested|released)|owner note)' /repo/.superpowers/sdd/demo/progress.md\nopenspec-section-tick demo 3 'Section 3: complete (commits c1d2e3f..e7f8a9b, review clean)'",
+          "dispatch_prompt": "",
+          "message_text": "",
+          "return_block": "Unit: 3\nStatus: complete\nCommits: c1d2e3f..e7f8a9b\nLedger: 13",
+          "ledger_lines": [
+            "Section 3: re-review r1 verdict Spec OK, Quality Approved (Critical 0, Important 0; section-3-review-r1.md)",
+            "Section 3: fix round 1/5 (1 addressed, 0 open; commits d4e5f6a..e7f8a9b)",
+            "Section 3: Gates: openspec validate demo --strict passed",
+            "Section 3: complete (commits c1d2e3f..e7f8a9b, review clean)"
+          ],
+          "then_action": "message_same_implementer",
+          "then_command_text": "printf '%s\\n' 'Section 3: re-review r1 verdict Spec OK, Quality Needs fixes (Critical 0, Important 1; section-3-review-r1.md)' 'Section 3: fix round 1/5 (1 addressed, 1 open: I1 src/Ledger.php:42 the tail window still reads the README path the note removed; commits d4e5f6a..e7f8a9b)' >> /repo/.superpowers/sdd/demo/progress.md && git rev-parse --short HEAD && grep -nE '^(Section 3|Final phase): (pause (requested|released)|owner note)' /repo/.superpowers/sdd/demo/progress.md\nprintf '%s\\n' 'Section 3: fix round 2/5 sent (I1 section-3-review-r1.md; owner note carried: drop the README edit from this unit; resumed a62e23f4, fix base e7f8a9b)' >> /repo/.superpowers/sdd/demo/progress.md",
+          "then_dispatch_prompt": "",
+          "then_message_text": "Fix round 2/5 for Section 3 of OpenSpec change demo. The scoped re-review of your owner-note round (commits d4e5f6a..e7f8a9b) left one Important finding open. Read finding I1 in /repo/.superpowers/sdd/demo/section-3-review-r1.md. Verbatim: I1 src/Ledger.php:42 the tail window still reads the README path the note removed. Fix I1; no other finding is in this round. The unit's owner note still binds: drop the README edit from this unit. The fix must not bring the README edit back. Re-run the tests that cover src/Ledger.php, then append a round 2 fix report to /repo/.superpowers/sdd/demo/section-3-report.md with what you changed, the covering test files, the command you ran and its output. Commit path-limited as before (no branch change, no push, never tick tasks.md), then reply with the same short status contract: status, commits, one-line test summary, concerns, report path.",
+          "then_return_block": "",
+          "then_ledger_lines": [
+            "Section 3: re-review r1 verdict Spec OK, Quality Needs fixes (Critical 0, Important 1; section-3-review-r1.md)",
+            "Section 3: fix round 1/5 (1 addressed, 1 open: I1 src/Ledger.php:42 the tail window still reads the README path the note removed; commits d4e5f6a..e7f8a9b)",
+            "Section 3: fix round 2/5 sent (I1 section-3-review-r1.md; owner note carried: drop the README edit from this unit; resumed a62e23f4, fix base e7f8a9b)"
+          ]
+        },
+        "checks": {
+          "ticks": true,
+          "block_complete": true,
+          "no_needs_ruling": true,
+          "round_two": true,
+          "then_no_needs_ruling": true
+        }
+      },
+      {
+        "scenario": "S17-final-note-after-fix-wave",
+        "rep": 1,
+        "result": {
+          "next_action": "message_same_implementer",
+          "command_text": "git -C /repo log --oneline d4e5f6a..e7f8a9b && printf '%s\\n' 'Final phase: fix wave reported DONE (I1; commits d4e5f6a..e7f8a9b; report .superpowers/sdd/demo/final-report.md)' >> /repo/.superpowers/sdd/demo/progress.md\ngrep -nE '^Final phase: (pause (requested|released)|owner note)' /repo/.superpowers/sdd/demo/progress.md\nprintf '%s\\n' 'Final phase: owner note applied' 'Final phase: note dispatch sent (owner note: also rename the test file; no review findings; resumed a62e23f4, opus; note base e7f8a9b; scoped re-review to cover d4e5f6a..HEAD; report .superpowers/sdd/demo/final-report.md)' >> /repo/.superpowers/sdd/demo/progress.md",
+          "dispatch_prompt": "",
+          "message_text": "Owner note for the final phase of change demo. Apply it now, on top of your fix wave (d4e5f6a..e7f8a9b). This message carries no review findings: I1 stays as you fixed it, and its scoped re-review comes after this note.\n\nOwner note, verbatim:\n- also rename the test file\n\nRename the test file the note refers to and update every reference to its old path. If you cannot tell which test file the owner means, do not guess: reply NEEDS_CONTEXT and name the candidates. Run the tests that cover the renamed file, then commit path-limited on the current branch, naming both the old and the new path (`git add <paths> && git commit -m \"<title>\" -- <paths>`). Never `git add -A`, `git add .` or `git commit -a`; never create, switch or rename a branch; never push; never tick tasks.md; never dispatch a subagent.\n\nAppend a fix report for this note to /repo/.superpowers/sdd/demo/final-report.md: what you changed, the covering tests, the command you ran and its output. Then reply with the same short contract as before: status, commits (short SHA and subject), a one-line test summary, concerns, and the report path.",
+          "return_block": "",
+          "ledger_lines": [
+            "Final phase: fix wave reported DONE (I1; commits d4e5f6a..e7f8a9b; report .superpowers/sdd/demo/final-report.md)",
+            "Final phase: owner note applied",
+            "Final phase: note dispatch sent (owner note: also rename the test file; no review findings; resumed a62e23f4, opus; note base e7f8a9b; scoped re-review to cover d4e5f6a..HEAD; report .superpowers/sdd/demo/final-report.md)"
+          ],
+          "then_action": "message_same_implementer",
+          "then_command_text": "cd /repo && printf '%s\\n' 'Final phase: scoped re-review (opus): I1 ADDRESSED, no new findings; report .superpowers/sdd/demo/final-review-r1.md' >> /repo/.superpowers/sdd/demo/progress.md && openspec validate demo --strict && printf '%s\\n' 'Gates: openspec validate demo --strict passed' >> /repo/.superpowers/sdd/demo/progress.md\ngrep -nE '^Final phase: (pause (requested|released)|owner note)' /repo/.superpowers/sdd/demo/progress.md\nprintf '%s\\n' 'Final phase: owner note applied' 'Final phase: note dispatch sent (owner note: also rename the test file; no review findings; resumed a62e23f4, opus; note base e7f8a9b; scoped re-review to cover e7f8a9b..HEAD; report .superpowers/sdd/demo/final-report.md)' >> /repo/.superpowers/sdd/demo/progress.md",
+          "then_dispatch_prompt": "",
+          "then_message_text": "Owner note for the final phase of change demo. Apply it now, on top of e7f8a9b. This message carries no review findings: the scoped re-review closed I1 as ADDRESSED, and this note gets its own scoped re-review after your report.\n\nOwner note, verbatim:\n- also rename the test file\n\nRename the test file the note refers to and update every reference to its old path. If you cannot tell which test file the owner means, do not guess: reply NEEDS_CONTEXT and name the candidates. Run the tests that cover the renamed file, then commit path-limited on the current branch, naming both the old and the new path (`git add <paths> && git commit -m \"<title>\" -- <paths>`). Never `git add -A`, `git add .` or `git commit -a`; never create, switch or rename a branch; never push; never tick tasks.md; never dispatch a subagent.\n\nAppend a fix report for this note to /repo/.superpowers/sdd/demo/final-report.md: what you changed, the covering tests, the command you ran and its output. Then reply with the same short contract as before: status, commits (short SHA and subject), a one-line test summary, concerns, and the report path.",
+          "then_return_block": "",
+          "then_ledger_lines": [
+            "Final phase: scoped re-review (opus): I1 ADDRESSED, no new findings; report .superpowers/sdd/demo/final-review-r1.md",
+            "Gates: openspec validate demo --strict passed",
+            "Final phase: owner note applied",
+            "Final phase: note dispatch sent (owner note: also rename the test file; no review findings; resumed a62e23f4, opus; note base e7f8a9b; scoped re-review to cover e7f8a9b..HEAD; report .superpowers/sdd/demo/final-report.md)"
+          ],
+          "rereview_range": "d4e5f6a..f0a1b2c",
+          "round_ids": []
+        },
+        "checks": {
+          "note_dispatch": true,
+          "no_findings_in_note_dispatch": true,
+          "rereview_from_review_head": true,
+          "then_note_dispatch": true,
+          "no_complete_line": true
+        }
+      }
+    ]
+  },
+  "summary": "emulated: S1-fix-small-ctx, S16-note-round-reviewed-clean, S17-final-note-after-fix-wave, one rep each, sdd at the v7.0.2 candidate",
+  "totalTokens": 290664,
+  "totalToolCalls": 49,
+  "workflowProgress": null
+}

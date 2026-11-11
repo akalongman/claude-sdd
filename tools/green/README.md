@@ -868,3 +868,29 @@ probe's commits. Of the two defects the plugin's `task-brief` copy names
 in its header, 7.0.2 fixes `Task 3b` merging into `Task 3`; a task still
 ends only at the next Task heading, so a trailing section stays in the
 last task's brief, and `skills/apply/scripts/task-brief` stays.
+
+The scenario run of 2026-11-11, made by the driving session with
+`args.sdd` at the candidate and the harness, the unit-controller agent
+and its overrides of this repository at `b1ec5bc`, was emulated, because
+the workflow tool was switched off in that session; the `logs` entry of
+`2026-11-11-results-7.0.2.json` gives the method and how it differs from
+a workflow run. It took 3 agents, 290,664 tokens and 49 tool calls, from
+the file's own `agentCount`, `totalTokens` and `totalToolCalls`; its
+`workflowProgress` is null, since no workflow ran.
+
+| Scenario | Checks passing, one rep |
+|---|---|
+| `S1-fix-small-ctx` | 7 of 7 |
+| `S16-note-round-reviewed-clean` | 5 of 5 |
+| `S17-final-note-after-fix-wave` | 5 of 5 |
+
+The owner's criterion of 2026-10-23, one rep with every check passing,
+held for all three, and `rescore.mjs` on the file reproduces the three
+recorded check results. The candidate's `SKILL.md` sends each scenario
+to a reference file 7.0.2 changed: `references/fix-loop.md`, read before
+every fix round, for S1 (the first round after a failing review) and S16
+(a note round's re-review, then round 2), and
+`references/final-review.md` for S17 (an owner note after the final fix
+wave). The file keeps the agents' answers and not their transcripts, so
+unlike the 7.0.1 record it does not show which `references/` files each
+agent read.
