@@ -135,7 +135,7 @@ Expected: no output. A difference means an unverified copy is installed: stop an
 
 - [ ] **Step 4: Move the private copy's pin (owner step)**
 
-Edit lines 31 and 32 of `~/.claude/skills/app-subagent-apply/scripts/sub-skill-check` to the Global Constraints values; nothing else in the file changes. Check yadm's signing setup first (`yadm config --get commit.gpgsign`, `yadm log --format='%h %G?' -3`) and let it run.
+Edit lines 31 and 32 of `~/.claude/skills/app-subagent-apply/scripts/sub-skill-check` to the Global Constraints values; nothing else in the file changes. Check yadm's signing setup first (`yadm gitconfig --get commit.gpgsign` and `yadm log --format='%h %G?' -3`; `yadm config` reads yadm's own settings, not git's) and let it run.
 Commit: `yadm add ~/.claude/skills/app-subagent-apply/scripts/sub-skill-check && yadm commit -m "Pin superpowers 7.0.2 in the apply skill's sub-skill check" -- ~/.claude/skills/app-subagent-apply/scripts/sub-skill-check`
 
 - [ ] **Step 5: Move the plugin's pin and CI's copy, and record the decision**

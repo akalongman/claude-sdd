@@ -849,16 +849,18 @@ executing in":
 - `scripts/task-brief`: `-C DIR`, whole-string ids, unclosed-fence exit 4
 - `scripts/sdd-repo` (new): the current directory's top level, else exit 2
 
-The probes ran in `~/projects/scratch/sdd-7.0.2-probe` (BASE `af8d63a`,
-HEAD `0fa9cbb`; a plan with Tasks 1, 2 and 2b and a trailing
-`## Self-review`; a detached worktree), each script by absolute path.
+The probes ran in `~/projects/scratch/sdd-7.0.2-probe` (BASE
+`af8d63a6051172cce95fb4efc8dfc58fe218d106` and HEAD
+`0fa9cbb4a93d97a39d996287809c0e3a0f0d6b70`, passed in full; a plan with
+Tasks 1, 2 and 2b and a trailing `## Self-review`; a detached worktree),
+each script by absolute path.
 
 | Probe | Call, working directory | Observed, 7.0.1 and 7.0.2 |
 |---|---|---|
 | a | `sdd-workspace PLAN`, the root and the worktree | exit 0, the same path from both in each place, fresh or after the other version |
 | b | `review-package PLAN BASE HEAD OUTFILE`, the root | exit 0; `cmp` finds the two packages identical |
 | c | the same, the worktree | exit 0; identical |
-| d | the same, the installed 7.0.1 skill directory (`sub-skill-check --dir`; git resolves it to the home dotfiles repository, while the candidate's lies in its own clone) | both exit 3, `fatal: Not a valid commit name` for BASE, then `HEAD is not a descendant of BASE`; nothing written. A short BASE gives exit 2, `bad BASE`: `rev-parse --verify` passes any full-length hash |
+| d | the same, the installed 7.0.1 skill directory (what `sub-skill-check --dir` printed before the update; git resolves it to the home dotfiles repository, while the candidate's lies in its own clone) | both exit 3, `fatal: Not a valid commit name` for BASE, then `HEAD is not a descendant of BASE`; nothing written. A short BASE gives exit 2, `bad BASE`: `rev-parse --verify` passes any full-length hash |
 | e | `task-brief PLAN 2` and `PLAN 2b`, the root | 7.0.2: Task 2's brief holds no Task 2b, Task 2b's ends with `## Self-review`. The plugin's copy: neither, in either brief. 7.0.1: Task 2's holds both |
 
 Probe d is Review Focus 4 of the plan
@@ -874,7 +876,9 @@ The scenario run of 2026-11-11, made by the driving session with
 and its overrides of this repository at `b1ec5bc`, was emulated, because
 the workflow tool was switched off in that session; the `logs` entry of
 `2026-11-11-results-7.0.2.json` gives the method and how it differs from
-a workflow run. It took 3 agents, 290,664 tokens and 49 tool calls, from
+a workflow run. Each scenario's agent ran on the `opus` alias with no
+effort set, where the harness asks for medium. It took 3 agents,
+290,664 tokens and 49 tool calls, from
 the file's own `agentCount`, `totalTokens` and `totalToolCalls`; its
 `workflowProgress` is null, since no workflow ran.
 
@@ -892,4 +896,6 @@ every fix round, for S1 (the first round after a failing review) and S16
 (a note round's re-review, then round 2), and
 `references/final-review.md` for S17 (an owner note after the final fix
 wave). The file keeps the agents' answers and not their transcripts, so
-it does not show which `references/` files each agent read.
+it does not show which `references/` files each agent read. No check of
+the three asserts the rule 7.0.2 changed, the call of each script by its
+absolute path; the probes above are that rule's only test.

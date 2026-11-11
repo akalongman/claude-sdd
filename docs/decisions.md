@@ -321,7 +321,11 @@ repository's harness, unit-controller agent and overrides as of
 `b1ec5bc`: `S1-fix-small-ctx` and `S16-note-round-reviewed-clean`, which the
 candidate's `SKILL.md` sends to `references/fix-loop.md`, and
 `S17-final-note-after-fix-wave`, which it sends to
-`references/final-review.md`; 7.0.2 changed both files.
+`references/final-review.md`; 7.0.2 changed both files. No check of the
+three asserts the rule 7.0.2 changed, the call of each script by its
+absolute path: the checks score the controller's resumes, dispatches,
+ledger lines and ticks, so that rule rests on the comparison's probes
+alone.
 
 The run was emulated, because the workflow tool was switched off in the
 session that drove it. The harness,
@@ -349,18 +353,21 @@ of 2026-10-23, one rep with every check passing. The counters are the
 three scenario subagents' own figures and nothing of the driving
 session's: `totalTokens` 290,664 is 81,003 (S1) + 102,169 (S16) + 107,492
 (S17), `totalToolCalls` 49 is 10 + 18 + 21, and `agentCount` is 3. The
-token figure is not like for like with the 2026-10-23 rate of about
-68,000 per scenario (477,785 tokens over seven scenarios in
-`tools/green/2026-10-23-results-7.0.1.json`): those agents ran at the
-medium effort the harness sets, these at the default.
+split comes from the completion notice the driving session received for
+each subagent, which reports its tokens and tool uses; the results file
+keeps only the totals. The token figure is not like for like with the
+2026-10-23 rate of about 68,000 per scenario (477,785 tokens over seven
+scenarios in `tools/green/2026-10-23-results-7.0.1.json`): those agents
+ran at the medium effort the harness sets, these at the default.
 
 ### The wait
 
 The unit controller's agent definition preloads the sub-skill by name,
 so an upgrade under a running apply gives that run's later controllers
 the new copy while its ledger names the old one. The update therefore
-waited for the apply runs in flight, counting a run as ended by decision
-24's rule (its newest archive holds the live ledger, trailing
+waited for the apply runs in flight, counting a run as ended by the rule
+of the record repository's decision 24 (its newest archive holds the
+live ledger, trailing
 `Hands-off:` lines aside), with trailing `Driver:` lines set aside too.
 The first check found 15 apply ledgers changed in the last seven days,
 this run's own among them, and 2 other runs active; ledgers idle for 37
@@ -375,9 +382,17 @@ Before the update, a probe in a throwaway `CLAUDE_CONFIG_DIR`, with a
 two-version test plugin installed from a git url source, showed that
 `claude plugin update --scope user` keeps the replaced version's folder
 byte-unchanged, marks it with an `.orphaned_at` file and prints "Restart
-to apply changes". The installed 7.0.1 copy held `.in_use` files for 17
-running sessions. Sessions open at the update keep 7.0.1 until
-restarted; a restarted one loads the verified 7.0.2. Until then, a
+to apply changes". The probe and the update both ran on Claude Code
+2.1.322. The installed 7.0.1 copy held `.in_use` files for 17 running
+sessions. Sessions open at the update keep 7.0.1 until restarted. The
+driving session stayed open across the update (the user-scope entry's
+`lastUpdated` is 12:55:32 UTC), and the two agents it started afterwards
+that preload the sub-skill, the Task 3 unit controller a minute later
+and the final phase's controller 22 minutes later, each loaded it from
+the 7.0.1 folder: their transcripts give the skill's base directory as
+`.../superpowers/7.0.1/skills/subagent-driven-development`. A session
+started after the update reads the registry, which now names 7.0.2.
+Until a restart, a
 pre-flight that passes a 7.0.1 base directory gets the line marked
 unverified, with the warning:
 
@@ -506,6 +521,7 @@ exit 1
 Result: pass. The pin, the private copy and the installed copy agree on
 7.0.2 and `c95cdd95b49a`.
 
-Open: the push of this commit and CI's run on it, whose linux job is to
-end `9 ok, 0 skipped, 0 failed` on the copy it fetches by commit; the
-dotfiles commit `154f038` is pushed on the owner's word.
+After the commit, `b6c5ff2` was pushed to `main`, and CI's run on it,
+43027577820, ended `success`, its linux job `9 ok, 0 skipped, 0 failed`
+on the copy it fetched by commit. The dotfiles commit `154f038` was
+pushed on the owner's word.
