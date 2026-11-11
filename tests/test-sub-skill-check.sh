@@ -172,4 +172,17 @@ unset SUB_SKILL_VERIFIED
 run "$src"
 if quiet && [[ $out =~ $verified ]]; then pass 7; else miss 7; fi
 
+# 8. A directory with another name, here the fixture's sub-skill directory
+#    renamed to the apply skill's (another skill's base directory passed by
+#    mistake): one unknown line naming it, exit 2, nothing on stderr.
+fresh c8
+mv -- "$dir" "$cfg/$tail/skills/app-subagent-apply"
+run "$cfg/$tail/skills/app-subagent-apply"
+if [ "$rc" -eq 2 ] && [ -z "$err" ] &&
+   [ "$out" = "Sub-skill: unknown ($cfg/$tail/skills/app-subagent-apply is not a subagent-driven-development directory)" ]; then
+  pass 8
+else
+  miss 8
+fi
+
 exit "$fail"
