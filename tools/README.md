@@ -325,12 +325,14 @@ numbers below); the runner gives it `skills/apply/SKILL.md` and then
 in two temporary git repositories and prints `ok <n>` or `FAIL <n>` for each
 of six cases (decision 22). `test-run-archive.sh` tests the `Sub-skill:`
 line (decision 23), the park step (the record repository's
-`docs/superpowers/specs/2026-10-27-handed-items-design.md`) and the
+`docs/superpowers/specs/2026-10-27-handed-items-design.md`), the
 `Skill:` line, whose two hashes must be those of `skills/apply/SKILL.md`
-and `skills/apply/prompts/unit-controller-overrides.md`, of
-`skills/apply/scripts/run-archive` in an isolated temporary directory, with
-the laterbox engine (`later`) linked on PATH, and prints `ok <n>` or
-`FAIL <n>` for each of seventeen cases.
+and `skills/apply/prompts/unit-controller-overrides.md`, and the
+`Session:` line (a home directory with no transcripts directory, a working
+directory with a dot in its path, a transcript under another project's
+directory), of `skills/apply/scripts/run-archive` in an isolated temporary
+directory, with the laterbox engine (`later`) linked on PATH, and prints
+`ok <n>` or `FAIL <n>` for each of nineteen cases.
 `check-skill-size.sh` counts the characters of `skills/apply/SKILL.md` on a
 copy in which every `${CLAUDE_PLUGIN_ROOT}` is a 120-character stand-in
 install path and every `${CLAUDE_SKILL_DIR}` that path plus

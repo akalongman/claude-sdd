@@ -2,10 +2,13 @@
 # Test for skills/apply/scripts/run-archive of the sdd plugin: the Sub-skill
 # line of the run facts (cases 1 to 3), the park
 # step of 2026-10-27, which parks the ledger's "Handed to" lines in the
-# project's queue through the laterbox engine (cases 4 to 16), and the run
+# project's queue through the laterbox engine (cases 4 to 16), the run
 # facts' Skill line (case 17), whose two hashes must be those of the
 # SKILL.md and prompts/unit-controller-overrides.md beside the script, so a
-# missing file, which the script hashes as empty, fails the case. Builds
+# missing file, which the script hashes as empty, fails the case, and their
+# Session line (cases 18 and 19): a home directory with no transcripts
+# directory, a working directory with a dot in its path and a transcript
+# under another project's directory. Builds
 # workspaces under a temporary config directory that holds a 6.4.1 directory
 # in the claude-plugins-official cache, as this machine's cache did from
 # 2026-10-12, runs the script and prints "ok <n>" or "FAIL <n>" per case;
@@ -51,11 +54,11 @@ if git -C "$tmp" rev-parse --git-dir >/dev/null 2>&1; then echo "FAIL: $tmp lies
 mkdir -p "$tmp/config/plugins/cache/claude-plugins-official/superpowers/6.4.1" "$tmp/proj"
 fail=0
 
-# Run the script on workspace WS under name NAME; sets out, err, rc and facts
-# (the run facts' Sub-skill lines).
+# Run the script from $run_dir (default: $tmp/proj) on workspace WS under
+# name NAME; sets out, err, rc and facts (the run facts' Sub-skill lines).
 run() {
   rc=0
-  out=$(cd "$tmp/proj" && CLAUDE_CONFIG_DIR="$tmp/config" \
+  out=$(cd "${run_dir:-$tmp/proj}" && CLAUDE_CONFIG_DIR="$tmp/config" \
     CLAUDE_CODE_SESSION_ID=test-run-archive bash "$script" "$1" "$2" 2>"$tmp/stderr") || rc=$?
   err=$(cat "$tmp/stderr")
   facts=$(grep '^Sub-skill:' "$out/run-facts.md" 2>/dev/null || true)
@@ -648,11 +651,9 @@ verdict 15
 # 16. The home-directory exception: with the home directory a repository
 #     (a dotfiles setup), a run in a subdirectory of it names that
 #     subdirectory, not the home directory, and the replayed command parks
-#     there; a run in the home directory itself names it. The scoped home
-#     holds a .claude/projects directory, as a real one does, because the
-#     script's transcript search needs one.
+#     there; a run in the home directory itself names it.
 broken=
-mkdir -p "$tmp/home/sub" "$tmp/home/.claude/projects" "$tmp/ws/sixteen-sub" "$tmp/ws/sixteen-home"
+mkdir -p "$tmp/home/sub" "$tmp/ws/sixteen-sub" "$tmp/ws/sixteen-home"
 git -C "$tmp/home" init -q || broken+=" repo"
 echo 'Handed to plan x: under the home directory' > "$tmp/ws/sixteen-sub/progress.md"
 echo 'Handed to plan x: in the home directory' > "$tmp/ws/sixteen-home/progress.md"
@@ -680,5 +681,51 @@ if quiet && [[ $line =~ $form ]] \
   && [ "${BASH_REMATCH[1]}" = "$(sha256sum < "$skill_dir/SKILL.md" | cut -c1-12)" ] \
   && [ "${BASH_REMATCH[2]}" = "$(sha256sum < "$skill_dir/prompts/unit-controller-overrides.md" | cut -c1-12)" ]; then
   pass 17; else echo "FAIL 17: ${line:-no Skill line}${err:+; stderr: $err}"; fail=1; fi
+
+# The harness's name for directory $1, every character other than an ASCII
+# letter or digit replaced by "-", spelled as a bash pattern rather than as
+# the script's sed.
+harness_slug() { local d=$1 LC_ALL=C; printf '%s\n' "${d//[^A-Za-z0-9]/-}"; }
+# The last run's Session line, or nothing.
+session_line() { grep '^Session:' "$out/run-facts.md" 2>/dev/null || true; }
+
+# 18. No transcripts directory, as on a fresh machine or a CI runner: a home
+#     directory with no .claude*/projects and no transcript under the config
+#     directory. The run exits 0 with nothing on stderr, writes the run
+#     facts with the transcript it looked for as not found, and prints the
+#     archive path, under the harness's name for the working directory.
+mkdir -p "$tmp/h18" "$tmp/ws/eighteen"
+slug=$(harness_slug "$tmp/proj")
+HOME=$tmp/h18 run "$tmp/ws/eighteen" eighteen
+line=$(session_line)
+if quiet && [ "$line" = "Session: $tmp/config/projects/$slug/test-run-archive.jsonl (not found)" ] \
+  && [[ $out == "$tmp/config/docs/tmp/apply-runs/$slug/"*-eighteen ]]; then
+  pass 18; else echo "FAIL 18: ${line:-no Session line}${err:+; stderr: $err}"; fail=1; fi
+
+# 19. Finding the transcript, with case 18's home directory. From a working
+#     directory with a dot in its path, the transcript under the harness's
+#     name for it is named and the archive goes under that name. From
+#     $tmp/proj, a transcript only under another project's directory of the
+#     config directory (as for a path over 200 characters, whose name the
+#     harness shortens with a hash) is found by its session id. A failure
+#     names its part.
+broken=
+mkdir -p "$tmp/proj.d/sub" "$tmp/ws/nineteen"
+slug=$(harness_slug "$tmp/proj.d/sub")
+mkdir -p "$tmp/config/projects/$slug"
+: > "$tmp/config/projects/$slug/test-run-archive.jsonl"
+HOME=$tmp/h18 run_dir=$tmp/proj.d/sub run "$tmp/ws/nineteen" nineteen
+line=$(session_line)
+quiet && [ "$line" = "Session: $tmp/config/projects/$slug/test-run-archive.jsonl" ] \
+  && [[ $out == "$tmp/config/docs/tmp/apply-runs/$slug/"*-nineteen ]] || broken+=" dotted"
+rm -r -- "$tmp/config/projects/$slug"
+mkdir -p "$tmp/config/projects/-shortened-elsewhere"
+: > "$tmp/config/projects/-shortened-elsewhere/test-run-archive.jsonl"
+HOME=$tmp/h18 run "$tmp/ws/nineteen" nineteen
+line=$(session_line)
+quiet && [ "$line" = "Session: $tmp/config/projects/-shortened-elsewhere/test-run-archive.jsonl" ] \
+  || broken+=" search"
+if [ -z "$broken" ]; then pass 19; else
+  echo "FAIL 19 (${broken# }): ${line:-no Session line}${err:+; stderr: $err}"; fail=1; fi
 
 exit "$fail"

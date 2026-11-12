@@ -65,13 +65,6 @@ jobs:
         run: |
           git config --global user.name 'sdd tests'
           git config --global user.email 'tests@example.invalid'
-      - name: Make the transcripts directory
-        # A workaround, not a requirement of the plugin: run-archive line 71
-        # (find "$HOME"/.claude*/projects ... | head -1 under set -euo
-        # pipefail) exits 1 with no message when no ~/.claude*/projects
-        # directory exists, as on a fresh runner. Drop this step when that
-        # line is fixed, which is handed to the phase 2 plan.
-        run: mkdir -p "$HOME/.claude/projects"
       - name: Run the tests
         # run.sh ends with its totals line and exits 0 on a skip. A skip here
         # means a prerequisite step above broke, so it fails the job.
