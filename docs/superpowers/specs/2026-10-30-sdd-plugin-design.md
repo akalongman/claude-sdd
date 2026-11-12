@@ -8,6 +8,17 @@ Revision 8, 2026-11-12, renamed the mode from `away` to `noask`, because it
 is for sessions that must not ask, whether or not the owner is away, and
 changed nothing else; the review notes at the end keep `away_push` and
 `away.sh`, the names of a knob and a file that no longer exist.
+Revision 9, 2026-11-13, made the session the default scope: `/noask on`
+switches the session it is typed in, and `noask global on` every session
+on the machine (the owner, reversing the ruling of 2026-11-08 that a
+per-session level was not needed, made when the mode meant an empty
+desk). It also writes in the four points the owner settled on 2026-11-12
+where the phase 2 plan, a local working document, departed from revision
+8: the command is the markers' only writer and the module runs it, the
+command lives in `bin/`, the fence and the rule text name the switch
+itself, and the end-of-turn line stands in for the owner's line on the
+session's state. And it mends one sentence of the rule text that
+revision 8 left reading "is on is on".
 
 ## Intent
 
@@ -28,15 +39,18 @@ one's rule widened to the whole session.
    all of that to this repository and is then archived on GitHub and
    removed from the machine (owner, 2026-11-08: "if we move everything,
    why do I need that folder").
-2. **Add `noask`,** a machine-wide mode in which no session waits for the
-   owner. The owner's observation that drove it: when a session stops to ask
+2. **Add `noask`,** a mode in which a session does not wait for the owner,
+   switched for one session by default and for every session on the
+   machine with the word `global`. The owner's observation that drove it:
+   when a session stops to ask
    ("found an edge case, I recommend X, should I?", "commit now?", "fix the
    leftovers or not?"), the answer is "as recommended" nearly every time.
-   So an absent owner costs the night and buys nothing. The skill already
+   So the wait costs a night, or the owner's attention by day, and buys
+   nothing. The skill already
    has the rule for this inside an apply run (`hands-off`: rule on your own
    reading, ledger `Ruling: <decision>. Cost if wrong: <what>`, keep going,
    stop only for the four stops). `noask` applies the same rule to the main
-   agent of every session on the machine, through three interventions (a
+   agent of every session under it, through three interventions (a
    refused question, a refused permission ask, a continued stop) and a
    minimal fence on the few outward calls a hook can name exactly.
 
@@ -44,7 +58,7 @@ The mode is about whether a session may ask the owner, not about the clock
 or where the owner is, hence `noask`. Names considered and dropped: `away`
 (the name through revision 7; it describes the owner, who may be at the desk
 and still want no session to ask), `night` (wrong axis), `hands-off`
-(already the run-level term; reusing it for the machine scope confuses the
+(already the run-level term; reusing it for a wider scope confuses the
 two), `non-interactive` (means print mode in Claude Code), `no-hitl` and
 `hitl off` (an acronym, and `hitl off` switches the mode on by saying off).
 
@@ -52,9 +66,10 @@ two), `non-interactive` (means print mode in Claude Code), `no-hitl` and
 
 - One installable plugin, `sdd`, replacing the private skill and agents
   with no change in the apply loop's behaviour (phase 1).
-- `noask on` makes every session on the machine rule on its own
+- `/noask on` makes the session it is typed in rule on its own
   recommendation instead of asking, and continue instead of ending a turn on
-  a question, from its next hook event until `noask off` or the expiry
+  a question, from its next hook event until `/noask off` or the expiry;
+  `noask global on` does the same for every session on the machine
   (phase 2).
 - Every ruling made while noask is on is visible in the morning in the chat and in
   the session's final "Rulings I made" list, each with its cost if wrong
@@ -63,9 +78,9 @@ two), `non-interactive` (means print mode in Claude Code), `no-hitl` and
 - A session that reaches an outward or unrecoverable step while noask is on
   records it as `blocked:` and moves on. In phase 2 that is the rule's
   instruction to the agent, backed by a minimal fence: a push, a pull or
-  merge request creation, a plan approval and an edit under the owner's
-  configuration directories are refused at the tool call. The wide fence
-  that inspects every command is phase 4.
+  merge request creation, a plan approval, a switch of noask and an edit
+  under the owner's configuration directories are refused at the tool
+  call. The wide fence that inspects every command is phase 4.
 - The noask hooks run inside Claude Code's own runtime and are portable the
   day they ship. The apply skill's scripts and the terminal command are
   Linux first (owner, 2026-11-08) and become portable in phase 3, and
@@ -73,9 +88,9 @@ two), `non-interactive` (means print mode in Claude Code), `no-hitl` and
 - Apply runs launched by day and still running when `noask` turns on keep
   going under the same rule, an owner's `pause` is honoured, and no hook
   ever makes a driver act while its unit is live.
-- The hooks are inert while `noask` is off, so daytime behaviour does not
-  change, and a hook that fails while noask is on answers the noask side instead
-  of letting a question through.
+- The hooks are inert in a session that is not under noask, so its
+  behaviour does not change, and a hook that fails while noask is on
+  answers the noask side instead of letting a question through.
 
 ## Non-goals
 
@@ -84,7 +99,8 @@ two), `non-interactive` (means print mode in Claude Code), `no-hitl` and
 - The wide tool-level fence that inspects every command for a merge, a
   deploy or a database write (phase 4). Phase 2 refuses the few calls it
   can name exactly (a push, a pull or merge request creation, a plan
-  approval, an edit under the owner's configuration directories); for
+  approval, a switch of noask, an edit under the owner's configuration
+  directories); for
   everything else noask is a rule the agent follows, not a guarantee, and a
   push wrapped in a script or a `sh -c` passes the phase 2 fence.
 - Publication while noask is on, under any setting. The `hands-off` ending's push
@@ -95,18 +111,22 @@ two), `non-interactive` (means print mode in Claude Code), `no-hitl` and
   `decisions.md` as today.
 - Phone alerts. The plugin prints; routing a blocked session to a phone is
   the owner's hook, not the plugin's.
-- Waking a session that was already idle on a question when `noask on` was
-  typed from a terminal: hooks fire on events, so the marker reaches that
-  session at its next event. `/noask on` typed in that session wakes it
-  (below).
+- Waking a session that was already idle on a question when the global
+  switch was typed from a terminal: hooks fire on events, so the marker
+  reaches that session at its next event. `/noask on` typed in that
+  session wakes it (below).
 - Running sessions headless or in the cloud.
 - Before phase 3, platforms other than Linux for the apply scripts and the
   terminal command, which are bash 5 with GNU coreutils; the README says so
   until phase 3 ships. The noask hooks have no platform dependency.
-- A per-session override (`/noask off` in one session while the mode is on
-  for the machine, or `/noask on` in one session while it is not). Owner, 2026-11-08:
-  not needed. `/noask` in a session and `noask` in a terminal are two doors
-  to the one machine-wide switch.
+- An exemption for one session while the global switch is on: `/noask off`
+  ends a session's own switch and leaves it under the global one, saying
+  so. Nor a scope between the two (a project, a worktree). Owner,
+  2026-11-13: the session is the default scope and `global` the word for
+  every session, which reverses the ruling of 2026-11-08 ("not needed"),
+  made when the mode meant an empty desk.
+- Switching one session from outside it: a session's own switch is typed
+  in that session, and a terminal switches the global one only.
 
 ## Anti-goals
 
@@ -121,7 +141,9 @@ two), `non-interactive` (means print mode in Claude Code), `no-hitl` and
   owner's standing rules keeps ending. Every hook is budgeted, every budget
   ends in a visible `blocked:` line, and the precedence below is written
   where every session reads it.
-- A hook that fires by day. Everything is gated on one marker file.
+- A hook that fires in a session that is not under noask. Everything is
+  gated on the two marker files a session reads, the global one and its
+  own.
 - A hook that silently does nothing when the owner thinks it is armed. The
   switch reads its marker back and prints the path; a name collision fails
   loudly.
@@ -266,7 +288,7 @@ machine on 2026-10-30.
   `ak` plugin held a stale copy of the apply skill and the three agents
   until 2026-11-08, when they were removed (commit `89b7131` there).
 - No hook can be switched off individually at runtime; presence in the
-  configuration is the only switch, which is why the marker file gates the
+  configuration is the only switch, which is why the marker files gate the
   scripts themselves.
 - After a context compaction the harness re-attaches an invoked skill cut
   at 20,000 characters (measured in the record repository's decision 23,
@@ -373,7 +395,7 @@ end in a visible `blocked:` line.
    is a `tool.call` deny, the permission ask a `classic.PermissionRequest`
    deny, the continuation a `classic.Stop` block, the minimal fence a
    `tool.call` deny, all in `hooks/register.tsx`, with the per-session
-   record in `$.state` and the marker file the only thing outside the
+   record in `$.state` and the marker files the only thing outside the
    runtime. One language, one state, no `jq`, portable the day it ships;
    `hooks.json` keeps SessionStart alone, and phase 3 shrinks to the apply
    scripts and the terminal command.
@@ -409,10 +431,12 @@ end in a visible `blocked:` line.
 ### Continuing past a question
 
 1. **`/goal`**, the built-in prompt-judged Stop hook: no code, but it is
-   per session (typed each time), cannot be gated by the marker, and stops
+   per session only (typed each time), cannot be gated by the marker, and
+   stops
    a session after a few turns without tool use.
 2. **A Stop hook of the plugin's own, in the module** (chosen): gated by the
-   marker, machine-wide, deterministic; it needs no question detection
+   marker, for one session or for all, deterministic; it needs no question
+   detection
    because while noask is on the only legitimate stops are the three end-of-turn
    tokens, a session waiting on its own subagent or a scheduled wakeup, or
    the budget.
@@ -451,6 +475,7 @@ laid out like `claude-laterbox` (with its root files: `types/`, `LICENSE`,
 tsconfig.json                     strict config for the module
 types/index.d.ts                  the plugin's own types (the marker, the session record contract)
 bin/sdd-checkpoint                the checkpoint script, on the Bash tool's PATH
+bin/noask                         the switch (bash), linked into the terminal like `later`; the markers' only writer (phase 2)
 skills/apply/SKILL.md             the moved skill, invoked as /sdd:apply
 skills/apply/prompts/*.md         the five override prompts (headings renamed, one edited)
 skills/apply/scripts/*            the other six scripts, unchanged
@@ -459,9 +484,8 @@ agents/implementer.md             sdd:implementer
 agents/reviewer.md                sdd:reviewer
 agents/unit-controller.md         sdd:unit-controller
 hooks/hooks.json                  SessionStart only
-hooks/register.tsx                the module: /noask, the marker, the budgets, the four hooks (phase 2)
+hooks/register.tsx                the module: /noask, the markers' reader, the budgets, the four hooks (phase 2)
 hooks/*.ts, hooks/*.test.ts       the module's parts and their tests, laid out as laterbox's
-scripts/noask                     the terminal command (bash), linked like `later`; the second writer of the marker
 scripts/noask-rule.md             the rule text, one copy
 tests/*.test.sh                   shell tests: the terminal command, and the record's five ported
 tools/                            the record's transcript tools, ported
@@ -635,67 +659,118 @@ Acceptance for phase 1:
 
 ### Phase 2: noask
 
-**The switch.** One marker file, `~/.local/state/sdd/noask`, holding three
-lines: `generation=<ISO-8601 time with nanoseconds plus a random suffix>`,
-`since=<ISO-8601 time>` and `until=<ISO-8601 time, or empty>`. The
-generation changes on every `on` from off, so two toggles within one
-second never share one, and never on a renewal of the expiry. It is a
-fixed path rather than `CLAUDE_PLUGIN_DATA` because the terminal command
-runs outside any session, where no plugin variable exists, and because the
-path is the contract the skill, the module and the terminal command share.
-Two writers know the format, the terminal command in bash and the module
-in TypeScript, each writing the whole file under a temporary name and
-renaming it into place, and each one's tests read what the other wrote. A
-reading has four outcomes: `off` (no file); `on <generation>`, with
-`until <time>` when set; `expired <time>` (an `until` in the past, which
-every reader treats as off); and unreadable (a file that exists and cannot
-be read or parsed). Every hook treats unreadable as on, with the error in
-its reason text, so a corrupt marker shows up loudly in the first daytime
-turn instead of costing a night; the apply driver keeps its own rule for an
-unreadable status (below).
+**The switch.** Two scopes, one marker format. A session is under noask
+when its own switch is on or the global one is. The session's own switch
+is the default, because the owner may be at the desk, working in one
+session, and want another to stop asking; `global` is the word for every
+session on the machine, the owner leaving for the night. The global
+marker is `~/.local/state/sdd/noask`; a session's is
+`~/.local/state/sdd/noask.d/<session id>`, the id the host gives the
+session, which every hook input carries and which a shell inside the
+session finds in its environment (`CLAUDE_CODE_SESSION_ID`, observed in
+build 2.1.322 and pinned by the plan's first task). Each marker holds
+three lines: `generation=<ISO-8601 time with nanoseconds plus a random
+suffix>`, `since=<ISO-8601 time>` and `until=<ISO-8601 time, or empty>`.
+The generation changes on every `on` from off, so two toggles within one
+second never share one, and never on a renewal of the expiry. The paths
+are fixed rather than under `CLAUDE_PLUGIN_DATA` because the command also
+runs outside any session, where no plugin variable exists, and because
+the paths are the contract the skill, the module and the command share.
+One writer knows the format: the command, in bash, which writes the whole
+file under a temporary name and renames it into place, removes it on
+`off`, and is the only place a time is parsed or printed. The module
+reads the markers and runs the command for `/noask`, naming the session,
+because the module's file API can neither rename nor delete (constraints
+above). A reading of one marker has four outcomes: `off` (no file); `on
+<generation>`, with `until <time>` when set; `expired <time>` (an `until`
+in the past, which every reader treats as off); and unreadable (a file
+that exists and cannot be read or parsed). A session's reading is the
+global marker's when that is on or unreadable, and otherwise its own
+marker's; below, "the marker" and "noask is on" mean that reading, for
+the session a hook fires in. Every hook treats unreadable as on, with the
+error in its reason text, so a corrupt marker shows up loudly in the
+first turn that meets it instead of costing a night; the apply driver
+keeps its own rule for an unreadable status (below).
 
-- Terminal: `noask on [9h | until 07:30]`, `noask off`, `noask` (prints
-  `noask: on since <time>`, with `until <time>` when set, `noask: off`, or
-  `noask: off (expired <time>)`). `noask on` writes the marker, reads it
-  back and prints its path, so a failure cannot be quiet. `noask on` while
-  on changes nothing and says so, unless it carries an expiry, which
-  replaces the stored `until` and keeps the generation (a renewal, not a
-  new night); `noask off` while off says so, and on an expired marker
-  removes it. An expiry is a duration (`9h`, `90m`) or `until HH:MM`, the
-  next such local time; the stored value is always the absolute time. The
-  command is linked into `~/.local/bin` at session start the way laterbox
-  links `later`, with the same `terminal` setting (`link` or `off`), but a
-  refused link (a foreign `noask` in the way) and a `~/.local/bin` off PATH
-  are reported in the session, not only logged. The plan's first task
-  checks `/help` and PATH for an existing `noask` before the name is taken.
-  The marker written from a terminal reaches each session at its next
-  hook event.
-- In a session: `/noask on [expiry]`, `/noask off` and bare `/noask`,
-  registered by the module so they run the moment they are typed, also
-  mid-turn (the owner leaves while sessions are working); a module command
-  cannot carry the plugin prefix. The module writes and reads the marker
-  itself and prints the same lines as the terminal command. `/noask on`
-  typed in a session that is idle also submits one user turn, "noask is on:
-  answer your last question yourself under the noask rule and continue".
-  The module knows whether the session is idle from the main loop's
-  `turn.start` and `turn.complete` events (a turn started and not
-  completed is in flight); on a busy session it submits nothing, because
-  the prompt would queue and run as a spurious turn later, and the busy
-  session meets the marker at its next hook event anyway. A session whose
-  question dialog or permission prompt is open takes no typed command
-  until the owner presses Esc, which returns to the agent without an
-  answer; then `/noask on`.
-- Session start, resume and compaction: when the marker exists and is not
-  expired, the SessionStart hook (matcher `startup|resume|clear|compact|fork`,
-  the documented set; `compact` because a compaction re-attaches `SKILL.md`
-  but not the noask reference) returns a `systemMessage`, `sdd: noask is ON
-  since <time>; sessions rule on their own recommendations and never wait;
-  noask off to end it`, so a morning session cannot miss it (whether
+A session's switch follows its id. What the host keeps under the same id
+stays under it: a compaction (observed in build 2.1.322) and, as the
+plan's first task pins, the session's subagents, whose hook inputs and
+shells carry the main session's id. What starts under another id starts
+off: a session the owner clears or forks, and a session that a run starts
+as a process of its own. Whether a resumed session keeps its id is pinned
+by the same task; either answer is safe, because a resume is typed by the
+owner and the session-start line (below) says which state the session is
+in. A session's switch always carries an expiry, 8 hours when none is
+given, so that a switch forgotten in a session resumed days later has
+ended itself, and the command removes a session's marker it finds
+expired. The global switch keeps its optional expiry (decision 14).
+
+- In a session: `/noask on [expiry]`, `/noask off` and bare `/noask` act
+  on the session's own switch; `/noask global on [expiry]` and `/noask
+  global off` act on the global one. They are registered by the module so
+  they run the moment they are typed, also mid-turn (the owner turns to
+  other work while the session is working); a module command cannot carry
+  the plugin prefix. The module runs the command and prints its lines.
+  Every line names its scope: `noask: on for this session since <time>
+  until <time>`, `noask: on for every session since <time>` (with `until
+  <time>` when set), `noask: off`, `noask: off (expired <time>)`. A
+  session's `on` always prints when it ends, and says so when the expiry
+  is the default rather than one the owner gave: `noask: on for this
+  session since 15:00 until 23:00 (8 hours by default; /noask on <expiry>
+  sets another)` (owner, 2026-11-13). A line
+  that leaves the session under noask says which switch still holds it:
+  `/noask off` while the global switch is on prints `noask: off for this
+  session; still on for every session since <time>; noask global off ends
+  that`. Bare `/noask` prints one line for each switch that is on for the
+  session. A switching command writes the marker, reads it back and
+  prints its path, so a failure cannot be quiet. `on` while on changes
+  nothing and says so, unless it carries an expiry, which replaces the
+  stored `until` and keeps the generation (a renewal, not a new start);
+  `off` while off says so, and on an expired marker removes it. An expiry
+  is a duration (`9h`, `90m`) or `until HH:MM`, the next such local time;
+  the stored value is always the absolute time. `/noask on` and `/noask
+  global on` typed in a session that is idle also submit one user turn,
+  "noask is on: answer your last question yourself under the noask rule
+  and continue". The module knows whether the session is idle from the
+  main loop's `turn.start` and `turn.complete` events (a turn started and
+  not completed is in flight); on a busy session it submits nothing,
+  because the prompt would queue and run as a spurious turn later, and
+  the busy session meets the marker at its next hook event anyway. A
+  session whose question dialog or permission prompt is open takes no
+  typed command until the owner presses Esc, which returns to the agent
+  without an answer; then `/noask on`.
+- In a terminal: `noask global on [9h | until 07:30]`, `noask global
+  off`, and `noask`, which prints the global switch's line and one line
+  for each session whose own switch is on. `noask on` and `noask off`
+  without `global` change nothing, in a terminal and in a session's shell
+  alike, and print `noask: a session's switch is typed in the session as
+  /noask on; noask global on switches every session`: a session's switch
+  has one door, the command the owner types in it. Inside a session's
+  shell `noask` and `noask status` read that session's status (the apply
+  driver's check, below); a shell that carries no session id reads the
+  global switch alone. The command is linked into `~/.local/bin` at
+  session start the way laterbox links `later`, with the same `terminal`
+  setting (`link` or `off`), but a refused link (a foreign `noask` in the
+  way) and a `~/.local/bin` off PATH are reported in the session, not
+  only logged. The plan's first task checks `/help` and PATH for an
+  existing `noask` before the name is taken. The global marker written
+  from a terminal reaches each session at its next hook event.
+- Session start, resume and compaction: when the session's reading is on,
+  the SessionStart hook (matcher `startup|resume|clear|compact|fork`, the
+  documented set; `compact` because a compaction re-attaches `SKILL.md`
+  but not the noask reference) returns a `systemMessage` that names the
+  scope and the way out, `sdd: noask is ON for this session since <time>
+  until <time>; it rules on its own recommendations and never waits;
+  /noask off to end it`, or `sdd: noask is ON for every session since
+  <time>; sessions rule on their own recommendations and never wait;
+  noask global off to end it`, so a session opened in the morning, or
+  resumed while its own switch is still on, cannot miss it (whether
   SessionStart shows `systemMessage` is checked in the build, laterbox
   being the precedent), and as `additionalContext` for the agent the rule
   text and the absolute path of `skills/apply/references/noask.md`, so a
-  driver resumed after a compaction can re-read it without the substituted
-  path it lost, plus, for an apply driver, "re-read the noask reference".
+  driver resumed after a compaction can re-read it without the
+  substituted path it lost, plus, for an apply driver, "re-read the noask
+  reference".
 
 **The rule text.** One file in the plugin, `scripts/noask-rule.md`, read by
 the module for its hooks, by the SessionStart hook and by the terminal
@@ -708,7 +783,7 @@ the plugin's own. Its content, in the second person to the agent:
 > first), print `Ruling: <decision>. Cost if wrong: <what>` beside it, the
 > cost naming what undoes it (a commit, a worktree database refresh, a
 > file restored), and continue. A choice with no such recovery is not a
-> ruling: print `blocked: <what>` instead. This rule holds only while noask is on
+> ruling: print `blocked: <what>` instead. This rule holds only while noask
 > is on: before a ruling or a commit, read the status with the `noask`
 > command when you can, and when it says off, ask as usual. Commit
 > path-limited at each checkpoint when the current branch is not the
@@ -740,7 +815,9 @@ the plugin's own. Its content, in the second person to the agent:
 > you receive while you wait is answered by printing the same waiting line
 > again, never by acting. Never re-ask in prose a question that was
 > refused, never ask it again by any means, and never retry a refused
-> command in another spelling.
+> command in another spelling. Never switch noask yourself, for this
+> session or for every session: `/noask` and `noask global` are the
+> owner's.
 
 The four stops of the superpowers loop are in that list word for word
 (destructive, security-sensitive, outside the worktree, every path a guess),
@@ -755,13 +832,22 @@ keeps ending its turn and the Stop hook bounces it until the budget runs
 out. So the precedence is written where every session reads it, as one
 working agreement in that file, proposed to the owner with phase 2:
 
-> While the sdd plugin's `noask` marker exists, its rule overrides the
-> agreements to commit only when asked, to ask before fixing minor review
-> findings, and to end a turn on a question whose answer I would give as
-> "as recommended"; it overrides nothing else. The Stops hold; a spec or
-> plan written while noask is on waits for my review; and brainstorming,
-> grilling and a review conversation stop at their next question instead
-> of ruling.
+> While the sdd plugin's `noask` is on for a session, its rule overrides
+> the agreements to commit only when asked, to ask before fixing minor
+> review findings, and to end a turn on a question whose answer I would
+> give as "as recommended"; it overrides nothing else. The Stops hold; a
+> spec or plan written while noask is on waits for my review; and
+> brainstorming, grilling and a review conversation stop at their next
+> question instead of ruling.
+>
+> While it is on, the noask rule's end-of-turn line (`noask: waiting:
+> ...`, `noask: done` or `noask: blocked: ...`) is the last line of the
+> message and stands in for the line on the session's state.
+
+The second paragraph is there because the owner's file asks every turn to
+end on a line about the session's state, while the Stop hook matches the
+last line only: without it an obedient session prints the token, then the
+state line, and is continued until its budget runs out.
 
 So noask overrides exactly three things (the commit question, the minors
 question, the recommendation-then-wait habit) and turns the design path's
@@ -777,9 +863,12 @@ since the budgets bound consecutive interventions): the activation
 generation it was last seen under, three counters (question refusals,
 permission denials, Stop continuations) and one flag, `exhausted`. A hook
 that finds the marker's generation differs from the record's resets the
-counters and the flag and records the new generation, so `noask off` then
-`noask on` starts every session afresh, while a renewal of the expiry keeps
-the generation and the counts. Every allowed stop resets the three
+counters and the flag and records the new generation, so an `off` then an
+`on` starts the sessions under that switch afresh, while a renewal of the
+expiry keeps the generation and the counts. The generation is that of the
+marker the session reads, the global one when it is on and otherwise its
+own, so a session that passes from one switch to the other starts afresh
+too. Every allowed stop resets the three
 counters, so each budget bounds consecutive interventions, not a night: a
 driver that waits on twenty units is never capped, and a session that
 rules on twenty separate questions is capped only when it ends twenty
@@ -881,6 +970,10 @@ Conditions 1 and 2 reset the three counters; condition 3 resets nothing,
 since only a new generation clears the record. Otherwise the hook
 increments the continuation counter and returns `{ block: "<the rule
 text>" }`, which the engine delivers as the classic `decision: "block"`.
+When one of the three tokens stands on an earlier line, with text after
+it, the reason opens with "Your end-of-turn line must be the last line of
+the message; nothing follows it.", so a session that adds a closing line
+after the token corrects itself in one turn.
 From the sixth continuation on, the reason adds "if no tool work is left,
 end now with the list Rulings I made and the line `noask: blocked:
 continuation budget exhausted`; otherwise continue", so a session looping
@@ -905,22 +998,32 @@ that creates a pull or merge request (`gh pr create`, `glab mr create`);
 and an edit or write through the file-editing tools to a path that
 resolves under `~/.claude`, `~/.claude2`, `~/.claude3` or `~/.claude4`
 (the owner's configuration directories, where the settings auto-allow
-edits; the marker under `~/.local/state/sdd/` is not among them). A
+edits; the markers under `~/.local/state/sdd/` are not among them); and
+a shell command that runs the `noask` command with `on`, `off` or
+`global` (the `<what>` is "switching noask"; bare `noask` and `noask
+status` pass), since one `noask global off` typed by a session at the
+end of its budget would make every hook on the machine inert. A
 command wrapped in `sh -c`, a script or an alias passes this fence, and so
 does a shell write into the configuration directory, which is why
 `run-archive`'s copy into it keeps working; everything the fence does not
-name is the rule's job until phase 4, and the README says so. The fence
+name is the rule's job until phase 4, and the README says so. Like every
+hook, the fence acts only in a session under noask: a session that
+switches noask on from its own shell while it is off meets the owner's
+permission rules and nothing of this plugin's. The fence
 has its own `userConfig` boolean, on by default, and the same `.catch`
 handler.
 
 **The apply skill under noask.** `SKILL.md` cannot grow, so it gains the
 shortest possible pointer, "At launch and before acting on every controller
-return run `${CLAUDE_PLUGIN_ROOT}/scripts/noask status`; on `on`,
-`${CLAUDE_SKILL_DIR}/references/noask.md` applies" (both paths substituted
-at load, since the driver's shell has no plugin variables and a supporting
-file gets no substitution of its own), and the resume filter in its item
-1 gains `Noask` in its alternation so a resumed driver sees the lines
-below. Everything else lives in `skills/apply/references/noask.md`, the
+return run `noask status`; on `on`, `references/noask.md` applies" (the
+command is in the plugin's `bin/`, on the PATH of a session's shell as
+`sdd-checkpoint` is, and the reference's path is relative to the skill's
+base directory, which a compaction re-attaches; the sentence with both
+paths substituted did not fit under the size guard), and the resume
+filter in its item 1 gains `Noask` in its alternation so a resumed driver
+sees the lines below. The status the driver reads is its own session's:
+`on` when the session's own switch or the global one is. Everything else
+lives in `skills/apply/references/noask.md`, the
 only behavioural edit of phase 2 to the moved skill. It keeps the owner's
 requested mode apart from the effective one:
 
@@ -945,7 +1048,7 @@ requested mode apart from the effective one:
   `step`'s continue-or-stop prompt is skipped and ledgered `Noask: step
   prompt skipped`. The first such decision in a run ledgers `Noask:
   hands-off implied since <time>`. A controller already dispatched with
-  `(noask)` keeps ruling for its unit after `noask off`; the next dispatch
+  `(noask)` keeps ruling for its unit after noask goes off; the next dispatch
   reads the status again.
 - `/sdd:apply` with no argument, or with several candidate sources, while
   noask is on is `noask: blocked: no source named`; choosing what to implement is
@@ -964,9 +1067,10 @@ requested mode apart from the effective one:
 - Publication authority is the owner's word, never noask's: the `hands-off`
   ending's push and merge request creation run only when the owner gave
   `hands-off` at launch, the status reads `off` at that moment, and the
-  run's ledger holds no `Noask: seen on` line. A run that was under noask at any
-  point does not publish, whatever the status says at its end, because an
-  expiry at 07:30, or a `noask off` typed before the owner has read
+  run's ledger holds no `Noask: seen on` line. A run that was under noask
+  at any point, by either switch, does not publish, whatever the status
+  says at its end, because an
+  expiry at 07:30, or an `off` typed before the owner has read
   anything, would otherwise turn a suppressed push back on. Such a run
   ledgers `Hands-off: not pushed (noask)` and the final message says the
   push is pending.
@@ -980,9 +1084,24 @@ requested mode apart from the effective one:
 - The driver's final message ends on `noask: done`, or `noask: blocked:
   <final status>` when the final phase ended with anything but `complete`.
 
-**Worked example.** 23:00, three sessions in three worktrees of one
-project, each with a branch the owner created. `noask on until 07:30` in a
-terminal prints the marker path; each session picks the marker up at its
+**Worked example, one session by day.** 15:00, the owner at the desk with
+two sessions. Session A is an apply driver launched with `hands-off`;
+session B is where the owner works. The owner types `/noask on 3h` in A,
+which prints `noask: on for this session since 15:00 until 18:00`. A's
+next status read ledgers `Noask: seen on at 15:01`; at 15:40 its
+controller returns `needs-ruling`, and the driver resumes it with "Mode:
+hands-off (noask): rule and continue". At 15:50 session B ends a turn on
+"I recommend splitting the migration; shall I?" and waits for the owner
+as on any other day, because B's reading is off: the global marker does
+not exist and neither does B's own. At 17:10 A's run ends with
+`Hands-off: not pushed (noask)`, "Rulings I made" and `noask: done`; the
+push waits for the owner although the owner never left. At 18:00 A's
+switch expires, and a question A asks at 18:05 reaches the owner.
+
+**Worked example, every session by night.** 23:00, three sessions in
+three worktrees of one project, each with a branch the owner created.
+`noask global on until 07:30` in a terminal prints the marker path; each
+session picks the marker up at its
 next hook event. Session A is an apply driver launched by day with
 `hands-off`, mid-unit: its first status read after 23:00 ledgers `Noask:
 seen on at 23:04`; each wait turn ends on `noask: waiting: Section 3:
@@ -1002,9 +1121,12 @@ and it prints `blocked: push of sc-1230`, continues; at 02:30 it ends with
 and has just written a spec: its next step is the owner's review, so it
 ends on `noask: blocked: spec awaits review`. Session D had asked "which of
 the two schemas?" at 22:50 and was idle when the terminal switch ran; it
-stays idle until the owner types `/noask on` in it, which submits the
-wake-up turn; it answers its own question, rules, and continues. 07:30,
-the marker expires and every hook goes inert at its next event; at 09:00
+stays idle until the owner types `/noask on` in it at 23:05, which
+switches D's own noask on beside the global one, prints `noask: on for
+this session since 23:05 until 07:05 (8 hours by default; /noask on
+<expiry> sets another)` and submits the wake-up turn; it answers its own
+question, rules, and continues. 07:30, the global marker expires (D's
+own ended at 07:05) and every hook goes inert at its next event; at 09:00
 the owner's first `noask` prints `noask: off (expired 07:30)`, and session
 A's run has not pushed itself, because its ledger holds `Noask: seen on`.
 The owner reads three "Rulings I made" lists, one spec, `git log
@@ -1022,19 +1144,33 @@ Acceptance for phase 2:
    SessionStart shows `systemMessage`; whether three PermissionRequest
    denials in a row trip auto mode's pause; what an MCP server receives
    from a blocked elicitation; that a module `classic.Stop` block
-   continues the session as a `hooks.json` block does.
+   continues the session as a `hooks.json` block does; and the session
+   id: the variable that carries it in a session's shell, that a
+   subagent's hook input and shell carry the main session's, and what a
+   compaction, a resume, a clear and a fork do to it.
 2. The module's tests cover, per hook: inert without the marker and on an
-   expired one; unreadable treated as on with the error in the text; each
+   expired one; inert under another session's marker; the global marker
+   read before the session's own; unreadable treated as on with the
+   error in the text; each
    Stop allow condition; the last-line token match with Markdown stripped;
    the generation reset and the renewal that keeps it; the counter reset
    on an allowed stop and not on an exhausted one; the `exhausted` flag
    ending the next stop; a hook that throws after `on` answering the noask
    side; the fence's cases and one wrapped push that passes; the owner's
    PermissionRequest and Stop answers kept through `next(e)`; `/noask on`
-   submitting on an idle session and not on a busy one; the marker written
-   by the terminal command read by the module, and the reverse.
-3. One night on this machine, the owner's standing rules in place and the
-   precedence agreement added: a plain session that ends on a
+   submitting on an idle session and not on a busy one; the markers
+   written by the command read by the module. The command's tests cover
+   both scopes: a session's switch and the global one each on, off,
+   renewed and expired; `/noask off` under the global switch saying which
+   switch still holds the session; the 8 hours a session's switch gets
+   without an expiry, printed with the words that mark it as the
+   default; `noask on` without `global` changing nothing; an
+   expired session marker removed.
+3. One afternoon and one night on this machine, the owner's standing
+   rules in place and the precedence agreement added. By day, the owner
+   working in one session: a session switched with `/noask on` rules and
+   continues while the session beside it asks as usual. By night, under
+   `noask global on`: a plain session that ends on a
    recommendation continues and rules; a session that reaches a push
    prints `blocked:` and goes on; an apply run launched with `hands-off`
    by day ends on `Hands-off: not pushed (noask)` and `noask: done`; a
@@ -1068,11 +1204,12 @@ undesigned.
 
 ### Decisions made in this design (the owner may overrule)
 
-1. The marker lives in `~/.local/state/sdd/`, a fixed path, because the
-   terminal command has no plugin variables and the path is a shared
-   contract; its content is three `key=value` lines, the activation
+1. The markers live in `~/.local/state/sdd/`, at fixed paths (the global
+   one, and one per session named by the session's id), because the
+   command has no plugin variables outside a session and the paths are a
+   shared contract; each holds three `key=value` lines, the activation
    generation (nanosecond time plus a random suffix), the start time and
-   the optional expiry.
+   the expiry.
 2. Noask never publishes: the `hands-off` push and merge request creation
    need the owner's word, a status of `off` and a run ledger with no
    `Noask: seen on` line; the earlier `away_push` knob is gone.
@@ -1119,12 +1256,13 @@ undesigned.
 13. Phase 1 ships before phase 2, each with its own plan, and phase 1 is
     complete only after a real run on a scratch project with the private
     copy already removed.
-14. `noask on` takes an optional expiry (`noask on 9h`, `noask on until
+14. `on` takes an optional expiry (`/noask on 3h`, `noask global on until
     07:30`), stored as an absolute time beside the generation; a reader
     that finds the marker expired treats it as off, so a forgotten night
-    ends itself; `noask on` with an expiry while on renews the expiry and
-    keeps the generation. Without an expiry the marker holds until
-    `noask off`.
+    ends itself; `on` with an expiry while on renews the expiry and keeps
+    the generation. Without an expiry the global marker holds until
+    `noask global off`, and a session's holds for 8 hours, which the
+    line printed at `on` states (owner, 2026-11-13).
 15. The apply scripts and the terminal command are Linux first; the noask
     hooks are portable from phase 2; phase 3 makes the scripts and the
     command portable; the wide fence is phase 4.
@@ -1134,7 +1272,13 @@ undesigned.
 17. The record repository's tests, tools and parked notes are absorbed;
     its documents and `upstream/` stay in it, kept private as the history,
     because this repository is public (owner, 2026-11-09).
-18. One machine-wide switch with two doors; no per-session level.
+18. Two scopes: a session's own switch, the default, typed in that
+    session, and a global one for every session on the machine, typed
+    anywhere with the word `global`; a session is under noask when either
+    is on (owner, 2026-11-13, reversing the ruling of 2026-11-08). Three
+    limits are this design's: no exemption of one session from the global
+    switch, no scope between the two, and no switching of one session
+    from outside it.
 19. The `ak` plugin's stale copies were removed on 2026-11-08; its
     future is a parked note, not this design's concern.
 20. The permission ask is decided at PermissionRequest and Elicitation,
@@ -1144,13 +1288,23 @@ undesigned.
     `blocked: commit on <branch>` and keeps the tree dirty, so the owner's
     Stop on `main`/`master` holds at night as by day.
 22. A minimal fence ships in phase 2: a push, a pull or merge request
-    creation, a plan approval and an edit under the owner's configuration
-    directories are refused at the tool call; everything else waits for
-    phase 4.
+    creation, a plan approval, a switch of noask and an edit under the
+    owner's configuration directories are refused at the tool call;
+    everything else waits for phase 4.
 23. The minimum Claude Code version is 2.1.318, the build whose module API
     types this design was read against.
 24. The acceptance for phase 2 is the list above: throwaway tests first,
-    module tests per hook, then one night on this machine.
+    module tests per hook, then one afternoon and one night on this
+    machine.
+25. The command is the markers' only writer and the only place a time is
+    parsed or printed; the module reads the markers and runs the command
+    for `/noask` (owner, 2026-11-12).
+26. The command lives in the plugin's `bin/`, on the PATH of a session's
+    shell, and the skill's pointer names it bare (owner, 2026-11-12).
+27. The end-of-turn line is the last line of the message and stands in
+    for the owner's line on the session's state; the proposed working
+    agreement says so, and the Stop hook's reason says it to a session
+    that adds a line after the token (owner, 2026-11-12).
 
 ### Left to the builder
 
@@ -1184,7 +1338,8 @@ design above already reflects them.
    denies only person-bound asks, on by default with a switch.
 7. The record repository: absorbed, archived on GitHub, removed locally
    (revised 2026-11-09: its documents stay there, private, as the history).
-8. The per-session override: not needed.
+8. The per-session override: not needed (reversed 2026-11-13: the session
+   is the default scope, revision 9).
 
 Two further decisions came out of the same review: everything is Linux
 first with portability as phase 3 (the owner: "make everything linux first
