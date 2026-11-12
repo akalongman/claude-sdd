@@ -1,9 +1,13 @@
-# sdd: the subagent-apply plugin, with an away mode
+# sdd: the subagent-apply plugin, with a noask mode
 
 Design, 2026-10-30. Status: draft for review (revision 7, 2026-11-09, after
 the Codex and Antigravity reviews of revision 6; what they changed is listed
 at the end, after the owner's settled questions of revision 6). Revision 5
 followed the builder check and the Codex, agy, DeepSeek and Qwen reviews.
+Revision 8, 2026-11-12, renamed the mode from `away` to `noask`, because it
+is for sessions that must not ask, whether or not the owner is away, and
+changed nothing else; the review notes at the end keep `away_push` and
+`away.sh`, the names of a knob and a file that no longer exist.
 
 ## Intent
 
@@ -15,7 +19,7 @@ one's rule widened to the whole session.
    (`app-sdd-implementer`, `app-sdd-reviewer`, `app-sdd-unit-controller`)
    live under `~/.claude` (the other two profiles symlink to it, so there is
    one copy). A plugin gives them a version, a home for the hooks and the
-   command module that `away` needs (a skill cannot register hooks), one
+   command module that `noask` needs (a skill cannot register hooks), one
    place for tests, and an install path on the owner's other machines that
    carry the same dotfiles. The skill's measurement record, the private
    repository `akalongman/claude-subagent-apply` checked out at
@@ -24,51 +28,53 @@ one's rule widened to the whole session.
    all of that to this repository and is then archived on GitHub and
    removed from the machine (owner, 2026-11-08: "if we move everything,
    why do I need that folder").
-2. **Add `away`,** a machine-wide mode in which no session waits for the
+2. **Add `noask`,** a machine-wide mode in which no session waits for the
    owner. The owner's observation that drove it: when a session stops to ask
    ("found an edge case, I recommend X, should I?", "commit now?", "fix the
    leftovers or not?"), the answer is "as recommended" nearly every time.
    So an absent owner costs the night and buys nothing. The skill already
    has the rule for this inside an apply run (`hands-off`: rule on your own
    reading, ledger `Ruling: <decision>. Cost if wrong: <what>`, keep going,
-   stop only for the four stops). `away` applies the same rule to the main
+   stop only for the four stops). `noask` applies the same rule to the main
    agent of every session on the machine, through three interventions (a
    refused question, a refused permission ask, a continued stop) and a
    minimal fence on the few outward calls a hook can name exactly.
 
-The mode is about the owner's presence, not the clock, hence `away`, not
-"night". Names considered and dropped: `night` (wrong axis), `hands-off`
+The mode is about whether a session may ask the owner, not about the clock
+or where the owner is, hence `noask`. Names considered and dropped: `away`
+(the name through revision 7; it describes the owner, who may be at the desk
+and still want no session to ask), `night` (wrong axis), `hands-off`
 (already the run-level term; reusing it for the machine scope confuses the
 two), `non-interactive` (means print mode in Claude Code), `no-hitl` and
-`hitl off` (a negated switch, or an acronym).
+`hitl off` (an acronym, and `hitl off` switches the mode on by saying off).
 
 ## Goals
 
 - One installable plugin, `sdd`, replacing the private skill and agents
   with no change in the apply loop's behaviour (phase 1).
-- `away on` makes every session on the machine rule on its own
+- `noask on` makes every session on the machine rule on its own
   recommendation instead of asking, and continue instead of ending a turn on
-  a question, from its next hook event until `away off` or the expiry
+  a question, from its next hook event until `noask off` or the expiry
   (phase 2).
-- Every ruling made while away is visible in the morning in the chat and in
+- Every ruling made while noask is on is visible in the morning in the chat and in
   the session's final "Rulings I made" list, each with its cost if wrong
   and the recovery that undoes it, so the owner can revert one decision
   without rereading a night.
-- A session that reaches an outward or unrecoverable step while away
+- A session that reaches an outward or unrecoverable step while noask is on
   records it as `blocked:` and moves on. In phase 2 that is the rule's
   instruction to the agent, backed by a minimal fence: a push, a pull or
   merge request creation, a plan approval and an edit under the owner's
   configuration directories are refused at the tool call. The wide fence
   that inspects every command is phase 4.
-- The away hooks run inside Claude Code's own runtime and are portable the
+- The noask hooks run inside Claude Code's own runtime and are portable the
   day they ship. The apply skill's scripts and the terminal command are
   Linux first (owner, 2026-11-08) and become portable in phase 3, and
   nothing in phases 1 and 2 is designed so that phase 3 has to undo it.
-- Apply runs launched by day and still running when `away` turns on keep
+- Apply runs launched by day and still running when `noask` turns on keep
   going under the same rule, an owner's `pause` is honoured, and no hook
   ever makes a driver act while its unit is live.
-- The hooks are inert while `away` is off, so daytime behaviour does not
-  change, and a hook that fails while away answers the away side instead
+- The hooks are inert while `noask` is off, so daytime behaviour does not
+  change, and a hook that fails while noask is on answers the noask side instead
   of letting a question through.
 
 ## Non-goals
@@ -79,27 +85,27 @@ two), `non-interactive` (means print mode in Claude Code), `no-hitl` and
   deploy or a database write (phase 4). Phase 2 refuses the few calls it
   can name exactly (a push, a pull or merge request creation, a plan
   approval, an edit under the owner's configuration directories); for
-  everything else away is a rule the agent follows, not a guarantee, and a
+  everything else noask is a rule the agent follows, not a guarantee, and a
   push wrapped in a script or a `sh -c` passes the phase 2 fence.
-- Publication while away, under any setting. The `hands-off` ending's push
+- Publication while noask is on, under any setting. The `hands-off` ending's push
   and merge request creation need the owner's word and the owner present;
-  there is no knob that lets away publish.
+  there is no knob that lets noask publish.
 - A persistent ledger file for the main session. Rulings live in the chat
   and in the final list; apply runs keep their own `progress.md` and
   `decisions.md` as today.
 - Phone alerts. The plugin prints; routing a blocked session to a phone is
   the owner's hook, not the plugin's.
-- Waking a session that was already idle on a question when `away on` was
+- Waking a session that was already idle on a question when `noask on` was
   typed from a terminal: hooks fire on events, so the marker reaches that
-  session at its next event. `/away on` typed in that session wakes it
+  session at its next event. `/noask on` typed in that session wakes it
   (below).
 - Running sessions headless or in the cloud.
 - Before phase 3, platforms other than Linux for the apply scripts and the
   terminal command, which are bash 5 with GNU coreutils; the README says so
-  until phase 3 ships. The away hooks have no platform dependency.
-- A per-session override (`/away off` in one session while the machine is
-  away, or `/away on` in one session while it is not). Owner, 2026-11-08:
-  not needed. `/away` in a session and `away` in a terminal are two doors
+  until phase 3 ships. The noask hooks have no platform dependency.
+- A per-session override (`/noask off` in one session while the mode is on
+  for the machine, or `/noask on` in one session while it is not). Owner, 2026-11-08:
+  not needed. `/noask` in a session and `noask` in a terminal are two doors
   to the one machine-wide switch.
 
 ## Anti-goals
@@ -108,7 +114,7 @@ two), `non-interactive` (means print mode in Claude Code), `no-hitl` and
   asked about. A wrong but revertible ruling is the accepted cost; an
   unrevertible one is the failure.
 - A session that approves its own spec, plan or source and implements it
-  while away. The owner's review of a design, and the choice of what to
+  while noask is on. The owner's review of a design, and the choice of what to
   implement, are not questions with a recommendation; they are stops.
 - A session that loops on the Stop hook or on a refused tool, burning the
   night on a question it cannot settle, or that an obedient reading of the
@@ -122,7 +128,7 @@ two), `non-interactive` (means print mode in Claude Code), `no-hitl` and
 - A second ruling vocabulary. `Ruling:`, `Cost if wrong:`,
   `Open before merge:`, `blocked`, `parked` and the four stops are the
   skill's words. The plugin adds exactly three end-of-turn tokens, all
-  prefixed `away:`.
+  prefixed `noask:`.
 
 ## Constraints
 
@@ -275,8 +281,8 @@ machine on 2026-10-30.
   substitutions applied (the longest install path it can expect), not the
   raw bytes.
 - A command module registers `/<name>` with letters, digits, `_` and `-`
-  only (laterbox registers `/later`), so the in-session switch is `/away`,
-  not `/sdd:away`; the skill namespace applies to skills, which run as a
+  only (laterbox registers `/later`), so the in-session switch is `/noask`,
+  not `/sdd:noask`; the skill namespace applies to skills, which run as a
   model turn. `$.prompt.submit` runs a turn of its own once the session is
   idle, and on a busy session that turn is queued and runs later, so a
   module that wants to wake only an idle session has to know whether a
@@ -322,9 +328,9 @@ machine on 2026-10-30.
   only the rule text does, and the classifier.
 - `ExitPlanMode` is a built-in tool that presents a plan to the person for
   approval, a dialog like a question (tool types, 2026-11-09). A session
-  in plan mode that reaches it while away would wait on that dialog.
+  in plan mode that reaches it while noask is on would wait on that dialog.
 
-**Assumption.** Sessions that run while away use auto mode, the machine's
+**Assumption.** Sessions that run while noask is on use auto mode, the machine's
 default in every profile. The design does not handle a manual-mode session.
 
 **Residual waits.** With the interventions in place a session can still
@@ -344,10 +350,10 @@ end in a visible `blocked:` line.
 1. **Private hooks and a skill under `~/.claude`**, like the existing
    `push-guard.sh`: smallest build, but no in-session command, no version,
    nothing reusable.
-2. **A standalone `away` plugin** beside the private skill: clean, but the
+2. **A standalone `noask` plugin** beside the private skill: clean, but the
    skill's `hands-off` integration would cross a package boundary through a
    marker path two codebases happen to agree on.
-3. **One plugin carrying the skill, its agents and `away`** (chosen): the
+3. **One plugin carrying the skill, its agents and `noask`** (chosen): the
    rule, the ledger line and the four stops have one owner, and the marker
    is an internal contract.
 
@@ -407,7 +413,7 @@ end in a visible `blocked:` line.
    a session after a few turns without tool use.
 2. **A Stop hook of the plugin's own, in the module** (chosen): gated by the
    marker, machine-wide, deterministic; it needs no question detection
-   because while away the only legitimate stops are the three end-of-turn
+   because while noask is on the only legitimate stops are the three end-of-turn
    tokens, a session waiting on its own subagent or a scheduled wakeup, or
    the budget.
 
@@ -427,8 +433,8 @@ end in a visible `blocked:` line.
    and incomplete (the registry may be unreachable, the live worker may be
    a grandchild).
 2. **One explicit wait token the driver prints last** (chosen, after three
-   reviews converged on it): `away: waiting: <the ledger line>`. Costs one
-   rule in the away reference, makes the hook a one-line match, and lets
+   reviews converged on it): `noask: waiting: <the ledger line>`. Costs one
+   rule in the noask reference, makes the hook a one-line match, and lets
    the budget suspend itself during a wait.
 
 ## Design
@@ -448,15 +454,15 @@ bin/sdd-checkpoint                the checkpoint script, on the Bash tool's PATH
 skills/apply/SKILL.md             the moved skill, invoked as /sdd:apply
 skills/apply/prompts/*.md         the five override prompts (headings renamed, one edited)
 skills/apply/scripts/*            the other six scripts, unchanged
-skills/apply/references/away.md   the driver's rules while away (phase 2)
+skills/apply/references/noask.md  the driver's rules while noask is on (phase 2)
 agents/implementer.md             sdd:implementer
 agents/reviewer.md                sdd:reviewer
 agents/unit-controller.md         sdd:unit-controller
 hooks/hooks.json                  SessionStart only
-hooks/register.tsx                the module: /away, the marker, the budgets, the four hooks (phase 2)
+hooks/register.tsx                the module: /noask, the marker, the budgets, the four hooks (phase 2)
 hooks/*.ts, hooks/*.test.ts       the module's parts and their tests, laid out as laterbox's
-scripts/away                      the terminal command (bash), linked like `later`; the second writer of the marker
-scripts/away-rule.md              the rule text, one copy
+scripts/noask                     the terminal command (bash), linked like `later`; the second writer of the marker
+scripts/noask-rule.md             the rule text, one copy
 tests/*.test.sh                   shell tests: the terminal command, and the record's five ported
 tools/                            the record's transcript tools, ported
 docs/superpowers/specs/           this document
@@ -495,7 +501,7 @@ handed to its controllers still exist, so a release is not made while a run
 is live.
 
 **Prerequisites, stated in the README:** Claude Code 2.1.318 or newer
-(the build whose module API types this design was read against; the away
+(the build whose module API types this design was read against; the noask
 hooks rely on the classic events and `tool.check` fields it documents, and
 `agentId` on those events), with plugins, hooks and the Agent tool; until
 phase 3, Linux, bash 5 and GNU coreutils for the apply scripts and the
@@ -627,9 +633,9 @@ Acceptance for phase 1:
 3. `/sdd:apply` without arguments still infers the source from the
    conversation, and `step`, `hands-off`, `isolated` and `tier=` still parse.
 
-### Phase 2: away
+### Phase 2: noask
 
-**The switch.** One marker file, `~/.local/state/sdd/away`, holding three
+**The switch.** One marker file, `~/.local/state/sdd/noask`, holding three
 lines: `generation=<ISO-8601 time with nanoseconds plus a random suffix>`,
 `since=<ISO-8601 time>` and `until=<ISO-8601 time, or empty>`. The
 generation changes on every `on` from off, so two toggles within one
@@ -648,29 +654,29 @@ its reason text, so a corrupt marker shows up loudly in the first daytime
 turn instead of costing a night; the apply driver keeps its own rule for an
 unreadable status (below).
 
-- Terminal: `away on [9h | until 07:30]`, `away off`, `away` (prints
-  `away: on since <time>`, with `until <time>` when set, `away: off`, or
-  `away: off (expired <time>)`). `away on` writes the marker, reads it
-  back and prints its path, so a failure cannot be quiet. `away on` while
+- Terminal: `noask on [9h | until 07:30]`, `noask off`, `noask` (prints
+  `noask: on since <time>`, with `until <time>` when set, `noask: off`, or
+  `noask: off (expired <time>)`). `noask on` writes the marker, reads it
+  back and prints its path, so a failure cannot be quiet. `noask on` while
   on changes nothing and says so, unless it carries an expiry, which
   replaces the stored `until` and keeps the generation (a renewal, not a
-  new night); `away off` while off says so, and on an expired marker
+  new night); `noask off` while off says so, and on an expired marker
   removes it. An expiry is a duration (`9h`, `90m`) or `until HH:MM`, the
   next such local time; the stored value is always the absolute time. The
   command is linked into `~/.local/bin` at session start the way laterbox
   links `later`, with the same `terminal` setting (`link` or `off`), but a
-  refused link (a foreign `away` in the way) and a `~/.local/bin` off PATH
+  refused link (a foreign `noask` in the way) and a `~/.local/bin` off PATH
   are reported in the session, not only logged. The plan's first task
-  checks `/help` and PATH for an existing `away` before the name is taken.
+  checks `/help` and PATH for an existing `noask` before the name is taken.
   The marker written from a terminal reaches each session at its next
   hook event.
-- In a session: `/away on [expiry]`, `/away off` and bare `/away`,
+- In a session: `/noask on [expiry]`, `/noask off` and bare `/noask`,
   registered by the module so they run the moment they are typed, also
   mid-turn (the owner leaves while sessions are working); a module command
   cannot carry the plugin prefix. The module writes and reads the marker
-  itself and prints the same lines as the terminal command. `/away on`
-  typed in a session that is idle also submits one user turn, "away is on:
-  answer your last question yourself under the away rule and continue".
+  itself and prints the same lines as the terminal command. `/noask on`
+  typed in a session that is idle also submits one user turn, "noask is on:
+  answer your last question yourself under the noask rule and continue".
   The module knows whether the session is idle from the main loop's
   `turn.start` and `turn.complete` events (a turn started and not
   completed is in flight); on a busy session it submits nothing, because
@@ -678,32 +684,32 @@ unreadable status (below).
   session meets the marker at its next hook event anyway. A session whose
   question dialog or permission prompt is open takes no typed command
   until the owner presses Esc, which returns to the agent without an
-  answer; then `/away on`.
+  answer; then `/noask on`.
 - Session start, resume and compaction: when the marker exists and is not
   expired, the SessionStart hook (matcher `startup|resume|clear|compact|fork`,
   the documented set; `compact` because a compaction re-attaches `SKILL.md`
-  but not the away reference) returns a `systemMessage`, `sdd: away is ON
+  but not the noask reference) returns a `systemMessage`, `sdd: noask is ON
   since <time>; sessions rule on their own recommendations and never wait;
-  away off to end it`, so a morning session cannot miss it (whether
+  noask off to end it`, so a morning session cannot miss it (whether
   SessionStart shows `systemMessage` is checked in the build, laterbox
   being the precedent), and as `additionalContext` for the agent the rule
-  text and the absolute path of `skills/apply/references/away.md`, so a
+  text and the absolute path of `skills/apply/references/noask.md`, so a
   driver resumed after a compaction can re-read it without the substituted
-  path it lost, plus, for an apply driver, "re-read the away reference".
+  path it lost, plus, for an apply driver, "re-read the noask reference".
 
-**The rule text.** One file in the plugin, `scripts/away-rule.md`, read by
+**The rule text.** One file in the plugin, `scripts/noask-rule.md`, read by
 the module for its hooks, by the SessionStart hook and by the terminal
 command's `on`, so there is exactly one copy. It names no tool, so any
 agent reading it gets the same instruction; the one command it names is
 the plugin's own. Its content, in the second person to the agent:
 
-> away is on: nobody answers until it is off. When you would ask, take your
+> noask is on: nobody answers until it is off. When you would ask, take your
 > own recommendation (the option you would mark recommended, else the
 > first), print `Ruling: <decision>. Cost if wrong: <what>` beside it, the
 > cost naming what undoes it (a commit, a worktree database refresh, a
 > file restored), and continue. A choice with no such recovery is not a
-> ruling: print `blocked: <what>` instead. This rule holds only while away
-> is on: before a ruling or a commit, read the status with the `away`
+> ruling: print `blocked: <what>` instead. This rule holds only while noask is on
+> is on: before a ruling or a commit, read the status with the `noask`
 > command when you can, and when it says off, ask as usual. Commit
 > path-limited at each checkpoint when the current branch is not the
 > default one; on `main` or `master` print `blocked: commit on <branch>`,
@@ -726,10 +732,10 @@ the plugin's own. Its content, in the second person to the agent:
 > by a commit. Print `blocked: <what>`, skip the item and the items that
 > depend on it, continue with the next independent one; never implement a
 > spec, plan or source the owner has not named or reviewed. Every turn you
-> end ends on one line, the last line of the message: `away: waiting:
+> end ends on one line, the last line of the message: `noask: waiting:
 > <what you wait for>` when work of yours will wake you (a subagent, a
-> scheduled wakeup), `away: done` with the list "Rulings I made" above it
-> when the work is done, or `away: blocked: <why>` when nothing
+> scheduled wakeup), `noask: done` with the list "Rulings I made" above it
+> when the work is done, or `noask: blocked: <why>` when nothing
 > independent is left. A continuation
 > you receive while you wait is answered by printing the same waiting line
 > again, never by acting. Never re-ask in prose a question that was
@@ -749,18 +755,18 @@ keeps ending its turn and the Stop hook bounces it until the budget runs
 out. So the precedence is written where every session reads it, as one
 working agreement in that file, proposed to the owner with phase 2:
 
-> While the sdd plugin's `away` marker exists, its rule overrides the
+> While the sdd plugin's `noask` marker exists, its rule overrides the
 > agreements to commit only when asked, to ask before fixing minor review
 > findings, and to end a turn on a question whose answer I would give as
 > "as recommended"; it overrides nothing else. The Stops hold; a spec or
-> plan written while away waits for my review; and brainstorming,
+> plan written while noask is on waits for my review; and brainstorming,
 > grilling and a review conversation stop at their next question instead
 > of ruling.
 
-So away overrides exactly three things (the commit question, the minors
+So noask overrides exactly three things (the commit question, the minors
 question, the recommendation-then-wait habit) and turns the design path's
 review, the Stops, the OpenSpec cycle's review points, the questioning
-skills and the outward actions into `blocked:` entries. Nothing in the away
+skills and the outward actions into `blocked:` entries. Nothing in the noask
 rule lets a session edit `CLAUDE.md`, a rule file or a skill, act on a
 parked note, pick its own source, or create a branch.
 
@@ -771,8 +777,8 @@ since the budgets bound consecutive interventions): the activation
 generation it was last seen under, three counters (question refusals,
 permission denials, Stop continuations) and one flag, `exhausted`. A hook
 that finds the marker's generation differs from the record's resets the
-counters and the flag and records the new generation, so `away off` then
-`away on` starts every session afresh, while a renewal of the expiry keeps
+counters and the flag and records the new generation, so `noask off` then
+`noask on` starts every session afresh, while a renewal of the expiry keeps
 the generation and the counts. Every allowed stop resets the three
 counters, so each budget bounds consecutive interventions, not a night: a
 driver that waits on twenty units is never capped, and a session that
@@ -795,7 +801,7 @@ continuation is a turn ended without a token, which a working session may
 do many times while it still makes progress, so its budget is the widest.
 When any budget is spent the module sets `exhausted`: every intervention's
 text becomes the ending instruction, "end this turn with the list Rulings
-I made and the line `away: blocked: <which> budget exhausted`", and the
+I made and the line `noask: blocked: <which> budget exhausted`", and the
 Stop hook allows the next stop whatever the last line says, so exhaustion
 ends the session's night in one turn rather than changing the wording of
 the next denial. Only a new generation clears the flag. Each budget exists
@@ -808,17 +814,17 @@ events fire in subagent loops too, where the input carries `agentId` (or
 the next independent item": a unit controller and an implementer have
 their own protocol for a denied tool (the controller's return block
 carries `Denied:` lines and the unit pauses or parks). With an agent id
-present the reason is role-neutral, "away is on: this action needs the
+present the reason is role-neutral, "noask is on: this action needs the
 owner and is denied; follow your role's rule for a denied tool", and the
 count goes to that agent's own record.
 
 **Intervention 1, the question refusal** (module, `tool.call` on the
 tool that puts a question to the person and on the tool that presents a
 plan for approval). Inert without the marker. With it, the question call
-is answered with a deny whose text is the rule, prefixed `sdd away:`, and
+is answered with a deny whose text is the rule, prefixed `sdd noask:`, and
 the refusal counter is incremented. The plan-approval call is answered
-with "away is on: a plan awaits the owner's review; end this turn on
-`away: blocked: plan awaits review`" and counts nothing, since it is not a
+with "noask is on: a plan awaits the owner's review; end this turn on
+`noask: blocked: plan awaits review`" and counts nothing, since it is not a
 question the agent could answer for the owner. At the budget the text is
 the ending instruction (Budgets). The registration carries a `.catch`
 handler that denies with the rule and the error when the hook fails after
@@ -831,7 +837,7 @@ about to be shown to a person, whatever raised it (an explicit `ask` rule;
 today the owner's `sdp` task writes, `cf` and `cfx` destructive flags and
 `secrets`, all outward actions the rule blocks anyway; the classifier
 declining to decide; a hook or another plugin), is answered with
-`{ behavior: "deny", message }`, the message "away is on: this action
+`{ behavior: "deny", message }`, the message "noask is on: this action
 needs the owner; print `blocked: <the action>` and continue with the next
 independent item", and the denial counter is incremented, with the same
 ending at the budget. An MCP server's own question is blocked with the
@@ -841,7 +847,7 @@ settled by the classifier without any prompt, and the verdict carries no
 field that tells the two apart, so a filter there (revision 6) was a guess
 where PermissionRequest is a fact. The module's `next(e)` runs the owner's
 own PermissionRequest hooks first and keeps their answer when they
-decided. It ships on while away, with a `userConfig` boolean to turn it
+decided. It ships on while noask is on, with a `userConfig` boolean to turn it
 off. The throwaway test pins whether three denials in a row count toward
 auto mode's pause (they should not, since the classifier never ran); if
 they do, the hook ships off by default and every prompt joins the residual
@@ -856,7 +862,7 @@ any of these holds:
 
 1. The last non-empty line of `last_assistant_message`, with Markdown
    around it stripped (backticks, bold, a list marker), is one of the
-   three tokens: `away: waiting: ...`, `away: done`, `away: blocked: ...`
+   three tokens: `noask: waiting: ...`, `noask: done`, `noask: blocked: ...`
    (matched without regard to case, on that line only, so a quoted rule
    text never ends a session, while an agent that quotes its own ending
    is still understood).
@@ -876,7 +882,7 @@ since only a new generation clears the record. Otherwise the hook
 increments the continuation counter and returns `{ block: "<the rule
 text>" }`, which the engine delivers as the classic `decision: "block"`.
 From the sixth continuation on, the reason adds "if no tool work is left,
-end now with the list Rulings I made and the line `away: blocked:
+end now with the list Rulings I made and the line `noask: blocked:
 continuation budget exhausted`; otherwise continue", so a session looping
 in pure prose prints its ending before the harness's own cap of 8
 consecutive continuations without a tool call pre-empts it, while a
@@ -891,7 +897,7 @@ every time.
 
 **Intervention 4, the minimal fence** (module, `tool.call`). Inert
 without the marker. With it, the calls the module can name exactly are
-denied before they run, each with the text "away is on: <what> needs the
+denied before they run, each with the text "noask is on: <what> needs the
 owner; print `blocked: <what>` and continue with the next independent
 item", counted as permission denials: a shell command whose git subcommand
 is `push` (options between `git` and `push` allowed); a shell command
@@ -907,20 +913,20 @@ name is the rule's job until phase 4, and the README says so. The fence
 has its own `userConfig` boolean, on by default, and the same `.catch`
 handler.
 
-**The apply skill under away.** `SKILL.md` cannot grow, so it gains the
+**The apply skill under noask.** `SKILL.md` cannot grow, so it gains the
 shortest possible pointer, "At launch and before acting on every controller
-return run `${CLAUDE_PLUGIN_ROOT}/scripts/away status`; on `on`,
-`${CLAUDE_SKILL_DIR}/references/away.md` applies" (both paths substituted
+return run `${CLAUDE_PLUGIN_ROOT}/scripts/noask status`; on `on`,
+`${CLAUDE_SKILL_DIR}/references/noask.md` applies" (both paths substituted
 at load, since the driver's shell has no plugin variables and a supporting
 file gets no substitution of its own), and the resume filter in its item
-1 gains `Away` in its alternation so a resumed driver sees the lines
-below. Everything else lives in `skills/apply/references/away.md`, the
+1 gains `Noask` in its alternation so a resumed driver sees the lines
+below. Everything else lives in `skills/apply/references/noask.md`, the
 only behavioural edit of phase 2 to the moved skill. It keeps the owner's
 requested mode apart from the effective one:
 
 - Every turn the driver ends to wait (a dispatch made, a `waiting` or
   `paused` return, a relayed hand-back, a child not yet reported, a pause
-  in force) ends on `away: waiting: <the ledger line it just wrote>` as the
+  in force) ends on `noask: waiting: <the ledger line it just wrote>` as the
   last line of the message. A Stop-hook continuation received while a unit
   is live is answered by printing that line again and ending the turn;
   never by a dispatch, a resume, a stop of a child or an edit (the 2026-10-13
@@ -928,41 +934,41 @@ requested mode apart from the effective one:
 - The launch ledgers the requested mode as today (`hands-off` given or
   not). At launch and before acting on every controller return, the driver
   runs the status command. The first reading in a run that returns `on`
-  ledgers `Away: seen on at <time>`, a line that is never removed. An
-  unreadable status is ledgered `Away: status unreadable (<error>)` and
+  ledgers `Noask: seen on at <time>`, a line that is never removed. An
+  unreadable status is ledgered `Noask: status unreadable (<error>)` and
   counts as off for rulings (the driver asks as usual) and as on for
   publication (no push), the safe side of each. While on, the run is
-  effectively hands-off: a dispatch carries `Mode: hands-off (away)` when
+  effectively hands-off: a dispatch carries `Mode: hands-off (noask)` when
   the owner did not give the word, a `needs-ruling` return from a
   controller dispatched without any mode is resumed once with "Mode:
-  hands-off (away): rule and continue" (the existing defect path), and
-  `step`'s continue-or-stop prompt is skipped and ledgered `Away: step
-  prompt skipped`. The first such decision in a run ledgers `Away:
+  hands-off (noask): rule and continue" (the existing defect path), and
+  `step`'s continue-or-stop prompt is skipped and ledgered `Noask: step
+  prompt skipped`. The first such decision in a run ledgers `Noask:
   hands-off implied since <time>`. A controller already dispatched with
-  `(away)` keeps ruling for its unit after `away off`; the next dispatch
+  `(noask)` keeps ruling for its unit after `noask off`; the next dispatch
   reads the status again.
 - `/sdd:apply` with no argument, or with several candidate sources, while
-  away is `away: blocked: no source named`; choosing what to implement is
+  noask is on is `noask: blocked: no source named`; choosing what to implement is
   never a ruling.
 - The exceptions the skill makes for the owner become parked units, never
   rulings and never a whole-run stop: the drift question after a resume
   ("the tree changed while paused; continue or stop?") and the
   `needs-ruling` a controller returns on a resume (which the skill asks of
-  the owner even under hands-off) ledger `Section N: parked (away:
+  the owner even under hands-off) ledger `Section N: parked (noask:
   <question>)`, the driver prints `blocked: <question>` and takes the next
   unit that does not depend on it. A `paused` return whose point is a
   denied tool, and a second `failed` return, are parked the same way. With
-  no independent unit left the driver ends on `away: blocked: <why>`. An
+  no independent unit left the driver ends on `noask: blocked: <why>`. An
   owner's `pause` in force is honoured as today, the driver ending on the
   waiting line.
-- Publication authority is the owner's word, never away's: the `hands-off`
+- Publication authority is the owner's word, never noask's: the `hands-off`
   ending's push and merge request creation run only when the owner gave
   `hands-off` at launch, the status reads `off` at that moment, and the
-  run's ledger holds no `Away: seen on` line. A run that was away at any
+  run's ledger holds no `Noask: seen on` line. A run that was under noask at any
   point does not publish, whatever the status says at its end, because an
-  expiry at 07:30, or an `away off` typed before the owner has read
+  expiry at 07:30, or a `noask off` typed before the owner has read
   anything, would otherwise turn a suppressed push back on. Such a run
-  ledgers `Hands-off: not pushed (away)` and the final message says the
+  ledgers `Hands-off: not pushed (noask)` and the final message says the
   push is pending.
 - The run's own writes outside the worktree stay: `run-archive` copies the
   workspace to the config directory's `docs/tmp/apply-runs/` and parks
@@ -971,36 +977,36 @@ requested mode apart from the effective one:
 - The final message's `offer:` lines (add items to a plan section) are
   printed as report lines only, never asked and never written into the
   plan file.
-- The driver's final message ends on `away: done`, or `away: blocked:
+- The driver's final message ends on `noask: done`, or `noask: blocked:
   <final status>` when the final phase ended with anything but `complete`.
 
 **Worked example.** 23:00, three sessions in three worktrees of one
-project, each with a branch the owner created. `away on until 07:30` in a
+project, each with a branch the owner created. `noask on until 07:30` in a
 terminal prints the marker path; each session picks the marker up at its
 next hook event. Session A is an apply driver launched by day with
-`hands-off`, mid-unit: its first status read after 23:00 ledgers `Away:
-seen on at 23:04`; each wait turn ends on `away: waiting: Section 3:
+`hands-off`, mid-unit: its first status read after 23:00 ledgers `Noask:
+seen on at 23:04`; each wait turn ends on `noask: waiting: Section 3:
 handed to controller`, which the Stop hook allows; at 01:20 the controller
 returns `needs-ruling` ("the spec and the code disagree on the sort key");
-the driver resumes the controller with "Mode: hands-off (away): rule and
-continue", ledgers `Away: hands-off implied since 23:04`, and the
+the driver resumes the controller with "Mode: hands-off (noask): rule and
+continue", ledgers `Noask: hands-off implied since 23:04`, and the
 controller rules and parks or completes as the loop says; at 04:00 the run
-ends with `Hands-off: not pushed (away)`, "Rulings I made" and `away:
+ends with `Hands-off: not pushed (noask)`, "Rulings I made" and `noask:
 done`. Session B is a plain session reviewing a plan: at 00:40 it ends a
 turn with "I recommend splitting task 4; shall I?"; the Stop hook blocks
 with the rule; it prints `Ruling: split task 4 into 4a and 4b. Cost if
 wrong: one commit to fold them back`, edits the plan, commits on its
 branch, continues; at 02:10 it runs `git push`; the fence denies the call
 and it prints `blocked: push of sc-1230`, continues; at 02:30 it ends with
-"Rulings I made" and `away: done`. Session C was brainstorming a feature
+"Rulings I made" and `noask: done`. Session C was brainstorming a feature
 and has just written a spec: its next step is the owner's review, so it
-ends on `away: blocked: spec awaits review`. Session D had asked "which of
+ends on `noask: blocked: spec awaits review`. Session D had asked "which of
 the two schemas?" at 22:50 and was idle when the terminal switch ran; it
-stays idle until the owner types `/away on` in it, which submits the
+stays idle until the owner types `/noask on` in it, which submits the
 wake-up turn; it answers its own question, rules, and continues. 07:30,
 the marker expires and every hook goes inert at its next event; at 09:00
-the owner's first `away` prints `away: off (expired 07:30)`, and session
-A's run has not pushed itself, because its ledger holds `Away: seen on`.
+the owner's first `noask` prints `noask: off (expired 07:30)`, and session
+A's run has not pushed itself, because its ledger holds `Noask: seen on`.
 The owner reads three "Rulings I made" lists, one spec, `git log
 dev..<branch>` per worktree, and pushes.
 
@@ -1022,18 +1028,18 @@ Acceptance for phase 2:
    Stop allow condition; the last-line token match with Markdown stripped;
    the generation reset and the renewal that keeps it; the counter reset
    on an allowed stop and not on an exhausted one; the `exhausted` flag
-   ending the next stop; a hook that throws after `on` answering the away
+   ending the next stop; a hook that throws after `on` answering the noask
    side; the fence's cases and one wrapped push that passes; the owner's
-   PermissionRequest and Stop answers kept through `next(e)`; `/away on`
+   PermissionRequest and Stop answers kept through `next(e)`; `/noask on`
    submitting on an idle session and not on a busy one; the marker written
    by the terminal command read by the module, and the reverse.
 3. One night on this machine, the owner's standing rules in place and the
    precedence agreement added: a plain session that ends on a
    recommendation continues and rules; a session that reaches a push
    prints `blocked:` and goes on; an apply run launched with `hands-off`
-   by day ends on `Hands-off: not pushed (away)` and `away: done`; a
-   session in plan mode ends on `away: blocked: plan awaits review`; in the
-   morning `away` prints `off (expired <time>)` and no session is waiting
+   by day ends on `Hands-off: not pushed (noask)` and `noask: done`; a
+   session in plan mode ends on `noask: blocked: plan awaits review`; in the
+   morning `noask` prints `off (expired <time>)` and no session is waiting
    on a dialog.
 
 ### Phase 3: the apply scripts and the terminal command portable
@@ -1041,7 +1047,7 @@ Acceptance for phase 2:
 Linux, macOS (its system bash 3.2, nothing from Homebrew, as laterbox's
 README promises) and Windows (Git for Windows' bash, which installing
 plugins already requires, with the terminal command unavailable on native
-Windows as laterbox's `later` is). The away hooks need nothing here: they
+Windows as laterbox's `later` is). The noask hooks need nothing here: they
 run in the module from phase 2. What changes: the apply skill's seven
 scripts lose their bash 5 and GNU dependencies (`inherit_errexit`, `chmod
 --reference`, `realpath -ms`, nanosecond `date`) or move into the module
@@ -1054,8 +1060,8 @@ night.
 ### Phase 4: the wide fence
 
 A fence that refuses a merge, a deploy, a database write and a push in any
-spelling while away by inspecting the call itself, and refuses a command
-it cannot read, so that away comes as close to a guarantee as a hook can;
+spelling while noask is on by inspecting the call itself, and refuses a command
+it cannot read, so that noask comes as close to a guarantee as a hook can;
 phase 2's fence names a few calls exactly and nothing else. Named here so
 that nothing in phases 1 to 3 is designed against it; otherwise
 undesigned.
@@ -1067,11 +1073,11 @@ undesigned.
    contract; its content is three `key=value` lines, the activation
    generation (nanosecond time plus a random suffix), the start time and
    the optional expiry.
-2. Away never publishes: the `hands-off` push and merge request creation
+2. Noask never publishes: the `hands-off` push and merge request creation
    need the owner's word, a status of `off` and a run ledger with no
-   `Away: seen on` line; the earlier `away_push` knob is gone.
-3. Three end-of-turn tokens, `away: waiting:`, `away: done`,
-   `away: blocked:`, always the last line; the Stop hook matches the last
+   `Noask: seen on` line; the earlier `away_push` knob is gone.
+3. Three end-of-turn tokens, `noask: waiting:`, `noask: done`,
+   `noask: blocked:`, always the last line; the Stop hook matches the last
    line only, Markdown stripped, and no ledger phrase.
 4. Budgets: 6 question refusals, 10 permission denials (the fence's
    included), 20 consecutive Stop continuations, each a `userConfig`
@@ -1094,18 +1100,18 @@ undesigned.
    at `classic.Stop`; `hooks.json` keeps SessionStart alone; the
    per-session record lives in `$.state`; the permission ask and the fence
    each have a `userConfig` switch and ship on; every registration carries
-   a `.catch` handler that answers the away side. The wide fence is phase
+   a `.catch` handler that answers the noask side. The wide fence is phase
    4.
 9. An unreadable status is the safe side of each decision: for the hooks,
    on with the error shown; for the driver, off for rulings and on for
    publication.
-10. The away rules for the driver live in `references/away.md`, because
+10. The noask rules for the driver live in `references/noask.md`, because
     `SKILL.md` has no room under its compaction-safe limit (it is over
     the guard today and the move trims it), and the SessionStart hook
     re-emits them, and the reference's path, after a compaction.
-11. The in-session command is `/away` (module names take no prefix); the
+11. The in-session command is `/noask` (module names take no prefix); the
     name is checked against `/help` and PATH before it is taken, the
-    switch never fails silently, and `/away on` wakes a session only when
+    switch never fails silently, and `/noask on` wakes a session only when
     the module has seen its last main-loop turn complete.
 12. The agent-link fallback writes prefixed copies with the frontmatter
     `name` rewritten to match, refreshes only its own marked copies at
@@ -1113,13 +1119,13 @@ undesigned.
 13. Phase 1 ships before phase 2, each with its own plan, and phase 1 is
     complete only after a real run on a scratch project with the private
     copy already removed.
-14. `away on` takes an optional expiry (`away on 9h`, `away on until
+14. `noask on` takes an optional expiry (`noask on 9h`, `noask on until
     07:30`), stored as an absolute time beside the generation; a reader
     that finds the marker expired treats it as off, so a forgotten night
-    ends itself; `away on` with an expiry while on renews the expiry and
+    ends itself; `noask on` with an expiry while on renews the expiry and
     keeps the generation. Without an expiry the marker holds until
-    `away off`.
-15. The apply scripts and the terminal command are Linux first; the away
+    `noask off`.
+15. The apply scripts and the terminal command are Linux first; the noask
     hooks are portable from phase 2; phase 3 makes the scripts and the
     command portable; the wide fence is phase 4.
 16. The marketplace is a dedicated `akalongman/claude-plugins` repository
@@ -1134,7 +1140,7 @@ undesigned.
 20. The permission ask is decided at PermissionRequest and Elicitation,
     the events that fire when a prompt is about to reach a person, not at
     `tool.check`, whose `ask` verdict the classifier may still settle.
-21. While away, no commit on a default branch: the rule prints
+21. While noask is on, no commit on a default branch: the rule prints
     `blocked: commit on <branch>` and keeps the tree dirty, so the owner's
     Stop on `main`/`master` holds at night as by day.
 22. A minimal fence ships in phase 2: a push, a pull or merge request
@@ -1169,7 +1175,7 @@ design above already reflects them.
 1. The precedence paragraph: accepted as written (not raised).
 2. Marketplace: one `akalongman` marketplace for both plugins, as a
    dedicated repository (approaches, "Marketplace", option 3).
-3. Away never publishes, no knob: "agree for now".
+3. Noask never publishes, no knob: "agree for now".
 4. Budgets: raised to 6, 10 and 20, strict counts, configurable, after the
    owner asked "why not more" and the reasoning in "Budgets".
 5. The dispatch-contract line: withdrawn; `bin/sdd-checkpoint` replaces it
@@ -1183,7 +1189,7 @@ design above already reflects them.
 Two further decisions came out of the same review: everything is Linux
 first with portability as phase 3 (the owner: "make everything linux first
 and make whole plugin portable in the second phase", which the numbering
-here places after away), and the `ak` plugin was shrunk at once.
+here places after noask), and the `ak` plugin was shrunk at once.
 
 ## Reviewed by Codex and Antigravity, 2026-11-09
 
@@ -1203,7 +1209,7 @@ changed, and the owner's decisions of 2026-11-09 ("all as recommended"):
    the terminal command.
 2. Both found the expiry hole: a `hands-off` run suppressed at night would
    push once the marker expired at 07:30. A run that ever read `on`
-   ledgers `Away: seen on` and never publishes; the marker format,
+   ledgers `Noask: seen on` and never publishes; the marker format,
    `until` parsing and the renewal of an expiry are now specified.
 3. Antigravity showed that `tool.check` cannot tell a prompt-bound ask from
    one the classifier settles, and that a prompt raised after the
@@ -1219,7 +1225,7 @@ changed, and the owner's decisions of 2026-11-09 ("all as recommended"):
    decision 21.
 6. Codex: hooks fail open without `.catch` handlers (added everywhere); a
    spent budget only changed the denial text (the `exhausted` flag);
-   `away off` reaches a session already ruling only at its next event (the
+   `noask off` reaches a session already ruling only at its next event (the
    rule now says to read the status before a ruling or a commit); the
    link fallback kept the generic frontmatter names (copies with the name
    rewritten); subagents were not counted (records of their own); the
@@ -1230,10 +1236,10 @@ changed, and the owner's decisions of 2026-11-09 ("all as recommended"):
    Claude Code version was unpinned (2.1.318); the Stop hook ran beside
    the owner's hooks with no order (the module's `next(e)` now keeps their
    answer); the phase 4 word "guarantee" was too strong (reworded).
-7. Antigravity: `/away on` on a busy session would queue a spurious turn
+7. Antigravity: `/noask on` on a busy session would queue a spurious turn
    (the module now submits only when idle, tracked from the turn events,
-   and `/away on` takes the expiry too); the SessionStart context should
-   carry the away reference's path (added); the token match should strip
+   and `/noask on` takes the expiry too); the SessionStart context should
+   carry the noask reference's path (added); the token match should strip
    Markdown and condition 3 must not reset the counters (both done); the
    size guard should measure the substituted text (done).
 8. Rejected after checking: Antigravity's claims that a moved script still
