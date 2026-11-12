@@ -526,3 +526,41 @@ After the commit, `b6c5ff2` was pushed to `main`, and CI's run on it,
 43027577820, ended `success`, its linux job `9 ok, 0 skipped, 0 failed`
 on the copy it fetched by commit. The dotfiles commit `154f038` was
 pushed on the owner's word.
+
+### Two questions the pin left (2026-11-12)
+
+The run's final review left two questions to the owner, who ruled on
+both on 2026-11-12.
+
+**The plugin's version.** `.claude-plugin/plugin.json` keeps
+`"version": "0.1.0"` although the pin changed what the plugin does,
+because no copy of sdd is installed from a catalog yet. From the first
+install from the `akalongman` catalog on, every change meant to reach
+installed copies, a pin change included, bumps the version in the same
+commit. Claude Code keeps an installed plugin in a directory named by
+its version, as the registry shows for superpowers:
+
+```
+$ jq -r '.plugins["superpowers@superpowers-marketplace"][] | select(.scope == "user") | .installPath' "<second config dir>/plugins/installed_plugins.json"
+<second config dir>/plugins/cache/superpowers-marketplace/superpowers/7.0.2
+```
+
+and its update of an npm-sourced plugin (read in Claude Code 2.1.322)
+reports the plugin up to date when the fetched version equals the
+installed one. The check for a git-sourced plugin was not read; the
+bump is safe whichever it is.
+
+**The first real run on 7.0.2.** The record's pin spec audits the first
+real apply run on 7.0.1
+(`2026-10-23-sub-skill-upgrade-content-pin-design.md` line 296); this
+pin's plan has no such step, so the scenario run above is the only
+behavioural evidence for 7.0.2. The first archived apply run whose
+`Sub-skill:` line reads 7.0.2 is audited the same way, from its archive
+and transcript. The watched run that the record's unit-controller plan
+waits for (its Task 6) is expected to be that run, so the audit joins
+it; none had been archived when this was written:
+
+```
+$ grep -l -s -F 'Sub-skill: 7.0.2' ~/.claude*/docs/tmp/apply-runs/*/*/run-facts.md; echo "exit $?"
+exit 1
+```
