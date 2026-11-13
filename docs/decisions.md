@@ -565,6 +565,66 @@ $ grep -l -s -F 'Sub-skill: 7.0.2' ~/.claude*/docs/tmp/apply-runs/*/*/run-facts.
 exit 1
 ```
 
+### The first run on 7.0.2, audited (2026-11-13)
+
+The audit the section above asks for, made on 2026-11-13 with the four
+checks of the record's pin spec (line 296). The run is the earliest
+archive whose `Sub-skill:` line reads 7.0.2: an apply run of the private
+skill on an eight-task superpowers plan in a private repository, run on
+2026-11-12 from 20:23 to 23:37 UTC, before the acceptance of entry 3.
+Times below are UTC, from the transcripts. The driver's transcript and
+the eight unit controllers' transcripts were searched for reads of the
+reference files in shell commands as well as in file reads, and every
+call was listed for the windows where a read was missing: the driver
+read `preflight.md` with `cat`, and one controller read its prompt
+templates with `cat` from inside the sub-skill's directory, so a search
+for file reads alone would have missed both. The record's own audit of the first
+7.0.1 run was never written up (its decision 24 still lists it as open),
+so this is the first audit of its kind on file.
+
+1. **The `Sub-skill:` line.** Ledger line 2 and the archive's
+   `run-facts.md` both read `Sub-skill: 7.0.2 loop c95cdd95b49a verified`;
+   the driver ran `sub-skill-check` on the installed
+   `skills/subagent-driven-development`, the sub-skill's own directory.
+   Met.
+2. **The pre-flight.** The driver loaded the sub-skill at 20:23:24,
+   printed `references/preflight.md` at 20:23:40 (all 1,353 bytes of the
+   file appear verbatim in that call's output) and dispatched Task 1's
+   controller at 20:27:07. The record's check looks for the scan's rows
+   in `<workspace>/decisions.md`; 7.0.2's `preflight.md` says "Write the
+   table to the ledger", and the run did: the ledger's
+   `## Pre-flight scan` table has 22 rows, 14 for pairs of tasks and one
+   for each of the eight tasks, 11 of them naming a gap or a ruling. The
+   twelve pre-flight rulings are ledgered and written in full in
+   `decisions.md`, beside one `depends on` line per task. Met.
+3. **`fix-loop.md` before each fix round.** Four fix rounds ran inside
+   units. Before three of them (Task 1 round 1, Task 3 round 1, Task 6
+   round 1) the controller read `references/fix-loop.md` 30, 48 and 55
+   seconds before resuming its implementer. Before Task 1's round 2 it
+   did not read it again, which the sub-skill's `SKILL.md` line 303 asks
+   for ("Read it again before every round, even if you read it earlier
+   in this session"). Round 1's re-review left one Important finding open
+   like for like, the controller returned `needs-ruling`, and 20 seconds
+   after the driver's ruling woke it, it resumed the implementer for
+   round 2. Its context had not been compacted (the transcript holds no
+   compaction marker), so the text read at 20:42:47 for round 1 was still
+   in it, and round 2's ledger lines take `fix-loop.md`'s forms
+   (`Task 1: fix round 2/5 (2 addressed, 0 open: NEW1 and M2; commits 239ec05..d2e724d)`).
+   Met in purpose, missed in letter: the re-read guards against a loop
+   remembered across a compaction, and none happened.
+4. **`final-review.md` in the final phase.** The final phase's
+   controller read `references/final-review.md` at 23:01:13, 12 seconds
+   after it started and right after the overrides, the brief and the
+   ledger, before the whole-branch review's dispatch (23:02:58, on `fable`)
+   and the fix wave (23:18:22), which that file governs. Met.
+
+The audit closes this section's second question. 7.0.2's loop ran as the
+scenario run above predicted, and the pin stands. The one lapse, a
+controller woken in the middle of its fix loop dispatching the next
+round without reading the loop again, costs nothing while its context is
+whole; it would matter only for a controller compacted while it waited
+for a ruling, and no run has shown that yet.
+
 ## 3. Accept the plugin in throwaway configuration directories, before phase 2 (2026-11-13)
 
 On 2026-11-13 the plugin passed its acceptance on Claude Code 2.1.323,
