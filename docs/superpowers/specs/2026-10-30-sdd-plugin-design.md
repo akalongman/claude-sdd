@@ -67,6 +67,14 @@ it is typed by the owner, written by the one writer, read by the fence,
 kept across a resume and ended by the expiry. The global switch has no
 such level. The fence judges every command of a shell call and passes
 only a plain push.
+Revision 14, 2026-11-13, follows a last focused check by Codex of
+revision 13. Since a marker can now carry the owner's word to publish,
+the guard on the switch acts in every session, under noask or not: an
+agent may not work the switch or write a marker file, for itself or for
+another session. The marker files are guarded also by where their
+directory resolves. A plain push is defined by what it may hold, not by
+what it may not. And the status shows the session's `handsoff` level
+also beside an unreadable global marker.
 
 ## Intent
 
@@ -195,7 +203,10 @@ Code), `no-hitl` and
   where every session reads it.
 - A hook that fires in a session that is not under noask. Everything is
   gated on the two marker files a session reads, the global one and its
-  own.
+  own. One guard is the exception, and it guards the switch itself: in
+  every session, on or off, an agent's own attempt to work the switch or
+  to write a marker file is refused, because a marker can carry the
+  owner's word to publish and that word must be typed by the owner.
 - A hook that silently does nothing when the owner thinks it is armed. The
   switch reads its marker back and prints the path; a name collision fails
   loudly.
@@ -1179,7 +1190,8 @@ exist yet is placed by its nearest existing folder, so a new file in a
 new folder elsewhere is never refused. Switching noask: a shell command
 that runs the `noask` command with `on`, `off` or `global` (bare `noask`
 and `noask status` pass); an edit or write through the file-editing
-tools under `~/.local/state/sdd/`; and a shell command that removes,
+tools under `~/.local/state/sdd/`, judged as spelled and by where that
+directory resolves; and a shell command that removes,
 moves, copies over, links, truncates or redirects into a path spelled
 under that directory (`rm`, `rmdir`, `unlink`, `shred`, `mv`, `cp`,
 `ln`, `install`, `truncate`, `tee`, `dd`, `touch`, `chmod`, and a `>`
@@ -1196,18 +1208,30 @@ marker, and the fence refuses a session's own attempt to), it survives a
 resume, and it ends with the switch. Two limits keep the exception as
 small as the word: every command of the shell call is judged, so a call
 that also holds anything else the fence names is refused whole (`git
-push && noask global off` does not pass); and only a plain push passes,
-one without a force option, `--all`, `--mirror`, `--tags`, a delete, or
-a refspec that names two sides. A subagent's push is refused as before:
+push && noask global off` does not pass, nor does a push whose output
+is redirected into a marker); and only a plain push passes, defined by
+what it may hold: `git push` with nothing between `git` and `push` but
+`-C <path>`, then at most `-u` or `--set-upstream`, a remote and one
+branch. Any other option, a ref that starts with `+` or holds a `:`,
+and a `-c` setting before `push` make it no plain push. What the
+repository's own configuration makes of a plain push (a mirror remote,
+a push default) the fence does not see, and the README says so. A
+subagent's push is refused as before:
 the driver publishes, never a controller. A command wrapped in
 `sh -c`, a script or an alias passes this fence; a here-document's body
 is data and is not read; and so does a shell write into the
 configuration directory, which is why `run-archive`'s copy into it keeps
 working; everything the fence does not name is the rule's job until
-phase 4, and the README says so. Like every
-hook, the fence acts only in a session under noask: a session that
-switches noask on from its own shell while it is off meets the owner's
-permission rules and nothing of this plugin's. The fence
+phase 4, and the README says so. The fence
+acts in a session under noask, with one part that acts in every session:
+the guard on the switch. Whatever the marker reads, an agent's shell
+command that runs `noask` with `on`, `off` or `global`, its write to a
+marker file and its edit of one are refused, with the text "the noask
+switch is the owner's: it is typed as /noask in a session or as noask
+global in a terminal; do not switch it or write its marker files", and
+counted only while noask is on. Through revision 13 a session that was
+not under noask met nothing of this plugin's there, and could have
+written another session's marker at `handsoff`, or its own. The fence
 has its own `userConfig` boolean, on by default, and the same `.catch`
 handler.
 
@@ -1591,6 +1615,10 @@ undesigned.
     handsoff`, which is what the fence reads while noask is on (owner,
     2026-11-13). Revision 12 inferred the word from a typed launch and
     kept it in the process; a focused check found that unsound.
+34. The switch is guarded in every session, under noask or not, since a
+    marker can carry the owner's word to publish: no agent works the
+    switch or writes a marker file. It is the one hook that acts in a
+    session that is not under noask.
 33. The run-level word is `handsoff`, renamed from `hands-off` to sit
     beside `noask`. The rename is a hard one: the old spelling is no
     longer read at a launch, and only dated records keep it (owner,
