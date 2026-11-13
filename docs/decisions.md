@@ -564,3 +564,214 @@ it; none had been archived when this was written:
 $ grep -l -s -F 'Sub-skill: 7.0.2' ~/.claude*/docs/tmp/apply-runs/*/*/run-facts.md; echo "exit $?"
 exit 1
 ```
+
+## 3. Accept the plugin in throwaway configuration directories, before phase 2 (2026-11-13)
+
+On 2026-11-13 the plugin passed its acceptance on Claude Code 2.1.323,
+before phase 2 was built. That order is the owner's ruling of the same
+day: the acceptance runs first, in throwaway configuration directories,
+with nothing removed from the owner's setup; removing the private copy,
+changing the owner's routing to `/sdd:apply` and installing the plugin
+on the machine wait until phase 2's own run has archived. For the
+acceptance this replaces the owner's ruling of 2026-11-12, which put
+phase 2 first. The procedure is the closing section of the phase 1 plan
+(`docs/superpowers/plans/2026-11-09-sdd-phase-1-move-the-skill.md`, read
+at `4661dab^`), corrected after two independent reviews of the draft
+design; each of their claims was checked against the files before it
+changed a step. The evidence (archives, transcripts, debug logs) stays
+local, in `~/projects/scratch/sdd-acceptance-evidence`.
+
+### The setup
+
+**Fixture.** `~/projects/scratch/sdd-acceptance`, a git repository
+holding a bash command `bin/greet`, its tests and one OpenSpec change,
+`add-greet-options` (stock `spec-driven` schema), with two sections of
+executable work: `## 1. Greet a name` and `## 2. Shout`. A text-only
+fixture would test nothing, because the skill keeps prose-only edits in
+the driver and dispatches no controller for them (`skills/apply/SKILL.md`
+line 23). Every item names its files, because a pausing controller runs
+`sdd-checkpoint` on the brief's file list and an OpenSpec brief carries
+none (parked as a finding). The base commit is tagged `acceptance-base`
+(`bd7590e`).
+
+**Configuration.** `CLAUDE_CONFIG_DIR` pointed at
+`~/projects/scratch/sdd-acceptance-config`, whose settings began as
+`{"permissions": {"defaultMode": "auto"}, "skipAutoPermissionPrompt": true}`
+alone, with superpowers installed into it. Its marketplace entry has no git
+ref, so an install takes `main` as it is; that day `main` was
+`22f0b463e7a5e579904dd6211a520321035526f7`, the commit tag `v7.0.2`
+peels to, and the pin check read it as the verified release:
+
+```
+$ CLAUDE_CONFIG_DIR=~/projects/scratch/sdd-acceptance-config bash skills/apply/scripts/sub-skill-check
+Sub-skill: 7.0.2 loop c95cdd95b49a verified
+```
+
+**Leg 1** loaded the plugin with `--plugin-dir` from an export of
+`origin/main` at `9fc7a0b`, not from the checkout, which another session
+was editing at the time. **Leg 2** installed it from the public catalog:
+`claude plugin marketplace add akalongman/claude-plugins`, then
+`claude plugin install sdd@akalongman`, which recorded
+`"gitCommitSha":"9fc7a0bdfbeb40e7988a2979af6b56e7e097af6d"`; its
+`.claude-plugin`, `agents`, `bin` and `skills` are identical to leg 1's
+export (`diff -rq`, no output).
+
+### What a throwaway configuration directory hides
+
+It hides the owner's skills, agents and plugins, and not the owner's
+instruction files: Claude Code reads `~/.claude/CLAUDE.md` and
+`~/.claude/rules/*.md` as the project instructions of `~`, an ancestor
+of the fixture, whatever `CLAUDE_CONFIG_DIR` says. The session's own
+init record, for leg 2:
+
+```
+$ cd ~/projects/scratch/sdd-acceptance && CLAUDE_CONFIG_DIR=~/projects/scratch/sdd-acceptance-config claude -p --output-format stream-json --verbose "Reply with the single word ok." > leg2-init.ndjson
+$ jq -c 'select(.type=="system" and .subtype=="init") | {claude_code_version, permissionMode, plugins: [.plugins[] | select(.path != "builtin")], agents: [.agents[] | select(test("sdd|app-"))], skills: [.skills[] | select(test("sdd|app-"))]}' leg2-init.ndjson
+{"claude_code_version":"2.1.323","permissionMode":"auto","plugins":[{"name":"superpowers","path":"~/projects/scratch/sdd-acceptance-config/plugins/cache/superpowers-marketplace/superpowers/7.0.2","source":"superpowers@superpowers-marketplace","version":"7.0.2"},{"name":"sdd","path":"~/projects/scratch/sdd-acceptance-config/plugins/cache/akalongman/sdd/0.1.0","source":"sdd@akalongman","version":"0.1.0"}],"agents":["sdd:implementer","sdd:reviewer","sdd:unit-controller"],"skills":["sdd:apply"]}
+```
+
+No transcript of either leg, sessions and subagents alike, names
+`app-subagent-apply`, an `app-sdd-` agent or a path under the private
+skill's directory. The only paths under `~/.claude` in them are the
+instruction files above. Those files still route apply work to the
+private skill, so both legs were launched with `/sdd:apply` by name.
+
+### Leg 1: a pause, a lost session and a relaunch
+
+The owner typed `pause` while Section 2's implementer ran, quit the
+session once both pause lines were written, and relaunched
+`/sdd:apply add-greet-options` in a new session. The ledger, in order:
+
+```
+Section 2: handed to controller
+Section 2: pause requested
+Section 2: paused (before review dispatch; heads sdd-acceptance 8d5e69e; tree 5db26f80ee6e8244)
+Section 2: controller returned paused (before review dispatch; implementer done at 8d5e69e)
+Section 2: pause released
+Section 2: handed to controller
+Section 2: resumed (checkpoint unchanged: heads sdd-acceptance 8d5e69e; tree 5db26f80ee6e8244)
+```
+
+The relaunch counted as the owner's `continue`, and the second dispatch
+carried the prior-attempt framing ("A prior controller attempted this
+unit"). The final review (on `claude-fable-5-2`) returned one Important
+finding as `needs-ruling`; the owner kept the behaviour and had it
+pinned by a test, and a fix wave and a re-review ended in
+`Final phase: complete 594fab9`.
+
+### Leg 2: `step`, then a pause and a continue in the same session
+
+The run was launched as `/sdd:apply add-greet-options step`; after
+Section 1 it waited for the owner's answer before dispatching Section 2.
+The owner typed `pause`, then `continue` in the same session:
+
+```
+Section 2: pause requested
+Section 2: paused (after implementer report, before task review dispatch; heads sdd-acceptance 02895c8; tree 5db26f80ee6e8244)
+Section 2: controller returned paused (after implementer report 02895c8 DONE_WITH_CONCERNS, before task review dispatch)
+Section 2: pause released
+Section 2: resumed
+```
+
+Here the driver resumed the same controller by message, with no second
+dispatch: the driver's transcript holds three unit-controller dispatches
+(Section 1, Section 2, the final phase) and one message, "Resume from
+your paused point." The final review found nothing Critical or
+Important, and the run ended in `Final phase: complete 02895c8`. Before
+it, `/sdd:apply add-greet-options hands-off tier=sonnet isolated` was
+announced with all three options and stopped before any worktree,
+branch or dispatch, the fixture having no worktree bootstrap.
+
+The `tree` part of a checkpoint hashes only uncommitted changes on the
+listed files (`git diff HEAD`, `git status` and the untracked files);
+both legs paused on a clean tree, hence the same hash over different
+heads.
+
+### Both legs
+
+Every dispatch named its agent and model: `sdd:unit-controller`,
+`sdd:implementer` and `sdd:reviewer` on `opus`, and the final review on
+`fable`, which resolved to `claude-fable-5-2`. The controllers preloaded
+the loop from the throwaway directory's
+`plugins/cache/superpowers-marketplace/superpowers/7.0.2`. The first
+dispatch of leg 1 carried paths only:
+
+```
+Run one unit of the OpenSpec change add-greet-options in ~/projects/scratch/sdd-acceptance (commit on main, path-limited).
+
+Unit: Section 1
+Brief: ~/projects/scratch/sdd-acceptance/.superpowers/sdd/add-greet-options/section-1-brief.md
+Report: ~/projects/scratch/sdd-acceptance/.superpowers/sdd/add-greet-options/section-1-report.md
+Review: ~/projects/scratch/sdd-acceptance/.superpowers/sdd/add-greet-options/section-1-review.md
+Ledger: ~/projects/scratch/sdd-acceptance/.superpowers/sdd/add-greet-options/progress.md
+Decisions: ~/projects/scratch/sdd-acceptance/.superpowers/sdd/add-greet-options/decisions.md
+Overrides: ~/projects/scratch/sdd-plugin-9fc7a0b/skills/apply/prompts/unit-controller-overrides.md
+Tick command: ~/projects/scratch/sdd-plugin-9fc7a0b/skills/apply/scripts/openspec-section-tick add-greet-options 1 '<ledger line>' [ids]
+```
+
+Each archive's `run-facts.md` hashes the skill that ran, and the hashes
+are those of the loaded copy, not of the private one:
+
+```
+Skill: SKILL.md 6cab9ac5d1f4, unit-controller-overrides.md 92597bb89358
+Sub-skill: 7.0.2 loop c95cdd95b49a verified
+```
+
+`run-archive` parked leg 1's one handed item into the fixture's own
+queue (`Parked: line 60: owner (a later OpenSpec change): ...`). A copy
+of that workspace with one more `Handed to later:` line, archived with
+`later` taken off `PATH`, printed (shortened here)
+`not parked (later not on PATH): (cd '~/projects/scratch/sdd-acceptance' && later -- 'Later: probe item ...')`,
+exited 0 and printed its archive path last.
+
+A probe settled a doubt the transcripts raised: some controllers called
+`sdd-checkpoint` by its full path, yet the command is on the `PATH` of
+the main session and of a subagent with the installed plugin, and of a
+subagent with `--plugin-dir`, as entry 1 found on 2.1.319.
+
+### What this entry rules
+
+**Removal before the run.** Spec decision 13 and the spec's phase 1
+acceptance item 2 ask for the private copy "already removed" during the
+acceptance, so that a leftover copy cannot mask a broken name or path.
+Proven isolation meets that purpose without breaking the apply runs
+other sessions had in flight on the private copy; the spec's wording is
+amended to it in a later revision.
+
+**The version rule of entry 2.** The installs of a throwaway
+configuration directory are not "the first install from the
+`akalongman` catalog"; the rule starts at the machine's own install.
+
+**The machine's install.** When the switch comes, the machine installs
+the plugin as `sdd@personal`, an entry of the owner's `personal`
+marketplace with the source `{"source": "github", "repo":
+"akalongman/claude-sdd"}`, because the local name `akalongman` stays
+with laterbox's checkout until laterbox moves to the public catalog,
+whose timing is open. That later move to `sdd@akalongman` is a
+migration, not a rename: the plugin's data folder, its settings keys and
+any terminal link through that folder change with it, so it is
+rehearsed in a throwaway configuration directory first. The personal
+marketplace's cross-marketplace allowlist gains `superpowers-marketplace`
+before that install.
+
+**`isolated` without a bootstrap.** Today the skill stops when the
+project has no worktree bootstrap script. The ruling: without one, the
+driver creates the worktree bare and runs the project's gates in it
+once, before the first dispatch; when they pass, or the project defines
+none, the run goes on and the ledger says the worktree is bare; when
+they fail, the driver removes that worktree and its branch and stops,
+naming the missing bootstrap. `hands-off` follows the same rule. A
+project with a bootstrap is unchanged. Not built yet.
+
+**The first-run audit of entry 2.** An apply run of the private skill
+archived on 2026-11-13, before the acceptance, already reads
+`Sub-skill: 7.0.2 loop c95cdd95b49a verified`, so that audit belongs to
+it, not to the acceptance.
+
+### Not covered
+
+`step`'s stop answer; `hands-off` past its announcement (the fixture
+has no remote, so its push and request were never reached); `tier=`
+past parsing; the launch with no argument; and a comparison of the
+dispatch payload with one recorded before the move, which the payload
+above was checked against the skill's text instead.
