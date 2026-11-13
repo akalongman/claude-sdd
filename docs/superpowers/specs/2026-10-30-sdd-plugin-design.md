@@ -56,6 +56,17 @@ counts as on for the driver as for the hooks. And the run-level word is
 renamed from `hands-off` to `handsoff`; the text on phase 1 and the
 review notes keep the earlier spelling where they tell what was built
 or said then.
+Revision 13, 2026-11-13, moves the owner's word to publish onto the
+switch, after a focused check by Codex found the fence's exception of
+revision 12 unsound (it was inferred from a typed launch, lived in the
+process, outlived its run and let a combined command through). A
+session's own switch has two levels now: `/noask on`, and `/noask on
+handsoff`, which is noask plus the word that this session may push and
+open a request. The level is a fourth line of the session's marker, so
+it is typed by the owner, written by the one writer, read by the fence,
+kept across a resume and ended by the expiry. The global switch has no
+such level. The fence judges every command of a shell call and passes
+only a plain push.
 
 ## Intent
 
@@ -141,11 +152,12 @@ Code), `no-hitl` and
   files, an edit under the owner's configuration directories); for
   everything else noask is a rule the agent follows, not a guarantee, and a
   push wrapped in a script or a `sh -c` passes the phase 2 fence.
-- Publication on noask's authority. noask gives no session the right to
-  push or to open a request, and no switch does: the one publication is
-  the ending of an apply run the owner launched with `handsoff`, which
-  noask neither grants nor takes back (owner, 2026-11-13, replacing
-  "noask never publishes", agreed "for now" on 2026-11-08).
+- Publication for every session at once. The global switch has no
+  `handsoff` level, and plain noask gives no session the right to push
+  or to open a request. A session publishes only on the owner's word for
+  it: an apply launch with `handsoff` while noask is off, or the
+  session's own switch at the level `handsoff` (owner, 2026-11-13,
+  replacing "noask never publishes", agreed "for now" on 2026-11-08).
 - A persistent ledger file for the main session. Rulings live in the chat
   and in the final list; apply runs keep their own `progress.md` and
   `decisions.md` as today.
@@ -713,8 +725,9 @@ marker is `~/.local/state/sdd/noask`; a session's is
 session, which every hook input carries and which a shell inside the
 session finds in its environment (`CLAUDE_CODE_SESSION_ID`, observed in
 build 2.1.322 and pinned by the plan's first task). Each marker holds
-three lines: `generation=<ISO-8601 time with nanoseconds plus a random
-suffix>`, `since=<ISO-8601 time>` and `until=<ISO-8601 time, or empty>`.
+four lines: `generation=<ISO-8601 time with nanoseconds plus a random
+suffix>`, `since=<ISO-8601 time>`, `until=<ISO-8601 time, or empty>` and
+`level=<noask or handsoff>`; the global marker's level is always `noask`.
 The generation changes on every `on` from off, so two toggles within one
 second never share one, and never on a renewal of the expiry. The paths
 are fixed rather than under `CLAUDE_PLUGIN_DATA` because the command also
@@ -773,7 +786,15 @@ write nothing). The global switch keeps its optional expiry (decision
 
 - In a session: `/noask on [expiry]`, `/noask off` and bare `/noask` act
   on the session's own switch; `/noask global on [expiry]` and `/noask
-  global off` act on the global one. They are registered by the module so
+  global off` act on the global one. A session's `on` takes one more
+  word, `/noask on handsoff [expiry]`, the switch's second level: noask
+  plus the owner's word that this session may publish (Intervention 4).
+  Its lines read `noask: handsoff for this session since <time> until
+  <time>`. `on handsoff` while on raises the level and keeps the
+  generation; a plain `on` never lowers it, which takes an `off`. The
+  global switch has no such level, and `noask global on handsoff` is
+  refused with a line that says where the word is typed. They are
+  registered by the module so
   they run the moment they are typed, also mid-turn (the owner turns to
   other work while the session is working); a module command cannot carry
   the plugin prefix. The module runs the command and prints its lines,
@@ -856,7 +877,11 @@ write nothing). The global switch keeps its optional expiry (decision
   text and the absolute path of `skills/apply/references/noask.md`, so a
   driver resumed after a compaction can re-read it without the
   substituted path it lost, plus, for an apply driver, "re-read the noask
-  reference". A start whose input carries no usable id while some
+  reference". A session whose own switch is at `handsoff` reads `sdd:
+  noask is ON with handsoff for this session since <time> until <time>;
+  it rules on its own recommendations, never waits, and may push and
+  open a request; /noask off to end it`. A start whose input carries no
+  usable id while some
   session's own switch is on says `sdd: this session's id could not be
   read while a session's own noask switch is on; the session is treated
   as under noask`, with the same context.
@@ -880,9 +905,11 @@ the plugin's own. Its content, in the second person to the agent:
 > keep working with the tree uncommitted, and never create or switch a
 > branch. An apply run the owner launched is the exception: it commits
 > on the branch it was launched on, a default one included, because the
-> launch is the owner's word, and one launched with `handsoff` pushes and
-> opens its request at its end, because that word says so. In a session
-> that does its own work, fix a
+> launch is the owner's word. The other exception is the owner's word
+> to publish, `handsoff`: when the `noask` command's status ends in
+> `handsoff`, finished work the owner named may be pushed with a plain
+> push and its request opened; a merge, a forced push and everything
+> else below stay blocked. In a session that does its own work, fix a
 > leftover that one
 > commit can revert and list the rest as `Open before merge:` lines; an
 > apply driver keeps its own rule and edits nothing. These are blocked,
@@ -1159,19 +1186,20 @@ under that directory (`rm`, `rmdir`, `unlink`, `shred`, `mv`, `cp`,
 redirection). The switch is fenced from both sides because one `noask
 global off`, or one `rm` of the marker, typed by a session at the end
 of its budget would make every hook on the machine inert, and three
-written lines would put every session under noask. One push is the
-owner's: the ending of an apply run launched with `handsoff`. The module
-learns of the word where the owner types it: a prompt of the owner's own
-that launches `/sdd:apply` with `handsoff` among its arguments sets a
-value for the session, and while it is set the fence lets the main
-agent's push and request creation through and counts nothing; a later
-launch without the word, and a cleared session, unset it. A subagent's
-push is refused as before. The value lives with the process, so a
-session resumed under noask has lost it, and its push is refused and
-reported as pending, which is the safe side. If the plan's first task
-finds that the module does not see a typed launch, the fence keeps no
-exception, a `handsoff` run reports its push as pending whenever noask
-is on at its end, and the README says so. A command wrapped in
+written lines would put every session under noask. The fence has one
+exception, the owner's word to publish. While the session's own switch
+is on at the level `handsoff`, whatever the global switch reads, the
+main agent's push and its request creation pass and count nothing. The
+word is read from the marker at the moment of the call, so it is the
+owner's by construction (only the command the owner types writes a
+marker, and the fence refuses a session's own attempt to), it survives a
+resume, and it ends with the switch. Two limits keep the exception as
+small as the word: every command of the shell call is judged, so a call
+that also holds anything else the fence names is refused whole (`git
+push && noask global off` does not pass); and only a plain push passes,
+one without a force option, `--all`, `--mirror`, `--tags`, a delete, or
+a refspec that names two sides. A subagent's push is refused as before:
+the driver publishes, never a controller. A command wrapped in
 `sh -c`, a script or an alias passes this fence; a here-document's body
 is data and is not read; and so does a shell write into the
 configuration directory, which is why `run-archive`'s copy into it keeps
@@ -1191,14 +1219,17 @@ renamed to sit beside `noask`, a hard rename): it is noask for
 that run plus the owner's word that the run's finished work may be
 published, which means the push and the pull or merge request of the
 run's ending and nothing else. noask neither gives that word nor takes
-it back. So there are three cases, not four:
+it back. The same word is the second level of a session's own switch,
+`/noask on handsoff`, and that is the form the fence can see. So:
 
-- a run launched without the word while noask is off asks the owner and
-  pushes nothing, as today;
-- a run launched without the word while noask is on rules for itself and
-  pushes nothing;
-- a run launched with `handsoff` rules for itself and publishes at its
-  end, whatever noask reads.
+- a run without the word, in a session that is not under noask, asks the
+  owner and pushes nothing, as today;
+- a run without the word, in a session under plain noask, rules for
+  itself and pushes nothing;
+- a run with the word rules for itself and publishes at its end. The
+  word is given at the launch or by the session's switch. While noask is
+  on, the push passes the fence only in a session whose own switch is at
+  `handsoff`; in any other the run reports its push as pending.
 
 Through revision 11 noask took a push back: a run that had met noask at
 any point did not publish. That one rule needed a test on the ledger's
@@ -1207,8 +1238,9 @@ noask had ended, a ledger line for a word that was only implied, and a
 stated limit. The rule is gone and those went with it.
 
 `SKILL.md` cannot grow, so it gains the shortest possible pointer, "At
-launch and before acting on every controller return run `noask status`;
-unless it reads `off` or `expired`, `references/noask.md` applies" (the
+launch, before acting on every controller return and before a push run
+`noask status`; unless it reads `off` or `expired`, `references/noask.md`
+applies" (the
 command is in the plugin's `bin/`, on the PATH of a session's shell as
 `sdd-checkpoint` is, and the reference's path is relative to the skill's
 base directory, which a compaction re-attaches; the sentence with both
@@ -1263,12 +1295,14 @@ the only edits of phase 2 to the moved skill:
   questions, as today: both arise on a resume, which the owner has just
   typed.
 - Publication is the owner's word and nothing else: the `handsoff`
-  ending's push and request run when the owner gave `handsoff` at launch,
-  and never otherwise. The status plays no part. When the push is refused,
-  which happens under noask in a session that did not see the launch
-  typed (Intervention 4), the driver ledgers `Handsoff: not pushed
-  (refused under noask)`, the final message names the branch and says the
-  push is pending, and nothing is retried in another spelling.
+  ending's push and request run when the owner gave the word, at the
+  launch or by the session's switch (a status that ends in `handsoff` at
+  the run's end), and never otherwise. The driver reads the status once
+  more before a push. When the push is refused, which happens under
+  noask in a session whose own switch is not at `handsoff` (Intervention
+  4), the driver ledgers `Handsoff: not pushed (refused under noask)`,
+  the final message names the branch and says the push is pending, and
+  nothing is retried in another spelling.
 - The run commits on the branch it was launched on, as the skill says, a
   default branch included: the owner launched it there, and the rule's
   `blocked: commit on <branch>` is for a session doing its own work.
@@ -1285,8 +1319,8 @@ the only edits of phase 2 to the moved skill:
 **Worked example, one session by day.** 15:00, the owner at the desk with
 two sessions. Session A is an apply driver the owner launched there with
 `/sdd:apply docs/plan.md handsoff`; session B is where the owner works.
-The owner types `/noask on 3h` in A,
-which prints `noask: on for this session since 15:00 until 18:00` and,
+The owner types `/noask on handsoff 3h` in A,
+which prints `noask: handsoff for this session since 15:00 until 18:00` and,
 A being idle on its unit, submits the wake-up turn; A answers it with
 its waiting line and nothing else. A's
 next status read ledgers `Noask: seen on at 15:01`; at 15:40 the driver
@@ -1296,15 +1330,18 @@ ends a turn on
 "I recommend splitting the migration; shall I?" and waits for the owner
 as on any other day, because B's reading is off: the global marker does
 not exist and neither does B's own. At 17:10 A's run ends: the fence lets
-its push through, because the owner typed the launch with `handsoff` in
-this session, and the run opens its request with the rulings as the
-description, ledgers `Handsoff: pushed <sha7>, <request URL>` and ends
-on `noask: done`. Had A been launched without the word it would have
-ruled the same way and ended unpushed. At 18:00 A's switch expires, and
-a question A asks at 18:05 reaches the owner.
+its push through, because A's own switch is at `handsoff`, and the run
+opens its request with the rulings as the description, ledgers
+`Handsoff: pushed <sha7>, <request URL>` and ends on `noask: done`. Had
+the owner typed a plain `/noask on 3h`, the same run would have ruled
+the same way and reported its push as pending. At 18:00 A's switch
+expires, and a question A asks at 18:05 reaches the owner.
 
 **Worked example, every session by night.** 23:00, three sessions in
 three worktrees of one project, each with a branch the owner created.
+At 22:55 the owner types `/noask on handsoff` in session A, whose run
+may publish; it prints `noask: handsoff for this session since 22:55
+until 06:55 (8 hours by default; /noask on <expiry> sets another)`.
 `noask global on until 07:30` in a terminal prints the marker path; each
 session picks the marker up at its
 next hook event. Session A is an apply driver launched by day with
@@ -1335,8 +1372,9 @@ question, rules, and continues. 07:30, the global marker expires (D's
 own ended at 07:05) and every hook goes inert at its next event; at 09:00
 the owner's first `noask` prints `noask: off (expired 07:30)`. Session
 A's request is open with its rulings as the description, because the
-owner gave that run `handsoff`; sessions B and D pushed nothing, because
-no word of the owner's covered a push of theirs. The owner reads three
+owner switched that session to `handsoff`; sessions B and D pushed
+nothing, because no word of the owner's covered a push of theirs. The
+owner reads three
 "Rulings I made" lists, one spec and one request, `git log
 dev..<branch>` in the worktrees that did not publish, and pushes those.
 
@@ -1360,8 +1398,7 @@ Acceptance for phase 2:
    start fires with its source; whether a subagent's stop reaches the
    Stop hook; whether a goal proposal's dialog is preceded by a
    permission request; the text a command hook receives on its
-   standard input, kept verbatim for the command's tests; and whether
-   the module sees a launch the owner types, with its text.
+   standard input, kept verbatim for the command's tests.
 2. The module's tests cover, per hook: inert without the marker and on an
    expired one; inert under another session's marker; the global marker
    read before the session's own; unreadable treated as on with the
@@ -1389,10 +1426,10 @@ Acceptance for phase 2:
    continues while the session beside it asks as usual. By night, under
    `noask global on`: a plain session that ends on a
    recommendation continues and rules; a session that reaches a push
-   prints `blocked:` and goes on; an apply run launched with `handsoff`
-   by day, in a scratch repository with a scratch remote, pushes its
-   branch and ends on `noask: done`, and one launched without the word
-   rules for itself and ends unpushed; a
+   prints `blocked:` and goes on; an apply run in a session the owner
+   switched with `/noask on handsoff`, in a scratch repository with a
+   scratch remote, pushes its branch and ends on `noask: done`, and one
+   in a session under plain noask rules for itself and ends unpushed; a
    session in plan mode ends on `noask: blocked: plan awaits review`; in the
    morning `noask` prints `off (expired <time>)` and no session is waiting
    on a dialog.
@@ -1426,14 +1463,15 @@ undesigned.
 1. The markers live in `~/.local/state/sdd/`, at fixed paths (the global
    one, and one per session named by the session's id), because the
    command has no plugin variables outside a session and the paths are a
-   shared contract; each holds three `key=value` lines, the activation
-   generation (nanosecond time plus a random suffix), the start time and
-   the expiry.
-2. noask gives no right to publish and takes none away: the `handsoff`
-   ending's push and request need the owner's word at the run's launch
-   and nothing else (owner, 2026-11-13, replacing "noask never
-   publishes"). The earlier `away_push` knob stays gone: no switch lets
-   a session that is not such a run publish.
+   shared contract; each holds four `key=value` lines, the activation
+   generation (nanosecond time plus a random suffix), the start time,
+   the expiry and the level.
+2. Plain noask gives no right to publish. A session publishes on the
+   owner's word for it and nothing else: an apply launch with `handsoff`
+   while noask is off, or the session's own switch at the level
+   `handsoff` (owner, 2026-11-13, replacing "noask never publishes").
+   No machine-wide switch lets sessions publish, which is what the
+   earlier `away_push` knob was.
 3. Three end-of-turn tokens, `noask: waiting:`, `noask: done`,
    `noask: blocked:`, always the last line; the Stop hook matches the last
    line only, Markdown stripped, and no ledger phrase.
@@ -1547,10 +1585,12 @@ undesigned.
     push back.
 31. With no home directory both readers read off; a session with no id
     reads unreadable only while some session's own marker is on.
-32. `handsoff` is noask for one apply run plus the owner's word to
-    publish its ending. The fence lets that push and request through in
-    the session where the owner typed the launch, and nowhere else
-    (owner, 2026-11-13).
+32. `handsoff` is noask plus the owner's word to publish. The word has
+    two homes, both typed by the owner: an apply run's launch, as since
+    phase 1, and the second level of a session's own switch, `/noask on
+    handsoff`, which is what the fence reads while noask is on (owner,
+    2026-11-13). Revision 12 inferred the word from a typed launch and
+    kept it in the process; a focused check found that unsound.
 33. The run-level word is `handsoff`, renamed from `hands-off` to sit
     beside `noask`. The rename is a hard one: the old spelling is no
     longer read at a launch, and only dated records keep it (owner,
