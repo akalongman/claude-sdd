@@ -75,6 +75,11 @@ another session. The marker files are guarded also by where their
 directory resolves. A plain push is defined by what it may hold, not by
 what it may not. And the status shows the session's `handsoff` level
 also beside an unreadable global marker.
+Revision 15, 2026-11-13, states a limit that revision 13 overstated:
+the word to publish is the owner's against every plain call, not by
+construction. A wrapped call of the command, or a wrapped write of a
+marker, passes this fence as a wrapped push does; the owner keeps that
+as a stated limit until the wide fence of phase 4 (2026-11-13).
 
 ## Intent
 
@@ -1202,10 +1207,18 @@ written lines would put every session under noask. The fence has one
 exception, the owner's word to publish. While the session's own switch
 is on at the level `handsoff`, whatever the global switch reads, the
 main agent's push and its request creation pass and count nothing. The
-word is read from the marker at the moment of the call, so it is the
-owner's by construction (only the command the owner types writes a
-marker, and the fence refuses a session's own attempt to), it survives a
-resume, and it ends with the switch. Two limits keep the exception as
+word is read from the marker at the moment of the call, so it survives
+a resume and ends with the switch. It is the owner's against every plain
+call: the module runs the command only for a `/noask` the owner typed,
+and the fence refuses an agent's own call of the command and its write
+to a marker, in every session. It is not the owner's by construction. A
+call of the command wrapped in `sh -c` or a script, or a marker written
+that way, passes this fence as a wrapped push does, and no check inside
+the command could close that, since a marker is a file the agent's shell
+can write. An agent that goes that far could wrap the push itself, so
+the wrapped grant opens nothing a wrapped push does not; both wait for
+the wide fence of phase 4, and until then the rule text's "never switch
+noask yourself" is what holds. Two limits keep the exception as
 small as the word: every command of the shell call is judged, so a call
 that also holds anything else the fence names is refused whole (`git
 push && noask global off` does not pass, nor does a push whose output
@@ -1617,8 +1630,10 @@ undesigned.
     kept it in the process; a focused check found that unsound.
 34. The switch is guarded in every session, under noask or not, since a
     marker can carry the owner's word to publish: no agent works the
-    switch or writes a marker file. It is the one hook that acts in a
-    session that is not under noask.
+    switch or writes a marker file by a plain call. It is the one hook
+    that acts in a session that is not under noask. A wrapped call
+    passes it, as a wrapped push passes the fence: a stated limit until
+    phase 4, with no caller check in the command (owner, 2026-11-13).
 33. The run-level word is `handsoff`, renamed from `hands-off` to sit
     beside `noask`. The rename is a hard one: the old spelling is no
     longer read at a launch, and only dated records keep it (owner,
