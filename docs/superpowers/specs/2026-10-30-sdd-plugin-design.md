@@ -45,6 +45,17 @@ session id is spelled out for each reader, a directory that cannot be
 listed included; a waiting line refused at the budget gets the ending
 text; and the permission hook's failure handler keeps an answer one of
 the owner's hooks beneath had given.
+Revision 12, 2026-11-13, makes the two modes nested on the owner's word
+("it feels complex and with many moving parts"): `handsoff` is noask for
+one apply run plus the owner's word to publish its ending, and noask no
+longer takes a push back. With that go the test on the ledger's history,
+the long pointer, the implied-mode ledger line and the stated limit of
+revisions 10 and 11. The fence lets the push of a `handsoff` run through
+in the session where the owner typed its launch. An unreadable status
+counts as on for the driver as for the hooks. And the run-level word is
+renamed from `hands-off` to `handsoff`; the text on phase 1 and the
+review notes keep the earlier spelling where they tell what was built
+or said then.
 
 ## Intent
 
@@ -73,7 +84,7 @@ one's rule widened to the whole session.
    leftovers or not?"), the answer is "as recommended" nearly every time.
    So the wait costs a night, or the owner's attention by day, and buys
    nothing. The skill already
-   has the rule for this inside an apply run (`hands-off`: rule on your own
+   has the rule for this inside an apply run (`handsoff`: rule on your own
    reading, ledger `Ruling: <decision>. Cost if wrong: <what>`, keep going,
    stop only for the four stops). `noask` applies the same rule to the main
    agent of every session under it, through three interventions (a
@@ -83,9 +94,10 @@ one's rule widened to the whole session.
 The mode is about whether a session may ask the owner, not about the clock
 or where the owner is, hence `noask`. Names considered and dropped: `away`
 (the name through revision 7; it describes the owner, who may be at the desk
-and still want no session to ask), `night` (wrong axis), `hands-off`
-(already the run-level term; reusing it for a wider scope confuses the
-two), `non-interactive` (means print mode in Claude Code), `no-hitl` and
+and still want no session to ask), `night` (wrong axis), `handsoff`
+(the run-level term, spelled `hands-off` then; reusing it for a wider
+scope confuses the two), `non-interactive` (means print mode in Claude
+Code), `no-hitl` and
 `hitl off` (an acronym, and `hitl off` switches the mode on by saying off).
 
 ## Goals
@@ -129,9 +141,11 @@ two), `non-interactive` (means print mode in Claude Code), `no-hitl` and
   files, an edit under the owner's configuration directories); for
   everything else noask is a rule the agent follows, not a guarantee, and a
   push wrapped in a script or a `sh -c` passes the phase 2 fence.
-- Publication while noask is on, under any setting. The `hands-off` ending's push
-  and merge request creation need the owner's word and the owner present;
-  there is no knob that lets noask publish.
+- Publication on noask's authority. noask gives no session the right to
+  push or to open a request, and no switch does: the one publication is
+  the ending of an apply run the owner launched with `handsoff`, which
+  noask neither grants nor takes back (owner, 2026-11-13, replacing
+  "noask never publishes", agreed "for now" on 2026-11-08).
 - A persistent ledger file for the main session. Rulings live in the chat
   and in the final list; apply runs keep their own `progress.md` and
   `decisions.md` as today.
@@ -866,7 +880,9 @@ the plugin's own. Its content, in the second person to the agent:
 > keep working with the tree uncommitted, and never create or switch a
 > branch. An apply run the owner launched is the exception: it commits
 > on the branch it was launched on, a default one included, because the
-> launch is the owner's word. In a session that does its own work, fix a
+> launch is the owner's word, and one launched with `handsoff` pushes and
+> opens its request at its end, because that word says so. In a session
+> that does its own work, fix a
 > leftover that one
 > commit can revert and list the rest as `Open before merge:` lines; an
 > apply driver keeps its own rule and edits nothing. These are blocked,
@@ -1143,7 +1159,19 @@ under that directory (`rm`, `rmdir`, `unlink`, `shred`, `mv`, `cp`,
 redirection). The switch is fenced from both sides because one `noask
 global off`, or one `rm` of the marker, typed by a session at the end
 of its budget would make every hook on the machine inert, and three
-written lines would put every session under noask. A command wrapped in
+written lines would put every session under noask. One push is the
+owner's: the ending of an apply run launched with `handsoff`. The module
+learns of the word where the owner types it: a prompt of the owner's own
+that launches `/sdd:apply` with `handsoff` among its arguments sets a
+value for the session, and while it is set the fence lets the main
+agent's push and request creation through and counts nothing; a later
+launch without the word, and a cleared session, unset it. A subagent's
+push is refused as before. The value lives with the process, so a
+session resumed under noask has lost it, and its push is refused and
+reported as pending, which is the safe side. If the plan's first task
+finds that the module does not see a typed launch, the fence keeps no
+exception, a `handsoff` run reports its push as pending whenever noask
+is on at its end, and the README says so. A command wrapped in
 `sh -c`, a script or an alias passes this fence; a here-document's body
 is data and is not read; and so does a shell write into the
 configuration directory, which is why `run-archive`'s copy into it keeps
@@ -1155,26 +1183,44 @@ permission rules and nothing of this plugin's. The fence
 has its own `userConfig` boolean, on by default, and the same `.catch`
 handler.
 
-**The apply skill under noask.** `SKILL.md` cannot grow, so it gains the
-shortest possible pointer, "At launch and before acting on every controller
-return run `noask status`; unless it reads `off` or `expired` with no
-`Noask:` line in the ledger, `references/noask.md` applies" (the
+**The apply skill under noask, and `handsoff`.** Two nested levels, not
+two modes that interact (owner, 2026-11-13). Under noask nobody is asked
+and nothing leaves the machine. `handsoff` is the word the owner gives
+an apply run at its launch (spelled `hands-off` through phase 1 and
+renamed to sit beside `noask`, a hard rename): it is noask for
+that run plus the owner's word that the run's finished work may be
+published, which means the push and the pull or merge request of the
+run's ending and nothing else. noask neither gives that word nor takes
+it back. So there are three cases, not four:
+
+- a run launched without the word while noask is off asks the owner and
+  pushes nothing, as today;
+- a run launched without the word while noask is on rules for itself and
+  pushes nothing;
+- a run launched with `handsoff` rules for itself and publishes at its
+  end, whatever noask reads.
+
+Through revision 11 noask took a push back: a run that had met noask at
+any point did not publish. That one rule needed a test on the ledger's
+history at the run's end, a pointer that kept the reference alive after
+noask had ended, a ledger line for a word that was only implied, and a
+stated limit. The rule is gone and those went with it.
+
+`SKILL.md` cannot grow, so it gains the shortest possible pointer, "At
+launch and before acting on every controller return run `noask status`;
+unless it reads `off` or `expired`, `references/noask.md` applies" (the
 command is in the plugin's `bin/`, on the PATH of a session's shell as
 `sdd-checkpoint` is, and the reference's path is relative to the skill's
 base directory, which a compaction re-attaches; the sentence with both
 paths substituted did not fit under the size guard), and the resume
 filter in its item 1 gains `Noask` in its alternation so a resumed driver
 sees the lines below. The pointer is worded by what switches the
-reference off, so the reference applies while noask is on, on an
-unreadable status or a command that fails, and for the rest of a run
-that was ever under noask: through revision 9 it applied on `on` alone,
-and a driver compacted after an expiry would have met the unchanged
-`hands-off` ending with nothing to stop its push. The status the driver
-reads is its own session's:
-`on` when the session's own switch or the global one is. Everything else
-lives in `skills/apply/references/noask.md`, the
-only behavioural edit of phase 2 to the moved skill. It keeps the owner's
-requested mode apart from the effective one:
+reference off, so an unreadable status and a command that fails count as
+on for the driver as they do for the hooks: a driver that asked would
+only be refused. The status the driver reads is its own session's: `on`
+when the session's own switch or the global one is. Everything else
+lives in `skills/apply/references/noask.md`; with the rename, these are
+the only edits of phase 2 to the moved skill:
 
 - Every turn the driver ends to wait (a dispatch made, a `waiting` or
   `paused` return, a relayed hand-back, a child not yet reported, a pause
@@ -1187,22 +1233,19 @@ requested mode apart from the effective one:
   unit's return first, since its notification may be on the way, and
   then by the skill's own rule for an incomplete attempt; never by a
   second dispatch beside an attempt that may be live.
-- The launch ledgers the requested mode as today (`hands-off` given or
-  not). At launch and before acting on every controller return, the driver
-  runs the status command. The first reading in a run that returns `on`
-  ledgers `Noask: seen on at <time>`, a line that is never removed. An
-  unreadable status is ledgered `Noask: status unreadable (<error>)` and
-  counts as off for rulings (the driver asks as usual) and as on for
-  publication (no push), the safe side of each. While on, the run is
-  effectively hands-off: a dispatch carries `Mode: hands-off (noask)` when
-  the owner did not give the word, a `needs-ruling` return from a
-  controller dispatched without any mode is resumed once with "Mode:
-  hands-off (noask): rule and continue" (the existing defect path), and
-  `step`'s continue-or-stop prompt is skipped and ledgered `Noask: step
-  prompt skipped`. The first such decision in a run ledgers `Noask:
-  hands-off implied since <time>`. A controller already dispatched with
-  `(noask)` keeps ruling for its unit after noask goes off; the next dispatch
-  reads the status again.
+- At launch and before acting on every controller return, the driver
+  runs the status command. The first reading in a run that is neither
+  `off` nor `expired` ledgers `Noask: seen on at <time>`, or `Noask:
+  status unreadable (<error>)`, lines that are never removed and that
+  tell a reader why a run launched without `handsoff` ruled for itself.
+  While noask is on, a dispatch carries `Mode: handsoff`, the mode a
+  controller already knows, whether or not the owner gave the word; a
+  `needs-ruling` return from a controller dispatched without the mode is
+  resumed once with "Mode: handsoff: rule and continue" (the existing
+  defect path); and `step`'s continue-or-stop prompt is skipped and
+  ledgered `Noask: step prompt skipped`. A controller already dispatched
+  with the mode keeps ruling for its unit after noask goes off; the next
+  dispatch reads the status again.
 - `/sdd:apply` with no argument, or with several candidate sources, while
   noask is on is `noask: blocked: no source named`; choosing what to implement is
   never a ruling.
@@ -1210,30 +1253,22 @@ requested mode apart from the effective one:
   rulings and never a whole-run stop: the drift question after a resume
   ("the tree changed while paused; continue or stop?") and the
   `needs-ruling` a controller returns on a resume (which the skill asks of
-  the owner even under hands-off) ledger `Section N: parked (noask:
+  the owner even under `handsoff`) ledger `Section N: parked (noask:
   <question>)`, the driver prints `blocked: <question>` and takes the next
   unit that does not depend on it. A `paused` return whose point is a
   denied tool, and a second `failed` return, are parked the same way. With
   no independent unit left the driver ends on `noask: blocked: <why>`. An
   owner's `pause` in force is honoured as today, the driver ending on the
-  waiting line.
-- Publication authority is the owner's word, never noask's: the `hands-off`
-  ending's push and merge request creation run only when the owner gave
-  `hands-off` at launch, the status reads `off` at that moment, and the
-  run's ledger holds no `Noask:` line, `seen on` and `status unreadable`
-  alike, which is the pointer's own test. A run that was under noask
-  at any point, by either switch, or that could not read its status at
-  some point, does not publish, whatever the status
-  says at its end, because an
-  expiry at 07:30, or an `off` typed before the owner has read
-  anything, would otherwise turn a suppressed push back on. Such a run
-  ledgers `Hands-off: not pushed (noask)` and the final message says the
-  push is pending. Once noask is off the rest of this list no longer
-  binds the run; this rule does, to its end. One case is outside it, a
-  stated limit (owner, 2026-11-13): a switch turned on and off again
-  between two of the driver's status reads is never seen by the driver,
-  which ruled nothing under it, and the run publishes as its `hands-off`
-  said.
+  waiting line. A `handsoff` run while noask is off keeps asking those two
+  questions, as today: both arise on a resume, which the owner has just
+  typed.
+- Publication is the owner's word and nothing else: the `handsoff`
+  ending's push and request run when the owner gave `handsoff` at launch,
+  and never otherwise. The status plays no part. When the push is refused,
+  which happens under noask in a session that did not see the launch
+  typed (Intervention 4), the driver ledgers `Handsoff: not pushed
+  (refused under noask)`, the final message names the branch and says the
+  push is pending, and nothing is retried in another spelling.
 - The run commits on the branch it was launched on, as the skill says, a
   default branch included: the owner launched it there, and the rule's
   `blocked: commit on <branch>` is for a session doing its own work.
@@ -1248,37 +1283,40 @@ requested mode apart from the effective one:
   <final status>` when the final phase ended with anything but `complete`.
 
 **Worked example, one session by day.** 15:00, the owner at the desk with
-two sessions. Session A is an apply driver launched with `hands-off`;
-session B is where the owner works. The owner types `/noask on 3h` in A,
+two sessions. Session A is an apply driver the owner launched there with
+`/sdd:apply docs/plan.md handsoff`; session B is where the owner works.
+The owner types `/noask on 3h` in A,
 which prints `noask: on for this session since 15:00 until 18:00` and,
 A being idle on its unit, submits the wake-up turn; A answers it with
 its waiting line and nothing else. A's
-next status read ledgers `Noask: seen on at 15:01`; at 15:40 its
-controller returns `needs-ruling`, and the driver resumes it with "Mode:
-hands-off (noask): rule and continue". At 15:50 session B ends a turn on
+next status read ledgers `Noask: seen on at 15:01`; at 15:40 the driver
+meets the drift question of a resumed unit, which `handsoff` alone would
+have put to the owner, and parks the unit instead. At 15:50 session B
+ends a turn on
 "I recommend splitting the migration; shall I?" and waits for the owner
 as on any other day, because B's reading is off: the global marker does
-not exist and neither does B's own. At 17:10 A's run ends with
-`Hands-off: not pushed (noask)`, "Rulings I made" and `noask: done`; the
-push waits for the owner although the owner never left. At 18:00 A's
-switch expires, and a question A asks at 18:05 reaches the owner; had
-the run still been going then, its ledger's `Noask: seen on` line would
-have kept the reference, and so the push, held to its end.
+not exist and neither does B's own. At 17:10 A's run ends: the fence lets
+its push through, because the owner typed the launch with `handsoff` in
+this session, and the run opens its request with the rulings as the
+description, ledgers `Handsoff: pushed <sha7>, <request URL>` and ends
+on `noask: done`. Had A been launched without the word it would have
+ruled the same way and ended unpushed. At 18:00 A's switch expires, and
+a question A asks at 18:05 reaches the owner.
 
 **Worked example, every session by night.** 23:00, three sessions in
 three worktrees of one project, each with a branch the owner created.
 `noask global on until 07:30` in a terminal prints the marker path; each
 session picks the marker up at its
 next hook event. Session A is an apply driver launched by day with
-`hands-off`, mid-unit: its first status read after 23:00 ledgers `Noask:
+`handsoff`, mid-unit: its first status read after 23:00 ledgers `Noask:
 seen on at 23:04`; each wait turn ends on `noask: waiting: Section 3:
-handed to controller`, which the Stop hook allows; at 01:20 the controller
-returns `needs-ruling` ("the spec and the code disagree on the sort key");
-the driver resumes the controller with "Mode: hands-off (noask): rule and
-continue", ledgers `Noask: hands-off implied since 23:04`, and the
-controller rules and parks or completes as the loop says; at 04:00 the run
-ends with `Hands-off: not pushed (noask)`, "Rulings I made" and `noask:
-done`. Session B is a plain session reviewing a plan: at 00:40 it ends a
+handed to controller`, which the Stop hook allows; at 01:20 its
+controller, which carries `Mode: handsoff` since the launch, meets "the
+spec and the code disagree on the sort key", rules, and parks or
+completes as the loop says; at 04:00 the run
+ends, pushes its branch and opens the request (`Handsoff: pushed <sha7>,
+<request URL>`), prints "Rulings I made" and `noask: done`. Session B is
+a plain session reviewing a plan: at 00:40 it ends a
 turn with "I recommend splitting task 4; shall I?"; the Stop hook blocks
 with the rule; it prints `Ruling: split task 4 into 4a and 4b. Cost if
 wrong: one commit to fold them back`, edits the plan, commits on its
@@ -1295,10 +1333,12 @@ this session since 23:05 until 07:05 (8 hours by default; /noask on
 07:30` and submits the wake-up turn; it answers its own
 question, rules, and continues. 07:30, the global marker expires (D's
 own ended at 07:05) and every hook goes inert at its next event; at 09:00
-the owner's first `noask` prints `noask: off (expired 07:30)`, and session
-A's run has not pushed itself, because its ledger holds `Noask: seen on`.
-The owner reads three "Rulings I made" lists, one spec, `git log
-dev..<branch>` per worktree, and pushes.
+the owner's first `noask` prints `noask: off (expired 07:30)`. Session
+A's request is open with its rulings as the description, because the
+owner gave that run `handsoff`; sessions B and D pushed nothing, because
+no word of the owner's covered a push of theirs. The owner reads three
+"Rulings I made" lists, one spec and one request, `git log
+dev..<branch>` in the worktrees that did not publish, and pushes those.
 
 **What stays as it is.** `SubagentStop` is not registered, so controllers,
 implementers and reviewers return exactly as today. The classifier's own
@@ -1319,8 +1359,9 @@ Acceptance for phase 2:
    reviews of the plan added: whether a module hook on the session's
    start fires with its source; whether a subagent's stop reaches the
    Stop hook; whether a goal proposal's dialog is preceded by a
-   permission request; and the text a command hook receives on its
-   standard input, kept verbatim for the command's tests.
+   permission request; the text a command hook receives on its
+   standard input, kept verbatim for the command's tests; and whether
+   the module sees a launch the owner types, with its text.
 2. The module's tests cover, per hook: inert without the marker and on an
    expired one; inert under another session's marker; the global marker
    read before the session's own; unreadable treated as on with the
@@ -1348,8 +1389,10 @@ Acceptance for phase 2:
    continues while the session beside it asks as usual. By night, under
    `noask global on`: a plain session that ends on a
    recommendation continues and rules; a session that reaches a push
-   prints `blocked:` and goes on; an apply run launched with `hands-off`
-   by day ends on `Hands-off: not pushed (noask)` and `noask: done`; a
+   prints `blocked:` and goes on; an apply run launched with `handsoff`
+   by day, in a scratch repository with a scratch remote, pushes its
+   branch and ends on `noask: done`, and one launched without the word
+   rules for itself and ends unpushed; a
    session in plan mode ends on `noask: blocked: plan awaits review`; in the
    morning `noask` prints `off (expired <time>)` and no session is waiting
    on a dialog.
@@ -1386,11 +1429,11 @@ undesigned.
    shared contract; each holds three `key=value` lines, the activation
    generation (nanosecond time plus a random suffix), the start time and
    the expiry.
-2. Noask never publishes: the `hands-off` push and merge request creation
-   need the owner's word, a status of `off` and a run ledger with no
-   `Noask:` line of either kind; the reference that carries this rule
-   applies for the rest of a run whose ledger has one; the earlier
-   `away_push` knob is gone.
+2. noask gives no right to publish and takes none away: the `handsoff`
+   ending's push and request need the owner's word at the run's launch
+   and nothing else (owner, 2026-11-13, replacing "noask never
+   publishes"). The earlier `away_push` knob stays gone: no switch lets
+   a session that is not such a run publish.
 3. Three end-of-turn tokens, `noask: waiting:`, `noask: done`,
    `noask: blocked:`, always the last line; the Stop hook matches the last
    line only, Markdown stripped, and no ledger phrase.
@@ -1418,9 +1461,9 @@ undesigned.
    each have a `userConfig` switch and ship on; every registration carries
    a `.catch` handler that answers the noask side. The wide fence is phase
    4.
-9. An unreadable status is the safe side of each decision: for the hooks,
-   on with the error shown; for the driver, off for rulings and on for
-   publication.
+9. An unreadable status counts as on, for the hooks and for the driver
+   alike, with the error shown: a driver that asked would only be
+   refused.
 10. The noask rules for the driver live in `references/noask.md`, because
     `SKILL.md` has no room under its compaction-safe limit (it is over
     the guard today and the move trims it), and the SessionStart hook
@@ -1500,11 +1543,18 @@ undesigned.
 29. The wake-up turn is conditional, since an idle session may be
     waiting on its own work, and a resumed or forked session counts as
     idle (owner, 2026-11-13).
-30. An activation that begins and ends between two status reads of an
-    apply driver is not seen by the run, which publishes as launched: a
-    stated limit (owner, 2026-11-13).
+30. Withdrawn in revision 12 with the rule it limited, noask taking a
+    push back.
 31. With no home directory both readers read off; a session with no id
     reads unreadable only while some session's own marker is on.
+32. `handsoff` is noask for one apply run plus the owner's word to
+    publish its ending. The fence lets that push and request through in
+    the session where the owner typed the launch, and nowhere else
+    (owner, 2026-11-13).
+33. The run-level word is `handsoff`, renamed from `hands-off` to sit
+    beside `noask`. The rename is a hard one: the old spelling is no
+    longer read at a launch, and only dated records keep it (owner,
+    2026-11-13).
 
 ### Left to the builder
 
