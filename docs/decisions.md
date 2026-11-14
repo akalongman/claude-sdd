@@ -835,3 +835,748 @@ has no remote, so its push and request were never reached); `tier=`
 past parsing; the launch with no argument; and a comparison of the
 dispatch payload with one recorded before the move, which the payload
 above was checked against the skill's text instead.
+
+## 4. Settle the noask hooks' unknowns (2026-11-15)
+
+```
+$ claude --version
+2.1.325 (Claude Code)
+```
+
+Every probe below ran on that build; every record of the probes'
+transcripts that names a version names that one:
+
+```
+$ cd ~/<second config dir>/projects/-home-<user>-projects-scratch-sdd-probe-2 && jq -r '.version // empty' *.jsonl */subagents/*.jsonl | sort | uniq -c
+    892 2.1.325
+```
+
+On 2026-11-15 the probes of Task 1 of the phase 2 plan (a local working
+document) ran in interactive sessions on a throwaway probe plugin,
+`noaskprobe`, to settle the eleven values that its Tasks 2 to 8 and 10
+read. The main finding is one the plan has no branch for. On the account
+the probes ran on, which belongs to a Team organization, Claude Code's
+built-in security default plugin, `cc-plugin-sec-default`, is seated
+outermost and passes over every `classic.*` hook of a hooks module a
+person installs, a `--plugin-dir` module included. The probe module's
+`classic.Stop`, `classic.PermissionRequest`, `classic.Elicitation`,
+`classic.SessionStart` and `classic.PostToolUse` hooks never ran in any
+probe; its `tool.call` and `session.start` hooks ran every time. Three
+values therefore take the plan's branch that stops for the owner (P2, P4,
+P6), two have no reading in the form the plan states (P3, P5), and six
+read as the plan expects (P1, P7, P8, P9, P10, P11), P9 with one part
+unobserved.
+
+The words used for the outcomes below:
+
+- **Passed over**: the engine ran what lies beneath a module's hook
+  without running the hook, and said so in a transcript notice,
+  `<plugin>: its <event> hook was skipped. "cc-plugin-sec-default" runs first and sent the event on past it.`
+- **Expected**: the value reads as the "Expected" column of the plan's
+  Step 11 table.
+- **Stop for the owner**: the table's branch in which the tasks that read
+  the value wait until the owner amends the spec or the plan. For such a
+  value nothing was changed and no fix was chosen.
+- **Not measured**: the probe ran as written, but what it measures never
+  happened, so the value has no reading in the form the plan gives it.
+
+### Setup
+
+The probe repository, a new git repository with one committed
+`README.md`; the empty `run/` beside it is the module's, below:
+
+```
+$ set -e; mkdir -p ~/projects/scratch/sdd-probe-2 && cd ~/projects/scratch/sdd-probe-2 && git init -q -b main && printf '# sdd-probe-2\n\nThrowaway repository for the noask probes of the sdd plugin, 2026-11-15.\n' > README.md && git add README.md && git commit -q -m "Add the probe README" -- README.md && mkdir run && git log --format='%h %G? %s' && git status --short --untracked-files=all
+f7ab02c G Add the probe README
+```
+
+The probe plugin, `~/projects/scratch/sdd-probe-plugin`, is never
+committed and stays for the owner. `.claude-plugin/plugin.json` names it
+`noaskprobe`. `hooks/hooks.json` holds a SessionStart command hook
+(matcher `startup|resume|clear|compact|fork`) that runs
+`scripts/session-start.sh`, and the module `./register.ts`. The script
+appends its stdin as one line to `start.log` in its working directory and
+prints
+`{"systemMessage":"noaskprobe: visible on <source>","hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"noaskprobe context line 7391"}}`.
+`mcp/ask-server.mjs` is probe D's stdio MCP server, plain Node with no
+dependency, loaded only through `mcp.json` with `--mcp-config`. The module
+logs one JSON line per event to `probe.log` in the session's working
+directory, with the fields of the plan's table plus `at` (the time) and
+`ev` (the event; `tool.call:Bash` and `tool.call:question` name the two
+matched `tool.call` hooks), and reads its mode from the file `probe-mode`
+there. Two choices are the module's own: `$.fs` has no append, so the
+module rewrites `probe.log` whole, one write after another; and its
+`session.start` runs `scripts/session-start.sh` by its path, with the line
+`{"hook_event_name":"probe","source":"process.run"}` on standard input and
+`run/` as its working directory, so that line lands in `run/start.log`
+and `start.log` holds the hook's lines alone.
+
+Step 1's check. The 23 lines between `env reads: HOME` and the result,
+the plugin-directory checks (a missing README, LICENSE and icon, which
+only a catalog submission needs), are left out:
+
+```
+$ claude plugin validate ~/projects/scratch/sdd-probe-plugin; echo "exit $?"
+Validating plugin manifest: ~/projects/scratch/sdd-probe-plugin/.claude-plugin/plugin.json
+
+⚠ Found 1 warning:
+
+  ❯ author: No author information provided. Consider adding author details for plugin attribution
+
+Validating hooks: ~/projects/scratch/sdd-probe-plugin/hooks/hooks.json
+
+  ❯ ./register.ts hooks: tool.call, tool.call{tool=AskUserQuestion|ExitPlanMode}, tool.call{tool=Bash}, classic.Stop, classic.PermissionRequest, classic.Elicitation, classic.SessionStart, classic.PostToolUse{tool_name=Bash}, session.start
+  ❯ ./register.ts gating hook without .catch: tool.call
+  ❯ ./register.ts gating hook without .catch: tool.call{tool=AskUserQuestion|ExitPlanMode}
+  ❯ ./register.ts gating hook without .catch: tool.call{tool=Bash}
+  ❯ ./register.ts gating hook without .catch: classic.Stop
+  ❯ ./register.ts gating hook without .catch: classic.PermissionRequest
+  ❯ ./register.ts gating hook without .catch: classic.Elicitation
+  ❯ ./register.ts gating hook without .catch: classic.SessionStart
+  ❯ ./register.ts gating hook without .catch: classic.PostToolUse{tool_name=Bash}
+  ❯ ./register.ts calls: $.command.list, $.env.get, $.fs.exists, $.fs.list, $.fs.read, $.fs.write (via log), $.process.run, $.session.id
+  ❯ ./register.ts env writes: nothing
+  ❯ ./register.ts env reads: HOME
+✔ Validation passed with warnings
+exit 0
+```
+
+**Sessions.** Each probe is one interactive session in `tmux`, started
+from `~/projects/scratch/sdd-probe-2` after `printf '<mode>\n' > probe-mode`
+with this command, `<extra flags>` and the session's name being the only
+parts that change:
+
+```
+tmux new-session -d -s noaskprobe -x 200 -y 50 -e CLAUDE_CONFIG_DIR="$CLAUDE_CONFIG_DIR" -c ~/projects/scratch/sdd-probe-2 'env -u CLAUDECODE -u CLAUDE_CODE_BRIDGE_SESSION_ID -u CLAUDE_CODE_CHILD_SESSION -u CLAUDE_CODE_ENTRYPOINT -u CLAUDE_CODE_EXECPATH -u CLAUDE_CODE_MESSAGING_SOCKET -u CLAUDE_CODE_MESSAGING_TOKEN -u CLAUDE_CODE_SESSION_ATTENDED -u CLAUDE_CODE_SESSION_ID -u CLAUDE_PID -u CLAUDE_EFFORT claude --plugin-dir ~/projects/scratch/sdd-probe-plugin --permission-mode auto <extra flags>' && tmux set-option -t noaskprobe remain-on-exit on
+```
+
+It departs from the plan's command in one flag, `-e`. A new `tmux`
+session takes its environment from the `tmux` server's global
+environment, not from the shell that runs `tmux`, and that environment
+held no Claude variable:
+
+```
+$ tmux show-environment -g CLAUDE_CONFIG_DIR
+unknown variable: CLAUDE_CONFIG_DIR
+$ tmux show-environment -g | cut -d= -f1 | /bin/grep -c -i claude
+0
+```
+
+Without `-e`, `claude` in the pane would have found `CLAUDE_CONFIG_DIR`
+unset and taken the default configuration directory (not tried); with it
+the probes ran in the one the driving shell uses, `~/<second config dir>`
+in this log's convention. The `env -u` prefix of
+entry 1 stays as the plan has it; here it unset nothing that was set.
+`remain-on-exit` keeps the screen of a session that ends.
+
+| Probe | Session | Mode | `<extra flags>` |
+|---|---|---|---|
+| F (P1) | `noaskprobe` | `log` | none |
+| E (P2) | `noaskprobe` | `stop-block` | none |
+| E, control | `noaskprobe` | `log` | `--settings ~/projects/scratch/sdd-probe-2/settings/stop-control.json` |
+| A (P3) | `noaskprobe` | `log` | none |
+| B (P4) | `noaskprobe`, then `noaskprobe-continue`, then `noaskprobe-fork` | `log` | none, then `--continue`, then `--resume 2418e7f6-bf12-481f-b821-56c353b42e57 --fork-session` |
+| C (P5) | `noaskprobe` | `deny-permission` | `--settings '{"permissions":{"ask":["Bash(touch:*)"]}}'` |
+| D (P6) | `noaskprobe` | `block-elicitation` | `--mcp-config ~/projects/scratch/sdd-probe-plugin/mcp.json --allowedTools mcp__probe__ask` |
+| G (P7, P8): question | `noaskprobe` | `deny-question` | none |
+| G: plan approval | `noaskprobe` | `deny-question` | none, and `--permission-mode plan` in place of `--permission-mode auto` |
+| G: subagent | `noaskprobe` | `log` | none |
+| H (P9, P10) | `noaskprobe`, then `noaskprobe-continue`, then `noaskprobe-fork` | `log` | none, then `--continue`, then `--resume 5df42bc3-5545-4560-8103-adc8c5c5f89b --fork-session` |
+| I (P11) | `noaskprobe` | `log` | none |
+
+Each prompt was typed with `tmux send-keys -t <session> '<prompt>'`, and
+Enter sent as its own key once the text showed. Twice an Enter was lost,
+once sent in the same call as a long prompt and once just after a fork's
+start, and was sent again. Screens were read with
+`tmux capture-pane -p -t <session> -S -300`; a quoted screen is an
+excerpt, without blank lines and without the status line, which names the
+account. Waits were bounded loops on the logs and transcripts. The
+transcripts are
+`~/<second config dir>/projects/-home-<user>-projects-scratch-sdd-probe-2/<session id>.jsonl`,
+written in UTC. After each probe its logs moved to
+`~/projects/scratch/sdd-probe-2/logs/<probe>.<log>`, where the commands
+below read them, and its `tmux` session was killed.
+
+The first start in the new folder asked whether to trust it, and "Yes, I
+trust this folder" was chosen, which records that folder's trust in the
+configuration directory's state file. Nothing else outside this
+repository and `~/projects/scratch/` changed: in probe G, plan mode's
+write of a plan file into the configuration directory's `plans/` was
+declined, and `~/.local/state/sdd/` stayed absent.
+
+**The owner's hooks and plugins.** The sessions load the user's settings
+and plugins beside the probe plugin, and the user settings' default mode
+is auto. They were read before the Stop, permission and tool-call probes.
+The settings' Stop hook and their Notification hook (matcher
+`permission_prompt`) each play a sound and are `async`, so neither can
+block, approve or alter anything. Their PreToolUse hook on `Bash|Monitor`
+refuses only a push of the public dotfiles with hooks bypassed and a
+`core.hooksPath` write, and otherwise exits 0 with no output, so it
+neither approved nor refused a probe's command, none of which holds a push
+or a hooks path. Their WorktreeCreate and WorktreeRemove hooks never
+fired. Of the enabled plugins, superpowers adds SessionStart context;
+laterbox adds a SessionStart command hook and a module that hooks only its
+own command and tool; a PHP inspection plugin hooks PostToolUse on edits
+and SessionStart; a PHP language-server plugin has no hooks; and a status
+plugin's module mirrors the session's state into a `tmux` pane option,
+hooking `tool.call`, `tool.check` and classic events and always passing
+on. None of them could block, approve or alter what a probe observes; the
+status plugin's classic hooks were passed over as the probe's were. No
+permission rule of the user's names a command the prompts asked for.
+
+### What passes over the module's classic hooks
+
+Every session's start showed the SessionStart notice on its screen.
+Across the run's sixteen transcripts, the probe plugin's notices (a
+fork's transcript repeats the records it copied, so the counts include
+copies):
+
+```
+$ cd ~/<second config dir>/projects/-home-<user>-projects-scratch-sdd-probe-2 && jq -r 'select(.type=="system" and .subtype=="informational") | .content' *.jsonl | /bin/grep -F 'noaskprobe:' | sort | uniq -c
+      1 noaskprobe: its classic.Elicitation hook was skipped. "cc-plugin-sec-default" runs first and sent the event on past it.
+      2 noaskprobe: its classic.PermissionRequest hook was skipped. "cc-plugin-sec-default" runs first and sent the event on past it.
+     11 noaskprobe: its classic.PostToolUse hook was skipped. "cc-plugin-sec-default" runs first and sent the event on past it.
+     21 noaskprobe: its classic.SessionStart hook was skipped. "cc-plugin-sec-default" runs first and sent the event on past it.
+     19 noaskprobe: its classic.Stop hook was skipped. "cc-plugin-sec-default" runs first and sent the event on past it.
+```
+
+The status plugin's `classic.Notification`, `classic.Elicitation` and
+`classic.ElicitationResult` hooks were passed over the same way. The
+module's own logs hold no line for a classic event in any probe:
+
+```
+$ cd ~/projects/scratch/sdd-probe-2/logs && ls *.probe.log | wc -l && cat *.probe.log | jq -r .ev | sort | uniq -c
+12
+     16 session.start
+     28 tool.call
+     12 tool.call:Bash
+      2 tool.call:question
+```
+
+The built-in plugin's description and the rule that picks what it passes
+over, read from this build's executable:
+
+```
+$ /bin/grep -a -o -E 'Security default: [^`"]*of its own' ~/.local/share/claude/versions/2.1.325 | sort -u
+Security default: seated outermost on a machine with managed settings and for Team and Enterprise organizations unless managed prependPlugins is set, in which case the organization lists cc-plugin-sec-default@builtin there or not; keeps the organization's classic hooks, prompt content, settings and tool policy out of reach of the plugins a person installs, and adds no policy of its own
+$ /bin/grep -a -o -E 'var Pas=Object\.freeze\(\[[^]]*\]\);function Ias\(r\)\{[^}]*\}\)\}' ~/.local/share/claude/versions/2.1.325 | sort -u
+var Pas=Object.freeze(["prompt.section","prompt.context","prompt.attachment","prompt.compose","skill.prompt","attribution.text","session.compact","settings.read"]);function Ias(r){return r.filter((p)=>{let o=uje.filter((e)=>a7(p,e));return o.length>0&&o.every((e)=>e.startsWith("classic.")||Pas.includes(e))})}
+```
+
+`Ias` keeps each pattern of a user-tier plugin's hooks whose every
+matched event starts with `classic.` or is one of the eight in `Pas`;
+those are the hooks the transcripts name as passed over. `tool.call` and
+`session.start` are in neither, and those hooks ran. The machine has no
+managed settings (`ls /etc/claude-code` reports no such directory), so
+the seat comes from the organization; every session's header reads
+"Claude Team". No probe ran on an account of another plan, so whether a
+module's classic hooks run there is not observed here. Hooks that are not
+a module's ran: the probe plugin's SessionStart command hook wrote
+`start.log` on every source, and settings hooks ran (the owner's, and
+probe E's control below).
+
+### Probe F, the name (P1)
+
+Before any session:
+
+```
+$ type -a noask; compgen -c | /bin/grep -x noask; echo "exit $?"
+/bin/bash: line 1: type: noask: not found
+exit 1
+```
+
+The session's `session.start` line, whole; `noaskCommands` is the entries
+of `$.command.list()` named `noask`:
+
+```
+$ cd ~/projects/scratch/sdd-probe-2/logs && jq -c 'del(.at)' step2.probe.log
+{"ev":"session.start","sessionId":{"ok":true,"value":"e5736e01-3258-46b0-8601-5103be7a22bf"},"noaskCommands":{"ok":true,"value":[]},"reach":{"existsState":{"ok":true,"value":true},"existsMarker":{"ok":true,"value":false},"listState":{"ok":true,"value":"11 entries"},"readStateFile":{"ok":true,"value":"read 70 characters"},"readMarker":{"ok":false,"error":"HooksError: noaskprobe: $.fs.read(~/.local/state/sdd/noask) failed: ENOENT"}},"run":{"ok":true,"value":{"exitCode":0,"stdout":"{\"systemMessage\":\"noaskprobe: visible on process.run\",\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":\"noaskprobe context line 7391\"}}\n","stderr":"","isStdoutTruncated":false,"isStderrTruncated":false}}}
+```
+
+`/noask` typed in the session: the typeahead read
+`No commands match "/noask"`, and Enter gave the transcript's record:
+
+```
+$ cd ~/<second config dir>/projects/-home-<user>-projects-scratch-sdd-probe-2 && jq -c 'select(.type=="system") | .content' e5736e01-3258-46b0-8601-5103be7a22bf.jsonl
+"noaskprobe: its classic.SessionStart hook was skipped. \"cc-plugin-sec-default\" runs first and sent the event on past it."
+"Unknown command: /noask"
+```
+
+Result: the name is free. Expected.
+
+### Probe E, a module Stop block (P2)
+
+Mode `stop-block`; prompt `Reply with the single word apple.` The
+transcript's messages and the probe plugin's notices, in order:
+
+```
+$ cd ~/<second config dir>/projects/-home-<user>-projects-scratch-sdd-probe-2 && jq -c 'select(.type=="user" or .type=="assistant" or (.type=="system" and .subtype!="turn_duration" and (.subtype!="informational" or (.content | startswith("noaskprobe:"))))) | [.type, (if .type=="system" then .subtype + " " + (.content // "" | .[0:44]) else (.message.content | if type=="string" then . else map(.text // .type) | join(" ") end) end)]' 3b13895d-69ed-411e-9b04-0b86a17d9c67.jsonl
+["system","informational noaskprobe: its classic.SessionStart hook wa"]
+["user","Reply with the single word apple."]
+["assistant","thinking"]
+["assistant","apple"]
+["system","informational noaskprobe: its classic.Stop hook was skippe"]
+["system","stop_hook_summary "]
+```
+
+One assistant message, no block, and no Stop line in `probe.log`, which
+holds the `session.start` line alone.
+
+The control, mode `log`, with `--settings` naming a file that holds one
+`Stop` command hook. The hook appends its stdin to `stop-control.log`, so
+that the second Stop's input can be read, since the module writes no Stop
+line here, and blocks the first stop only:
+
+```
+$ cat ~/projects/scratch/sdd-probe-2/settings/stop-control.json ~/projects/scratch/sdd-probe-2/settings/stop-control.sh
+{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"\"$CLAUDE_PROJECT_DIR/settings/stop-control.sh\""}]}]}}
+#!/usr/bin/env bash
+# The control of probe E: a settings Stop hook that appends its stdin to
+# stop-control.log and blocks the first stop only.
+input=$(cat)
+printf '%s\n' "$input" >> stop-control.log
+if [ ! -e stop-control.blocked ]; then
+    : > stop-control.blocked
+    printf '%s\n' '{"decision":"block","reason":"probe: reply with the single word pineapple, then stop"}'
+fi
+```
+
+The same prompt, the same listing:
+
+```
+$ cd ~/<second config dir>/projects/-home-<user>-projects-scratch-sdd-probe-2 && jq -c 'select(.type=="user" or .type=="assistant" or (.type=="system" and .subtype!="turn_duration" and (.subtype!="informational" or (.content | startswith("noaskprobe:"))))) | [.type, (if .type=="system" then .subtype + " " + (.content // "" | .[0:44]) else (.message.content | if type=="string" then . else map(.text // .type) | join(" ") end) end)]' 28ae4af5-312b-49a7-b422-9f516269d34f.jsonl
+["system","informational noaskprobe: its classic.SessionStart hook wa"]
+["user","Reply with the single word apple."]
+["assistant","thinking"]
+["assistant","apple"]
+["system","informational noaskprobe: its classic.Stop hook was skippe"]
+["user","Stop hook feedback:\nprobe: reply with the single word pineapple, then stop"]
+["system","stop_hook_summary "]
+["assistant","thinking"]
+["assistant","pineapple"]
+["system","stop_hook_summary "]
+$ cd ~/projects/scratch/sdd-probe-2/logs && jq -c '{stop_hook_active, last_assistant_message, background_tasks, session_crons, agent_id}' step3c.stop-control.log
+{"stop_hook_active":false,"last_assistant_message":"apple","background_tasks":[],"session_crons":[],"agent_id":null}
+{"stop_hook_active":true,"last_assistant_message":"pineapple","background_tasks":[],"session_crons":[],"agent_id":null}
+```
+
+Result: the module's block does not continue the session, because the
+module's Stop hook never runs; the settings hook blocks, the session
+answers `pineapple`, and the second Stop's input reads
+`stop_hook_active: true`. The difference between the two transcripts is
+exactly that: the control's has the block's feedback message and a second
+assistant message, the probe's has neither. Both Stop inputs of the
+control carry `background_tasks` and `session_crons`, empty.
+
+### Probe A, background work in the Stop input (P3)
+
+Mode `log`. Prompt 1:
+`Start one background subagent whose task is: run "sleep 45" in your shell, then reply finished. Do not wait for it; reply started and end your turn.`
+Prompt 2, after the subagent's notification and the turn after it:
+`Schedule a one-shot wakeup five minutes from now with the prompt "probe wakeup", reply scheduled and end your turn.`
+The main session's tool calls, the subagent's shell result, and the
+system records:
+
+```
+$ cd ~/<second config dir>/projects/-home-<user>-projects-scratch-sdd-probe-2 && jq -c 'select(.type=="assistant") | .message.content[]? | select(.type=="tool_use") | [.name, (.input.command // .input.cron // .input.subagent_type // .input.query)]' bfdce764-856b-465d-9d0f-6f354a30281b.jsonl
+["Agent","general-purpose"]
+["ToolSearch","select:CronCreate"]
+["Bash","date '+%Y-%m-%d %H:%M:%S %Z'; date -d '+5 minutes' '+%M %H %d %m'"]
+["CronCreate","33 2 15 11 *"]
+$ cd ~/<second config dir>/projects/-home-<user>-projects-scratch-sdd-probe-2 && jq -c 'select(.type=="user") | .message.content[]? | select(type=="object" and .type=="tool_result") | [.is_error, .content]' bfdce764-856b-465d-9d0f-6f354a30281b/subagents/*.jsonl | head -1
+[true,"<tool_use_error>Blocked: standalone sleep 45. To wait for a condition, use Monitor with an until-loop (e.g. `until <check>; do sleep 2; done`). To wait for a command you started, use run_in_background: true. Do not chain shorter sleeps to work around this block.</tool_use_error>"]
+$ cd ~/<second config dir>/projects/-home-<user>-projects-scratch-sdd-probe-2 && jq -c 'select(.type=="system") | [.timestamp[11:19], .subtype, .hookCount]' bfdce764-856b-465d-9d0f-6f354a30281b.jsonl
+["22:23:55","informational",null]
+["22:27:14","informational",null]
+["22:27:17","informational",null]
+["22:27:17","stop_hook_summary",1]
+["22:27:17","turn_duration",null]
+["22:27:33","stop_hook_summary",1]
+["22:27:33","turn_duration",null]
+["22:28:02","stop_hook_summary",1]
+["22:28:02","turn_duration",null]
+```
+
+The three informational records are the probe plugin's SessionStart,
+PostToolUse and Stop notices. Three stops ran (the turn of prompt 1, the
+turn after the subagent's notification, the turn of prompt 2), each with
+one settings hook, the owner's sound, and the module's Stop hook was
+passed over at each, so there are no Stop lines to record. The subagent
+never slept: this build refuses a standalone foreground `sleep` in a
+subagent's shell as well, and the screen reported
+`Agent "Sleep 45 then report" finished · 8s`. The wakeup was set for
+02:33 local time (22:33 UTC); the session was killed at 22:28:10 UTC,
+before it could fire.
+
+Result: not measured. The module receives no Stop input, so the type,
+status and cron fields it would read are not observed, and no subagent's
+stop reached the module's Stop hook. The control of probe E shows the
+arrays present, and empty, in a settings hook's Stop input.
+
+### Probe B, SessionStart's message and the module's event (P4)
+
+Mode `log`, prompt `Quote the noaskprobe context line you were given, or say none.`
+after each of the start, `/clear`, `/compact`, `claude --continue` in a
+new `tmux` session, and `claude --resume <that session's id> --fork-session`
+in another. The hook's input at each moment, and the module's
+`session.start` lines:
+
+```
+$ cd ~/projects/scratch/sdd-probe-2/logs && jq -c '[.source, .session_id[0:8]]' step5.start.log && jq -c '[.ev, .sessionId.value[0:8]]' step5.probe.log
+["startup","2b9e7af9"]
+["clear","2418e7f6"]
+["compact","2418e7f6"]
+["resume","2418e7f6"]
+["fork","e1cba57b"]
+["session.start","2b9e7af9"]
+["session.start","2418e7f6"]
+["session.start","e1cba57b"]
+```
+
+What reached the session, from the transcripts' records of the hook's
+system message and context (the fork's transcript repeats the
+compaction's two records with their original times):
+
+```
+$ cd ~/<second config dir>/projects/-home-<user>-projects-scratch-sdd-probe-2 && for s in 2b9e7af9-de9a-43e9-9b41-3be1894f6663 2418e7f6-bf12-481f-b821-56c353b42e57 e1cba57b-81e2-4f48-9f2e-65e10d32337d; do echo "${s:0:8}"; jq -c 'select(.type=="attachment" and (.attachment.type=="hook_system_message" or .attachment.type=="hook_additional_context")) | [.timestamp[11:19], .attachment.type, .attachment.hookName, (.attachment.content | if type=="array" then map(select(test("noaskprobe"))) | join("") else . end)]' $s.jsonl; done
+2b9e7af9
+["22:28:28","hook_system_message","SessionStart:startup","noaskprobe: visible on startup"]
+["22:28:29","hook_additional_context","SessionStart","noaskprobe context line 7391"]
+2418e7f6
+["22:28:56","hook_system_message","SessionStart:clear","noaskprobe: visible on clear"]
+["22:28:57","hook_additional_context","SessionStart","noaskprobe context line 7391"]
+["22:29:48","hook_system_message","SessionStart:compact","noaskprobe: visible on compact"]
+["22:29:49","hook_additional_context","SessionStart","noaskprobe context line 7391"]
+e1cba57b
+["22:29:48","hook_system_message","SessionStart:compact","noaskprobe: visible on compact"]
+["22:29:49","hook_additional_context","SessionStart","noaskprobe context line 7391"]
+```
+
+The screens agree: `⎿  SessionStart:startup says: noaskprobe: visible on startup`,
+`⎿  SessionStart:clear says: noaskprobe: visible on clear` and
+`⎿  SessionStart:compact says: noaskprobe: visible on compact` showed
+after their moments, and no line naming `resume` or `fork` showed on the
+screens of the continue and the fork, before or after their prompt. After
+the start, the clear and the compaction the reply quoted
+`noaskprobe context line 7391` from a record of that moment. After the
+continue it quoted the line too, but the transcript gained no record at
+the resume, so the line was the compaction's copy, still in the resumed
+conversation. After the fork the reply said the line was in the context
+"at the top of the conversation" and that "no new noaskprobe line came
+with" the fork.
+
+| Moment | Hook input `source` | Message shown | Context record | Module `classic.SessionStart` | Module `session.start` |
+|---|---|---|---|---|---|
+| start | `startup` | yes | yes | passed over | fired |
+| `/clear` | `clear` | yes | yes | passed over | did not fire |
+| `/compact` | `compact` | yes | yes | passed over | did not fire |
+| `--continue` | `resume` | no | no | passed over | fired |
+| `--resume ... --fork-session` | `fork` | no | no | passed over | fired |
+
+Result: the message shows on startup, clear and compact, and not on
+resume or fork; the context is read on those three and not on resume or
+fork; the module's `classic.SessionStart` fires on no source, so its
+`source` is not observed. The module's own `session.start` fired at each
+process start (startup, continue, fork), not on clear or compact, and its
+`$.session.id()` matched the hook's `session_id` of the same moment each
+time, compared whole:
+
+```
+$ cd ~/projects/scratch/sdd-probe-2/logs && diff <(jq -r '.sessionId.value' step5.probe.log) <(jq -r 'select(.source=="startup" or .source=="resume" or .source=="fork") | .session_id' step5.start.log); echo "diff exit $?"
+diff exit 0
+```
+
+### Probe C, three denials against auto mode's pause (P5)
+
+Mode `deny-permission`, the session started with
+`--settings '{"permissions":{"ask":["Bash(touch:*)"]}}'`. Prompt:
+`Run these four commands one at a time, each as its own shell call, and go on to the next when one is denied: touch a1; touch a2; touch a3; touch a4. Then reply done.`
+The first `touch` opened the permission dialog:
+
+```
+ Bash command
+ Create empty file a1
+ touch a1
+ Ask rule Bash(touch:*) overrides auto mode for this command.
+ /permissions to let auto mode decide
+
+ Do you want to proceed?
+ ❯ 1. Yes
+   2. No
+
+ Esc to cancel · Tab to amend
+```
+
+It was dismissed with Escape, which refused the call and ended the turn
+(`Interrupted · What should Claude do instead?`). The transcript and the
+module's lines:
+
+```
+$ cd ~/<second config dir>/projects/-home-<user>-projects-scratch-sdd-probe-2 && t=08051279-cc26-4f3e-aac0-18dbae2c49cf.jsonl && jq -c 'select(.type=="assistant") | .message.content[]? | select(.type=="tool_use") | [.name, .input.command]' $t && jq -c 'select(.type=="user") | .message.content[]? | select(type=="object" and .type=="tool_result") | [.is_error, (.content | .[0:72])]' $t && jq -c 'select(.type=="system" and (.subtype!="informational" or (.content | startswith("noaskprobe:")))) | [.subtype, (.content // "" | .[0:62])]' $t
+["Bash","touch a1"]
+[true,"The user doesn't want to proceed with this tool use. The tool use was re"]
+["informational","noaskprobe: its classic.SessionStart hook was skipped. \"cc-plu"]
+["informational","noaskprobe: its classic.PermissionRequest hook was skipped. \"c"]
+["turn_duration",""]
+$ cd ~/projects/scratch/sdd-probe-2/logs && jq -c 'select(.ev!="session.start") | del(.at)' step6.probe.log
+{"ev":"tool.call","tool":"Bash"}
+{"ev":"tool.call:Bash","agentId":null,"sessionId":"08051279-cc26-4f3e-aac0-18dbae2c49cf"}
+```
+
+Result: not measured. The module's `classic.PermissionRequest` hook was
+passed over, so it denied nothing and logged no line, and the first
+`touch` waited on the dialog. None of `a1` to `a4` was created.
+
+### Probe D, a blocked elicitation (P6)
+
+Mode `block-elicitation`, the session started with
+`--mcp-config ~/projects/scratch/sdd-probe-plugin/mcp.json --allowedTools mcp__probe__ask`.
+Prompt: `Call the tool mcp__probe__ask once and reply with its result text verbatim.`
+The server's question opened a dialog:
+
+```
+  MCP server “probe” requests your input
+
+  probe question
+
+  ❯ * answer: Type something…
+
+    Accept    Decline
+
+  Esc to cancel · ↑/↓ to navigate · Backspace to unset
+```
+
+It was dismissed with Escape. What the server received, the tool's
+result, the probe plugin's notices and the module's lines:
+
+```
+$ cd ~/projects/scratch/sdd-probe-2/logs && cat step7.elicit.log && jq -c 'select(.ev!="session.start") | del(.at)' step7.probe.log
+{"result":{"action":"cancel"},"jsonrpc":"2.0","id":"probe-elicit"}
+{"ev":"tool.call","tool":"ToolSearch"}
+{"ev":"tool.call","tool":"mcp__probe__ask"}
+$ cd ~/<second config dir>/projects/-home-<user>-projects-scratch-sdd-probe-2 && t=8abe21cf-658b-4010-8a50-1b3f365deca9.jsonl && jq -c 'select(.type=="user") | .message.content[]? | select(type=="object" and .type=="tool_result") | .content' $t && jq -c 'select(.type=="system" and (.subtype!="informational" or (.content | startswith("noaskprobe:")))) | [.subtype, (.content // "" | .[0:62])]' $t
+[{"type":"tool_reference","tool_name":"mcp__probe__ask"}]
+[{"type":"text","text":"elicitation answered: cancel"}]
+["informational","noaskprobe: its classic.SessionStart hook was skipped. \"cc-plu"]
+["informational","noaskprobe: its classic.PostToolUse hook was skipped. \"cc-plug"]
+["informational","noaskprobe: its classic.Elicitation hook was skipped. \"cc-plug"]
+["informational","noaskprobe: its classic.Stop hook was skipped. \"cc-plugin-sec-"]
+["stop_hook_summary",""]
+["turn_duration",""]
+```
+
+Result: the dialog showed, because the module's `classic.Elicitation`
+hook was passed over and blocked nothing. The server received a cancel,
+and that cancel was the Escape typed at the dialog, not the module's
+block.
+
+### Probe G, the tool-call refusals and the module's reach (P7, P8)
+
+Mode `deny-question`. Prompt:
+`Ask me one multiple-choice question with your question tool about which fruit I prefer; if the tool is refused, reply with the refusal text verbatim.`
+
+```
+$ cd ~/<second config dir>/projects/-home-<user>-projects-scratch-sdd-probe-2 && t=280f5869-223a-48c8-a75f-caecdeb67446.jsonl && jq -c 'select(.type=="assistant") | .message.content[]? | select(.type=="tool_use") | .name' $t && jq -c 'select(.type=="user") | .message.content[]? | select(type=="object" and .type=="tool_result") | [.is_error, .content]' $t && jq -c 'select(.type=="assistant") | .message.content[]? | select(.type=="text") | .text' $t
+"AskUserQuestion"
+[true,"<tool_use_error>probe: answer it yourself</tool_use_error>"]
+"The question tool refused the call. This is the refusal text, word for word:\n\nprobe: answer it yourself\n\nNothing is in flight, so it's safe to close the session."
+```
+
+No dialog showed. Then a session with `--permission-mode plan` and the
+prompt
+`Plan how to rename README.md and present the plan for approval; if the approval is refused, reply with the refusal text verbatim.`
+Plan mode first asked, in a permission dialog, to create a plan file under
+the configuration directory's `plans/`; "2. No" was chosen, to keep that
+directory unchanged, and the refusal ended the turn. A second prompt
+reached the approval without a file:
+`Do not write a plan file. Present the plan for approval now; if the approval is refused, reply with the refusal text verbatim.`
+
+```
+$ cd ~/<second config dir>/projects/-home-<user>-projects-scratch-sdd-probe-2 && t=5435751c-acf8-4109-aa79-44786a6d8961.jsonl && jq -c 'select(.type=="assistant") | .message.content[]? | select(.type=="tool_use") | .name' $t && jq -c 'select(.type=="user") | .message.content[]? | select(type=="object" and .type=="tool_result" and .is_error == true) | .content | .[0:96]' $t && jq -c 'select(.type=="assistant") | .message.content[]? | select(.type=="text") | .text' $t | tail -1
+"Bash"
+"Read"
+"Bash"
+"Write"
+"ToolSearch"
+"ExitPlanMode"
+"The user doesn't want to proceed with this tool use. The tool use was rejected (eg. if it was a "
+"<tool_use_error>probe: answer it yourself</tool_use_error>"
+"probe: answer it yourself"
+```
+
+The first refusal is the declined `Write` of the plan file; the second is
+the module's, on the plan-approval tool. No approval dialog showed. Then,
+mode `log`:
+`Dispatch one general-purpose subagent with the task: run "true" in your shell and reply ok.`
+
+```
+$ cd ~/<second config dir>/projects/-home-<user>-projects-scratch-sdd-probe-2/1e515da9-3a10-4d76-9ae5-7668d28ae798/subagents && ls && jq -c '{agentType}' *.meta.json && jq -c 'select(.type=="assistant") | .message.content[]? | select(.type=="tool_use" and .name=="Bash") | .input.command' *.jsonl
+agent-a080e1c5397cd9cd5.jsonl
+agent-a080e1c5397cd9cd5.meta.json
+{"agentType":"general-purpose"}
+"true"
+$ cd ~/projects/scratch/sdd-probe-2/logs && jq -c 'select(.ev=="tool.call:Bash") | {agentId, sessionId}' step8c.probe.log
+{"agentId":"a080e1c5397cd9cd5","sessionId":"1e515da9-3a10-4d76-9ae5-7668d28ae798"}
+```
+
+The module's `tool.call` line in the subagent carries the subagent's id,
+the one its transcript is named after. The module's reach (P8), from all
+sixteen `session.start` lines of the run (probe F's is quoted whole
+above):
+
+```
+$ cd ~/projects/scratch/sdd-probe-2/logs && cat *.probe.log | jq -c 'select(.ev=="session.start") | [.noaskCommands.value, .reach.existsState.ok, .reach.existsMarker.value, .reach.listState.value, .reach.readStateFile.value, .reach.readMarker.ok, .run.ok, .run.value.exitCode]' | sort | uniq -c
+     16 [[],true,false,"11 entries","read 70 characters",false,true,0]
+```
+
+`$.fs.exists` answered for `~/.local/state` and for the absent
+`~/.local/state/sdd/noask`, `$.fs.list` listed `~/.local/state`,
+`$.fs.read` read a file there and answered the absent marker with an
+`ENOENT` error, and `$.process.run` ran `scripts/session-start.sh` under
+`$.plugin.root` with its standard-input line, exit 0 (its output is in
+probe F's line above).
+
+Result: the question tool and the plan-approval tool were each refused
+with the module's text, which the session read, and no dialog showed;
+`agentId` is present in a subagent. Every call of the module's reach
+answered.
+
+### Probe H, the session's id and the hook's stdin (P9, P10)
+
+Mode `log`. Prompt 1:
+`Run "printenv CLAUDE_CODE_SESSION_ID; env | cut -d= -f1 | grep -i session" in your shell and reply with the output verbatim.`
+Prompt 2:
+`Dispatch one general-purpose subagent with the task: run "printenv CLAUDE_CODE_SESSION_ID" in your shell and reply with its output verbatim.`
+Then `/compact` and prompt 1; `/clear` and prompt 1; `claude --continue`
+in a new `tmux` session and prompt 1; and
+`claude --resume 5df42bc3-5545-4560-8103-adc8c5c5f89b --fork-session` in
+another and prompt 1. The first answer to prompt 1, its id line and the
+names that begin with `CLAUDE` (the filter cuts ten other names, of the
+desktop session and of shell tools):
+
+```
+$ cd ~/<second config dir>/projects/-home-<user>-projects-scratch-sdd-probe-2 && jq -r 'select(.type=="user") | .message.content | arrays | .[] | select(.type=="tool_result") | .content | strings' 2499fc52-759d-45bf-b333-fc601c164a06.jsonl | head -15 | /bin/grep -E '^[0-9a-f]{8}-|^CLAUDE'
+2499fc52-759d-45bf-b333-fc601c164a06
+CLAUDE_CODE_CHILD_SESSION
+CLAUDE_CODE_SESSION_ID
+CLAUDE_CODE_BRIDGE_SESSION_ID
+CLAUDE_CODE_SESSION_ATTENDED
+```
+
+At each stage, the shell's value (the first line of prompt 1's result in
+the stage's transcript; the fork's transcript repeats the results it
+copied, so its last is the fork's own), the hook input's `session_id`
+(`start.log`, one line per stage) and the module's `$.session.id()` (the
+main session's `tool.call:Bash` lines), compared whole and printed by
+their first 8 characters; then the subagent's shell value, its count of
+`classic.PostToolUse` lines, and its module line's `agentId` and session:
+
+```
+$ cd ~/projects/scratch/sdd-probe-2/logs && t=~/<second config dir>/projects/-home-<user>-projects-scratch-sdd-probe-2 && shell() { jq -r 'select(.type=="user") | .message.content | arrays | .[] | select(.type=="tool_result") | .content | strings | select(test("^[0-9a-f]{8}-")) | split("\n")[0]' "$@"; } && paste -d' ' <(printf '%s\n' start compact clear continue fork) <(shell $t/2499fc52-759d-45bf-b333-fc601c164a06.jsonl; shell $t/5df42bc3-5545-4560-8103-adc8c5c5f89b.jsonl; shell $t/3710476d-8a9a-4d9a-bd3b-6732d31f8ce1.jsonl | tail -1) <(jq -r .session_id step9.start.log) <(jq -r 'select(.ev=="tool.call:Bash" and .agentId==null) | .sessionId' step9.probe.log) | awk '{print $1, substr($2,1,8), substr($3,1,8), substr($4,1,8), ($2==$3 && $3==$4 ? "same" : "differ")}'; echo "subagent $(shell $t/2499fc52-759d-45bf-b333-fc601c164a06/subagents/*.jsonl | cut -c1-8) $(jq -r 'select(.ev=="classic.PostToolUse") | .session_id' step9.probe.log | wc -l) $(jq -r 'select(.ev=="tool.call:Bash" and .agentId!=null) | [.agentId, .sessionId[0:8]] | join(" ")' step9.probe.log)"
+start 2499fc52 2499fc52 2499fc52 same
+compact 2499fc52 2499fc52 2499fc52 same
+clear 5df42bc3 5df42bc3 5df42bc3 same
+continue 5df42bc3 5df42bc3 5df42bc3 same
+fork 3710476d 3710476d 3710476d same
+subagent 2499fc52 0 a61c32ccfc02ebae8 2499fc52
+```
+
+The hook's input by source, its keys in order:
+
+```
+$ cd ~/projects/scratch/sdd-probe-2/logs && jq -c '[.source, keys_unsorted]' step9.start.log
+["startup",["session_id","transcript_path","cwd","scratchpad_dir","hook_event_name","source","model"]]
+["compact",["session_id","transcript_path","cwd","scratchpad_dir","prompt_id","hook_event_name","source","model"]]
+["clear",["session_id","transcript_path","cwd","scratchpad_dir","hook_event_name","source"]]
+["resume",["session_id","transcript_path","cwd","scratchpad_dir","hook_event_name","source","seconds_since_last_response","context_tokens","prompt_cache_likely_expired","estimated_cache_write_usd"]]
+["fork",["session_id","transcript_path","cwd","scratchpad_dir","hook_event_name","source","seconds_since_last_response","context_tokens","prompt_cache_likely_expired","estimated_cache_write_usd"]]
+```
+
+P10 quotes the startup line (`head -1 step9.start.log`), one line of
+compact JSON, with the session id written `s-1`, the home directory
+`/home/u` (also inside the two directory names derived from it), and the
+configuration directory `<second config dir>`; it still parses as JSON.
+The SessionStart command hook does not run in a subagent, so `start.log`
+has no subagent line and the plan's `agent_id` case is not observed.
+
+Result: the variable is `CLAUDE_CODE_SESSION_ID`; the shell, the hook's
+input and the module agree at every stage; a compaction and a continue
+keep the id, a clear and a fork give a new one. The subagent's shell and
+its module line carry the main session's id; its hook input is not
+observed, because the module's `classic.PostToolUse` hook was passed over.
+
+### Probe I, a goal proposal's dialog (P11)
+
+Mode `log`. Prompt:
+`If you have a tool named ProposeGoal, call it once with the goal "probe goal" and with ask_user set to true, and reply with its result verbatim; otherwise reply none.`
+The reply was `none`, with no tool call. Because the reply alone does not
+show the tool absent, a second prompt asked:
+`Use your tool search to look for a tool named ProposeGoal and reply with what it found, verbatim.`
+The prompts, the calls, the start of each result and reply, and the
+session's listings of deferred tools (the result goes on to name the
+user's MCP servers that failed to connect, cut here):
+
+```
+$ cd ~/<second config dir>/projects/-home-<user>-projects-scratch-sdd-probe-2 && t=42bb31df-8a6a-45a0-bfb6-8cdf6f316f3d.jsonl && jq -c 'select(.type=="user") | .message.content | strings' $t && jq -c 'select(.type=="assistant") | .message.content[]? | select(.type=="tool_use") | [.name, .input]' $t && jq -c 'select(.type=="user") | .message.content[]? | select(type=="object" and .type=="tool_result") | .content | .[0:39]' $t && jq -c 'select(.type=="assistant") | .message.content[]? | select(.type=="text") | .text | .[0:60]' $t && jq -c 'select(.type=="attachment" and .attachment.type=="deferred_tools_delta") | {names: (.attachment.addedNames | length), proposeGoal: (.attachment.addedNames | index("ProposeGoal"))}' $t
+"If you have a tool named ProposeGoal, call it once with the goal \"probe goal\" and with ask_user set to true, and reply with its result verbatim; otherwise reply none."
+"Use your tool search to look for a tool named ProposeGoal and reply with what it found, verbatim."
+["ToolSearch",{"query":"select:ProposeGoal","max_results":5}]
+"No matching deferred tools found. Note:"
+"none"
+"Here is the search result, word for word:\n\n```\nNo matching d"
+{"names":169,"proposeGoal":null}
+{"names":0,"proposeGoal":null}
+```
+
+No `ProposeGoal` call reached the module (its only line besides
+`session.start` is the tool search), and no dialog showed. Since no call
+was made, the plan's repetition for a call without `ask_user: true` did
+not arise.
+
+Result: the tool is absent from these sessions.
+
+### What each value changes
+
+| Value | Observed | Branch taken |
+|---|---|---|
+| P1 | free | expected |
+| P2 | the module's Stop hook never runs (passed over); the settings hook's block continues | stop for the owner: the spec's choice of the module for the continuation falls; Task 8 is not started |
+| P3 | not measured: no Stop input reaches the module | the table's "the arrays never appear" branch, which drops condition 2 and the waiting check; moot while P2's stop holds Task 8 |
+| P4 | message on startup, clear and compact, not on resume or fork; context not read on resume or fork; the module's `classic.SessionStart` fires on no source | stop for the owner, by the table's last clause: the module's event does not fire and two sources are silent, so nothing then shows the morning line. Short of that clause, `SILENT_SOURCES` would take resume and fork, and `CONTEXT_SOURCES` all five. Tasks 3, 4 and 5 read P4 |
+| P5 | not measured: the module's PermissionRequest hook is passed over and denies nothing; the first `touch` opened the dialog | neither of the table's readings (no, yes); no branch taken; Task 7, which reads it, waits on P6's stop |
+| P6 | dialog shown; the server received the cancel typed at the dialog | stop for the owner: the spec provides no downgrade for an MCP server's question; Task 7 waits |
+| P7 | both refusals read, no dialog; `agentId` present | expected |
+| P8 | every call answered | expected |
+| P9 | `CLAUDE_CODE_SESSION_ID`; the three agree; same id after compact and continue, new after clear and fork; a subagent's shell and module carry the main session's id, its hook input not observed | expected for every observed part; whether a subagent's hook input carries the main session's id is open, because the module's `classic.PostToolUse` is passed over |
+| P10 | one line of JSON holding `session_id` and `source`; no subagent line, since the hook does not run in a subagent | expected, the subagent's `agent_id` case not observed |
+| P11 | the tool is absent | expected |
+
+### Leftovers
+
+Each probe's `tmux` session was killed when its probe ended, and the
+Step 4 wakeup with it. None of `a1` to `a4` was created, so none needed
+deleting. Before this entry's commit:
+
+```
+$ tmux ls 2>&1 | /bin/grep -E '^noaskprobe'; echo "grep exit $?"
+grep exit 1
+$ ls ~/projects/scratch/sdd-probe-2/a1 ~/projects/scratch/sdd-probe-2/a2 ~/projects/scratch/sdd-probe-2/a3 ~/projects/scratch/sdd-probe-2/a4 ~/.local/state/sdd 2>&1 | /bin/grep -c 'No such file or directory'
+5
+```
+
+The scratch directories stay for the owner: the probe repository with
+its `logs/` and `settings/`, and the probe plugin.
+
+### Pinned values
+
+- P1 name free: yes
+- P2 module stop block continues: no (the module's `classic.Stop` hook is passed over by `cc-plugin-sec-default` and never runs; a settings Stop hook's block continues, its second Stop input reading `stop_hook_active: true`)
+- P3 background tasks: not measured (no Stop input reaches the module: its `classic.Stop` hook was passed over at all three stops); stop in a subagent: not seen
+- P4 systemMessage shown: startup yes, clear yes, compact yes, resume no, fork no; context read: no, on resume, fork; module SessionStart: fires on no source (passed over), source not observed
+- P5 denials trip the pause: not measured (the module's `classic.PermissionRequest` hook is passed over and denies nothing; the first `touch` opened the permission dialog, screen quoted)
+- P6 elicitation: dialog shown; server received `{"result":{"action":"cancel"},"jsonrpc":"2.0","id":"probe-elicit"}` (the cancel of an Escape typed at the dialog)
+- P7 tool.call deny: question text read, no dialog, plan approval text read, no dialog, agentId in a subagent present
+- P8 module reach: exists, read and list outside the working directory ok, process.run under the plugin root with stdin ok
+- P9 session id: variable CLAUDE_CODE_SESSION_ID; shell, hook input and module agree yes; a subagent's shell, hook input and module carry the main session's (shell and module; hook input not observed); after compact same, after clear new, after continue same, after fork new
+- P10 hook stdin: `{"session_id":"s-1","transcript_path":"/home/u/<second config dir>/projects/-home-u-projects-scratch-sdd-probe-2/s-1.jsonl","cwd":"/home/u/projects/scratch/sdd-probe-2","scratchpad_dir":"/tmp/claude-1000/-home-u-projects-scratch-sdd-probe-2/s-1/scratchpad","hook_event_name":"SessionStart","source":"startup","model":"claude-opus-5-5"}`
+- P11 goal proposal: tool absent
