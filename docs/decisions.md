@@ -1541,7 +1541,7 @@ Result: the tool is absent from these sessions.
 |---|---|---|
 | P1 | free | expected |
 | P2 | the module's Stop hook never runs (passed over); the settings hook's block continues | stop for the owner: the spec's choice of the module for the continuation falls; Task 8 is not started |
-| P3 | not measured: no Stop input reaches the module | the table's "the arrays never appear" branch, which drops condition 2 and the waiting check; moot while P2's stop holds Task 8 |
+| P3 | not measured: no Stop input reaches the module, so the type, the live status, the finished form and `recurring` were not observed; the arrays do appear, empty, in a settings Stop hook's input (probe E's control) | no branch taken: not measured. The table's other branches need the observed strings, and its "the arrays never appear" branch does not fit, since the control shows them; the value is left for the owner, and a new measurement, if the owner wants one, follows the ruling on P2. Task 8, which reads it, waits on P2's stop |
 | P4 | message on startup, clear and compact, not on resume or fork; context not read on resume or fork; the module's `classic.SessionStart` fires on no source | stop for the owner, by the table's last clause: the module's event does not fire and two sources are silent, so nothing then shows the morning line. Short of that clause, `SILENT_SOURCES` would take resume and fork, and `CONTEXT_SOURCES` all five. Tasks 3, 4 and 5 read P4 |
 | P5 | not measured: the module's PermissionRequest hook is passed over and denies nothing; the first `touch` opened the dialog | neither of the table's readings (no, yes); no branch taken; Task 7, which reads it, waits on P6's stop |
 | P6 | dialog shown; the server received the cancel typed at the dialog | stop for the owner: the spec provides no downgrade for an MCP server's question; Task 7 waits |
@@ -1571,7 +1571,7 @@ its `logs/` and `settings/`, and the probe plugin.
 
 - P1 name free: yes
 - P2 module stop block continues: no (the module's `classic.Stop` hook is passed over by `cc-plugin-sec-default` and never runs; a settings Stop hook's block continues, its second Stop input reading `stop_hook_active: true`)
-- P3 background tasks: not measured (no Stop input reaches the module: its `classic.Stop` hook was passed over at all three stops); stop in a subagent: not seen
+- P3 background tasks: not measured (the module's `classic.Stop` hook is passed over and received no Stop input at any of the three stops, so the type, the live status, the finished form and the one-shot cron's `recurring` were not observed; the arrays do appear, empty, in a settings Stop hook's input, probe E's control); stop in a subagent: not observable (the module receives no Stop input); no branch of the plan's table taken, the value is left for the owner
 - P4 systemMessage shown: startup yes, clear yes, compact yes, resume no, fork no; context read: no, on resume, fork; module SessionStart: fires on no source (passed over), source not observed
 - P5 denials trip the pause: not measured (the module's `classic.PermissionRequest` hook is passed over and denies nothing; the first `touch` opened the permission dialog, screen quoted)
 - P6 elicitation: dialog shown; server received `{"result":{"action":"cancel"},"jsonrpc":"2.0","id":"probe-elicit"}` (the cancel of an Escape typed at the dialog)
