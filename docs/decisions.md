@@ -1053,27 +1053,31 @@ $ cd ~/projects/scratch/sdd-probe-2/logs && ls *.probe.log | wc -l && cat *.prob
       2 tool.call:question
 ```
 
-The built-in plugin's description and the rule that picks what it passes
-over, read from this build's executable:
+What the built-in plugin does is stated in the executable of build
+2.1.325, read there and paraphrased here. Its description says that
+`cc-plugin-sec-default` is seated outermost on a machine with managed
+settings and for Team and Enterprise organizations, unless the managed
+setting `prependPlugins` is set, in which case the organization lists the
+plugin there or leaves it out. It keeps the organization's classic hooks,
+prompt content, settings and tool policy out of reach of the plugins a
+person installs, and adds no policy of its own. The same build holds the
+rule that picks the hook patterns it passes over: a pattern is picked
+when it matches at least one event and every event it matches is a
+`classic.*` event or one of eight prompt and settings events,
+`prompt.section`, `prompt.context`, `prompt.attachment`,
+`prompt.compose`, `skill.prompt`, `attribution.text`, `session.compact`
+and `settings.read`. A pattern that matches any other event is not picked
+by that rule. Every hook the transcripts name as passed over is a
+`classic.*` one; `tool.call` and `session.start` are neither kind, and
+those hooks ran.
 
-```
-$ /bin/grep -a -o -E 'Security default: [^`"]*of its own' ~/.local/share/claude/versions/2.1.325 | sort -u
-Security default: seated outermost on a machine with managed settings and for Team and Enterprise organizations unless managed prependPlugins is set, in which case the organization lists cc-plugin-sec-default@builtin there or not; keeps the organization's classic hooks, prompt content, settings and tool policy out of reach of the plugins a person installs, and adds no policy of its own
-$ /bin/grep -a -o -E 'var Pas=Object\.freeze\(\[[^]]*\]\);function Ias\(r\)\{[^}]*\}\)\}' ~/.local/share/claude/versions/2.1.325 | sort -u
-var Pas=Object.freeze(["prompt.section","prompt.context","prompt.attachment","prompt.compose","skill.prompt","attribution.text","session.compact","settings.read"]);function Ias(r){return r.filter((p)=>{let o=uje.filter((e)=>a7(p,e));return o.length>0&&o.every((e)=>e.startsWith("classic.")||Pas.includes(e))})}
-```
-
-`Ias` keeps each pattern of a user-tier plugin's hooks whose every
-matched event starts with `classic.` or is one of the eight in `Pas`;
-those are the hooks the transcripts name as passed over. `tool.call` and
-`session.start` are in neither, and those hooks ran. The machine has no
-managed settings (`ls /etc/claude-code` reports no such directory), so
-the seat comes from the organization; every session's header reads
-"Claude Team". No probe ran on an account of another plan, so whether a
-module's classic hooks run there is not observed here. Hooks that are not
-a module's ran: the probe plugin's SessionStart command hook wrote
-`start.log` on every source, and settings hooks ran (the owner's, and
-probe E's control below).
+The machine has no managed settings (`ls /etc/claude-code` reports no
+such directory), so the seat comes from the organization; every
+session's header reads "Claude Team". No probe ran on an account of
+another plan, so whether a module's classic hooks run there is not
+observed here. Hooks that are not a module's ran: the probe plugin's
+SessionStart command hook wrote `start.log` on every source, and settings
+hooks ran (the owner's, and probe E's control below).
 
 ### Probe F, the name (P1)
 
