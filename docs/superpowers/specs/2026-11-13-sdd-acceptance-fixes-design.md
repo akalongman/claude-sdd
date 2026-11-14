@@ -1,20 +1,22 @@
 # sdd: the unit's file list, and `isolated` with or without a bootstrap
 
 Design, 2026-11-13. Status: approved by the owner on 2026-11-14, then
-revised the same day for the source rule (below). It answers the
-two findings of the plugin's acceptance (`docs/decisions.md` entry 3,
-commit `ad2edbf`): an OpenSpec brief carries no file list, and `isolated`
-stops in every project without a worktree bootstrap. The owner ruled the
-second in that entry and chose the approach to the first on 2026-11-13.
-A review of this design found two more defects in today's `isolated`,
-in projects with a bootstrap too, and on 2026-11-14 the owner ruled that
-their fixes apply to every `isolated` run. The approved draft fixed the
-first by requiring an OpenSpec change to be committed before the
-launch; the owner then replaced that rule with one for every kind of
-source, an OpenSpec change, a superpowers plan or a custom plan alike:
-the run copies the source into its worktree as it stands and commits
-none of it (Part 2, item 2). Line numbers below are at
-`7cca493`. The build comes after the phase 2
+revised the same day for the source rule and the run's end (below). It
+answers the two findings of the plugin's acceptance (`docs/decisions.md`
+entry 3, commit `ad2edbf`): an OpenSpec brief carries no file list, and
+`isolated` stops in every project without a worktree bootstrap. The
+owner ruled the second in that entry and chose the approach to the first
+on 2026-11-13. A review of this design found two more defects in today's
+`isolated`, in projects with a bootstrap too, and on 2026-11-14 the
+owner ruled that their fixes apply to every `isolated` run. The approved
+draft fixed the first by requiring an OpenSpec change to be committed
+before the launch; the owner then replaced that rule with one for every
+kind of source, an OpenSpec change, a superpowers plan or a custom plan
+alike: the run copies the source into its worktree as it stands and
+commits none of it (Part 2, item 2). Since that copy is then the only
+place holding the run's ticks and amendments, the run's end says where
+it is and keeps a copy of it in the run's archive (Part 2, item 11).
+Line numbers below are at `7cca493`. The build comes after the phase 2
 (noask) plan's Task 9, which rewrites the same two prompt files.
 
 ## Intent
@@ -359,7 +361,8 @@ The `isolated` text leaves `SKILL.md` for a new file,
 `skills/apply/references/isolated.md`. `SKILL.md` line 29 becomes one
 pointer: "**Isolated.** With `isolated`, or when `.worktrees/<name>`
 holds this run's ledger, `references/isolated.md` applies before item 1
-and any worktree, branch or dispatch." `<name>` is the change name for
+and any worktree, branch or dispatch, and again before the final
+message." `<name>` is the change name for
 OpenSpec and, for a plan, its file name without `.md` (my call: today's
 text never says, and a relaunch has to find the same folder again).
 
@@ -378,8 +381,9 @@ The reference says, in order:
    word, says where the run lives). A `.worktrees/<name>` folder or a
    `<name>` branch that exists without such a ledger stops the launch,
    naming what exists, and nothing is touched; a bootstrap that failed
-   on a first launch leaves exactly that. The steps below are for a
-   first launch.
+   on a first launch leaves exactly that. Items 2 to 10 are for a
+   first launch, and item 11 for the end of every run, relaunched or
+   not.
 2. **The source is copied as it stands.** The worktree is made from HEAD
    and holds only what is committed there: an uncommitted change is
    missing, a plan in an ignored plans folder is never there, and an
@@ -402,10 +406,11 @@ The reference says, in order:
      `needs-ruling`) and its ticks are made there. An edit made in the
      launch checkout after the launch does not reach the run, so the
      launch message names the copy's path and says so.
-   - The copy and its undo (item 8) are one script,
-     `skills/apply/scripts/source-copy` (my call): the undo has to put
-     back exactly what the copy replaced, and a driver following prose
-     would choose its own commands each time.
+   - The copy, its undo (item 8) and the copy into the run's archive
+     (item 11) are one script, `skills/apply/scripts/source-copy` (my
+     call): the undo has to put back exactly what the copy replaced,
+     and a driver following prose would choose its own commands each
+     time.
 
    This step holds for every first launch, with a bootstrap or without
    (the owner, 2026-11-14).
@@ -463,6 +468,28 @@ The reference says, in order:
     unforced removal refuses, so the copy, with the run's ticks and
     amendments, cannot vanish with the worktree unnoticed; the owner
     commits it on the run's branch or deletes it first.
+11. **The run's end says where the source now lives.** The worktree's
+    copy is the only one holding the run's ticks and amendments, and
+    item 10's refusal does not always guard it: git removes a copy it
+    ignores (a plan from an ignored plans folder) with the worktree
+    without a word, and a project's teardown may force the removal.
+    So, after `scripts/run-archive` has printed the run's archive path
+    and before the final message, the driver runs `mkdir -p
+    <archive>/source` and `scripts/source-copy <worktree root>
+    <archive>/source <path>...` with item 2's paths, so the source's
+    final state outlives the worktree whatever git ignores (my call).
+    The final message then names the copy in the worktree and the one
+    in the archive, and says how to keep the run's version: for an
+    OpenSpec change, run `/opsx:archive` inside the worktree, never in
+    the launch checkout, which still holds its own unticked version and
+    would merge those deltas into itself, then commit the result on the
+    run's branch, which is how it reaches the merge; for a plan, commit
+    the worktree's copy on the run's branch, or take it from the
+    archive. The launch checkout's own version is left as it was, for
+    the owner to delete or reconcile once the branch is merged: writing
+    the run's version back there could overwrite an edit made after the
+    launch. On a relaunch that finds the run done (the `all_done` path),
+    the archive suggestion names the worktree the same way.
 
 Since the reference applies before This machine's item 1, item 2's
 stop on uncommitted changes in the units' files then runs in the
@@ -475,14 +502,14 @@ project's launch too (my call): today the check reads the main
 checkout, and stops for edits the run would never see.
 
 README's paragraph on `isolated` (lines 104 to 110) says the same in
-short, the relaunch and the source's copy included.
+short, the relaunch, the source's copy and the run's end included.
 
 ### Size
 
-The pointer frees 286 characters (458 out, 172 in), and the launch
-check's OpenSpec clause costs 101, so `SKILL.md` ends at 19,300 after
+The pointer frees 250 characters (458 out, 208 in), and the launch
+check's OpenSpec clause costs 101, so `SKILL.md` ends at 19,336 after
 noask's Task 9 (both edits measured on a copy of today's file,
-19,292, plus that task's 8). The rules this design
+19,328, plus that task's 8). The rules this design
 adds for every `isolated` run, the source's copy included, all live in
 the reference.
 
@@ -510,14 +537,19 @@ the reference.
   checkout (an edited, an untracked, an ignored and a deleted file, a
   file in a folder HEAD lacks, a name with a space), and the launch
   checkout is untouched; after the undo the worktree's status is clean,
-  and the unforced `git worktree remove` and `git branch -d` succeed.
+  and the unforced `git worktree remove` and `git branch -d` succeed;
+  a copy into a plain folder outside every repository (item 11's
+  archive) matches its source.
 - A text guard for `references/isolated.md`, as `references/noask.md`
-  has one (my call): it pins the relaunch rule, the source's copy and
-  its undo, and the unforced removals.
+  has one (my call): it pins the relaunch rule, the source's copy, its
+  undo and its copy into the run's archive, the unforced removals, and
+  `/opsx:archive` inside the worktree.
 - The reference is prose a driver follows, so no script test runs it.
   The next acceptance run covers it: a first launch with an uncommitted
-  change (it runs from the copy, and the launch branch gains no
-  commit), a first launch without a bootstrap (a bare worktree), a
+  change (it runs from the copy, the launch branch gains no commit, and
+  at the end the run's archive holds the ticked `tasks.md` and the
+  final message says to run `/opsx:archive` inside the worktree), a
+  first launch without a bootstrap (a bare worktree), a
   relaunch from the main checkout without the word `isolated` (it goes
   on in the worktree), a plan from an ignored plans folder, and an
   untracked custom plan outside it.
@@ -562,6 +594,11 @@ The change ships as the next minor version after phase 2's, since
 12. The copy and its undo are one driver-side script; a failed gate run
     undoes the copy before the unforced removals, and the gate output
     goes outside the worktree.
+13. The run's end copies the source's final state into the run's
+    archive and says how to keep it (for OpenSpec, `/opsx:archive`
+    inside the worktree and a commit on the run's branch); nothing is
+    written back to the launch checkout, and the pointer in `SKILL.md`
+    sends the driver to the reference again before the final message.
 
 ## Left to the builder
 
