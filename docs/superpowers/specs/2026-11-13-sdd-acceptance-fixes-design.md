@@ -1,13 +1,19 @@
 # sdd: the unit's file list, and `isolated` with or without a bootstrap
 
-Design, 2026-11-13. Status: draft for the owner's review. It answers the
+Design, 2026-11-13. Status: approved by the owner on 2026-11-14, then
+revised the same day for the source rule (below). It answers the
 two findings of the plugin's acceptance (`docs/decisions.md` entry 3,
 commit `ad2edbf`): an OpenSpec brief carries no file list, and `isolated`
 stops in every project without a worktree bootstrap. The owner ruled the
 second in that entry and chose the approach to the first on 2026-11-13.
 A review of this design found two more defects in today's `isolated`,
 in projects with a bootstrap too, and on 2026-11-14 the owner ruled that
-their fixes apply to every `isolated` run. Line numbers below are at
+their fixes apply to every `isolated` run. The approved draft fixed the
+first by requiring an OpenSpec change to be committed before the
+launch; the owner then replaced that rule with one for every kind of
+source, an OpenSpec change, a superpowers plan or a custom plan alike:
+the run copies the source into its worktree as it stands and commits
+none of it (Part 2, item 2). Line numbers below are at
 `7cca493`. The build comes after the phase 2
 (noask) plan's Task 9, which rewrites the same two prompt files.
 
@@ -93,9 +99,15 @@ driver runs `git worktree add .worktrees/add-export -b add-export`
 again, which refuses because the branch and the folder exist, so an
 `isolated` run cannot be resumed at all.
 
-After this change the first launch stops with "commit the change
-first", a plan is read from the main checkout, and the relaunch goes on
-inside `.worktrees/add-export` from its ledger.
+After this change the driver, right after `git worktree add`, copies
+`openspec/changes/add-export/` from the checkout it was launched in into
+the worktree, uncommitted, exactly as it stands there. The bootstrap or
+the gate run, the brief script and every later read then find the change
+the owner launched, and no commit is made on `main` or on `add-export`
+for it. A plan from an ignored plans folder, or a custom plan such as an
+untracked `notes/migration-plan.md`, is copied the same way. The
+relaunch goes on inside `.worktrees/add-export` from its ledger and
+reads that copy.
 
 ## Goals
 
@@ -108,7 +120,8 @@ inside `.worktrees/add-export` from its ledger.
    gates pass in a bare worktree, and leaves nothing behind when they
    do not.
 4. Every `isolated` run, with a bootstrap or without, reads the source
-   the owner launched, and a relaunch goes on in the run's worktree.
+   the owner launched, whatever its kind and whether or not it is
+   committed, and a relaunch goes on in the run's worktree.
 5. `skills/apply/SKILL.md` stays inside its size limit after noask's
    Task 9.
 
@@ -128,6 +141,9 @@ inside `.worktrees/add-export` from its ledger.
 - A teardown for a bare worktree.
 - Plan briefs' text: their `**Files:**` block stays as the plan wrote
   it.
+- A document the source only points to (a design note a task links),
+  beyond a plan's `**Spec:**` line. It is not copied, and reaches an
+  `isolated` worktree as HEAD holds it.
 
 ## Anti-goals
 
@@ -138,10 +154,13 @@ inside `.worktrees/add-export` from its ledger.
 - A failed gate run that leaves a worktree or a branch behind, or a
   removal that is forced.
 - Any change to how a project's bootstrap runs. For a project with one,
-  this design adds a stop before the worktree (Part 2, item 2) and a
-  way back into it (item 1), and nothing between.
+  this design adds the source's copy just before the bootstrap (Part 2,
+  items 2 and 3) and a way back into the worktree (item 1), and nothing
+  else.
 - A run that reads one copy of its source while its implementers work
   from another.
+- A commit of the source the owner did not make, on the branch the run
+  was launched from or on the run's own branch.
 
 ## Constraints
 
@@ -191,6 +210,28 @@ is unchanged" to the letter but leaves both defects there, or to every
 `isolated` run. The owner chose every run on 2026-11-14: the defects are
 the same in both paths, and each fix only adds a clear stop or a clean
 way back in.
+
+For getting the source into the worktree there were three, and the
+owner chose the third on 2026-11-14:
+
+1. **Commit it first.** An OpenSpec change must be committed and clean
+   before the launch, and a plan is read from the launch checkout by
+   absolute path. It was the approved draft's rule. Its commit lands on
+   the branch the run is launched from, often `main` or `dev`, and a
+   project that changes those only through merge requests is left with
+   an unpushed commit there. It also treats an OpenSpec change and a
+   plan differently.
+2. **Copy it, and commit the copy** as the run branch's first commit.
+   The merge request then carries the source, but the run decides what
+   is committed: an untracked custom plan the owner kept out of the
+   repository goes in, and a plan from an ignored folder goes in only
+   by force.
+3. **Copy it as it stands, commit nothing (chosen).** One rule for
+   every kind of source, no commit anywhere, and the same treatment a
+   run without `isolated` gives its source, which it reads in place and
+   never commits (its ticks included). The cost: the run reads its own
+   copy, so an edit made in the launch checkout after the launch does
+   not reach it.
 
 ## Design
 
@@ -328,8 +369,10 @@ The reference says, in order:
    (`progress.md` in the workspace the source has inside that worktree)
    and its `Commit mode` line names that worktree, the driver runs from
    that worktree, This machine's item 1 resumes from that ledger, and
-   nothing is made or run again: no worktree, no branch, no bootstrap,
-   no gate run. This holds for a bootstrap worktree and a bare one, for
+   nothing is made, copied or run again: no worktree, no branch, no
+   copy, no bootstrap, no gate run. The run goes on reading the
+   worktree's copy of the source, not the launch checkout's. This holds
+   for a bootstrap worktree and a bare one, for
    a relaunch from the worktree or from the main checkout, and for one
    that leaves out the word `isolated` (my call: the ledger, not the
    word, says where the run lives). A `.worktrees/<name>` folder or a
@@ -337,33 +380,41 @@ The reference says, in order:
    naming what exists, and nothing is touched; a bootstrap that failed
    on a first launch leaves exactly that. The steps below are for a
    first launch.
-2. **The source is the one launched.** The worktree is made from HEAD
-   and holds only what is committed there.
-   - OpenSpec: `openspec/changes/<name>/` must be at HEAD
-     (`git ls-tree -d HEAD openspec/changes/<name>` prints it) with
-     nothing uncommitted under it
-     (`git status --porcelain -- openspec/changes/<name>` prints
-     nothing). Otherwise stop before creating anything and say to commit
-     the change first. With the change committed and clean, what the
-     driver read in the main checkout is what the worktree holds, and
-     the run's own amendments of the source (after a `needs-ruling`)
-     are made in the worktree.
-   - A plan: the driver resolves the plan's path, and the path of the
-     spec the plan names, to absolute paths in the main checkout before
-     it moves, and gives those to every script and dispatch. The
-     workspace still lands in the worktree, since `sdd-workspace` takes
-     the repository from the current folder, not from the plan's path.
-     A plan in the worktree would be missing where the plans folder is
-     ignored, and older than the launched one where an earlier copy was
-     committed.
+2. **The source is copied as it stands.** The worktree is made from HEAD
+   and holds only what is committed there: an uncommitted change is
+   missing, a plan in an ignored plans folder is never there, and an
+   older committed copy would be read in place of the launched one. So
+   right after `git worktree add` (items 3 and 5) the driver copies the
+   source's files from the checkout it was launched in into the
+   worktree, at the same paths relative to the repository root, as they
+   stand: a file edited there arrives edited, an untracked file
+   untracked, an ignored file ignored, and a file deleted there is
+   deleted in the worktree too. Nothing is committed, on the launch
+   branch or on the run's (the owner, 2026-11-14).
+   - The source's files: for an OpenSpec change, its folder
+     `openspec/changes/<name>/`; for a plan, at any path, the plan file
+     and the spec its `**Spec:**` line names, when it names one. A PRD
+     or spec turned into a plan at launch is a plan here, and the PRD is
+     the spec it names. A file outside the repository is not copied:
+     the run reads it where it is, by its absolute path.
+   - From then on every script and dispatch reads the worktree's copy,
+     and the run's own amendments of the source (after a
+     `needs-ruling`) and its ticks are made there. An edit made in the
+     launch checkout after the launch does not reach the run, so the
+     launch message names the copy's path and says so.
+   - The copy and its undo (item 8) are one script,
+     `skills/apply/scripts/source-copy` (my call): the undo has to put
+     back exactly what the copy replaced, and a driver following prose
+     would choose its own commands each time.
 
    This step holds for every first launch, with a bootstrap or without
    (the owner, 2026-11-14).
 3. **Find the bootstrap** as today, the first that exists of
    `composer worktree:setup`, `npm run worktree:setup` and
-   `make worktree:setup`. With one, `git worktree add`, the bootstrap
-   and the `Commit mode` line run as today, and items 4 to 8 do not
-   apply.
+   `make worktree:setup`. With one, `git worktree add`, the source's
+   copy (item 2), the bootstrap and the `Commit mode` line run in that
+   order, and items 4 to 8 do not apply. A bootstrap that fails leaves
+   the worktree and the branch as today.
 4. **Without one, check the folder.** `git check-ignore -q
    .worktrees/<name>` must succeed. If `.worktrees/` is not ignored,
    stop before creating anything and say so (my call): a worktree in a
@@ -371,11 +422,13 @@ The reference says, in order:
    in every tool that walks its tree, and the plugin does not edit a
    project's ignore files.
 5. **Create the worktree bare:** `git worktree add .worktrees/<name> -b
-   <name>` from HEAD.
+   <name>` from HEAD, then copy the source into it (item 2).
 6. **Run the gates once in it**, as the final phase would (This
    machine, item 4: for OpenSpec `openspec validate <name> --strict`
    first, and `specs:lint` when the project has it), each command's
-   output going to a file rather than into the session.
+   output going to a file outside the worktree rather than into the
+   session (a file inside it that git does not ignore would make the
+   unforced removal of item 8 refuse).
 7. **They pass, or the project defines none:** run from the worktree
    and ledger `Commit mode: commit on <name> in .worktrees/<name>
    (bare worktree: <commands> passed)`, or `(bare worktree: no gates)`.
@@ -387,7 +440,9 @@ The reference says, in order:
    through the run, with units already committed, which is the outcome
    the probe exists to prevent. The controllers already read the
    `Commit mode` line (overrides line 12).
-8. **One fails:** `git worktree remove .worktrees/<name>`, then
+8. **One fails:** undo the copy (`source-copy --undo`), which puts the
+   source's paths back as HEAD holds them, so that the worktree is clean
+   again; then `git worktree remove .worktrees/<name>`, then
    `git branch -d <name>`, neither forced (the branch was made seconds
    earlier and has no commit of its own). Stop before any dispatch,
    with a message that names the failing command, its exit status and
@@ -403,26 +458,33 @@ The reference says, in order:
    in them comes before the launch, so it stops a `handsoff` run too.
 10. **A bare worktree stays** until the owner removes it
     (`git worktree remove .worktrees/<name>`, and `git branch -d <name>`
-    once merged), since no project teardown exists for it.
+    once merged), since no project teardown exists for it. While the
+    run's copy of the source holds files git does not ignore, that
+    unforced removal refuses, so the copy, with the run's ticks and
+    amendments, cannot vanish with the worktree unnoticed; the owner
+    commits it on the run's branch or deletes it first.
 
 Since the reference applies before This machine's item 1, item 2's
 stop on uncommitted changes in the units' files then runs in the
-worktree, where a first launch has none and a relaunch has only an
-incomplete attempt's. Edits in the main checkout cannot collide with a
-run in a worktree, so they no longer stop an `isolated` launch, except
-under `openspec/changes/<name>/` (item 2). This changes a bootstrap
+worktree, where a first launch has only the source's copy and a
+relaunch also an incomplete attempt's edits. Edits in the launch
+checkout cannot collide with a run in a worktree, so they no longer
+stop an `isolated` launch; the source's own edits travel in the copy.
+This changes a bootstrap
 project's launch too (my call): today the check reads the main
 checkout, and stops for edits the run would never see.
 
 README's paragraph on `isolated` (lines 104 to 110) says the same in
-short, the relaunch and the committed-source rule included.
+short, the relaunch and the source's copy included.
 
 ### Size
 
 The pointer frees 286 characters (458 out, 172 in), and the launch
-check's OpenSpec clause costs about 80, so `SKILL.md` ends near 19,280
-after noask's Task 9. The rules this design adds for every `isolated`
-run all live in the reference.
+check's OpenSpec clause costs 101, so `SKILL.md` ends at 19,300 after
+noask's Task 9 (both edits measured on a copy of today's file,
+19,292, plus that task's 8). The rules this design
+adds for every `isolated` run, the source's copy included, all live in
+the reference.
 
 ### Tests
 
@@ -443,15 +505,22 @@ run all live in the reference.
 - `tests/check-pause-text.sh` pins the pointer and the launch check's
   `named-paths` in `SKILL.md`, and the list bullet and `--list` in the
   overrides. `tests/run.sh` and `tests/test-run.sh` run the new tests.
+- A test of `source-copy`: after the copy, `git status` on the
+  source's paths reads the same in the worktree as in the launch
+  checkout (an edited, an untracked, an ignored and a deleted file, a
+  file in a folder HEAD lacks, a name with a space), and the launch
+  checkout is untouched; after the undo the worktree's status is clean,
+  and the unforced `git worktree remove` and `git branch -d` succeed.
 - A text guard for `references/isolated.md`, as `references/noask.md`
-  has one (my call): it pins the relaunch rule, the two source checks
-  and the unforced removals.
+  has one (my call): it pins the relaunch rule, the source's copy and
+  its undo, and the unforced removals.
 - The reference is prose a driver follows, so no script test runs it.
   The next acceptance run covers it: a first launch with an uncommitted
-  change (it stops), a first launch without a bootstrap (a bare
-  worktree), a relaunch from the main checkout without the word
-  `isolated` (it goes on in the worktree), and a plan from an ignored
-  plans folder.
+  change (it runs from the copy, and the launch branch gains no
+  commit), a first launch without a bootstrap (a bare worktree), a
+  relaunch from the main checkout without the word `isolated` (it goes
+  on in the worktree), a plan from an ignored plans folder, and an
+  untracked custom plan outside it.
 
 ### Release and record
 
@@ -475,18 +544,24 @@ The change ships as the next minor version after phase 2's, since
 6. One gate run, so the stop message names both causes it cannot tell
    apart. It runs the final phase's whole set, and in a bare worktree
    those commands bind every controller of the run.
-7. A relaunch goes on in the ledgered worktree and makes or runs
-   nothing again, for a bootstrap worktree and a bare one (the owner,
-   2026-11-14). That it also holds from the main checkout and without
-   the word `isolated` is my call.
-8. A first `isolated` launch needs an OpenSpec change committed and
-   clean at HEAD, and reads a plan and its spec from the main checkout,
-   with a bootstrap or without (the owner, 2026-11-14).
+7. A relaunch goes on in the ledgered worktree and makes, copies or
+   runs nothing again, for a bootstrap worktree and a bare one (the
+   owner, 2026-11-14). That it also holds from the main checkout and
+   without the word `isolated` is my call.
+8. A first `isolated` launch copies the source's files into the
+   worktree as they stand and commits none of them, for every kind of
+   source, with a bootstrap or without (the owner, 2026-11-14; it
+   replaces the approved draft's rule that an OpenSpec change be
+   committed first). Which files are the source's (the change's folder,
+   or a plan and the spec it names) is my call.
 9. For a plan, `<name>` is its file name without `.md`.
 10. Under `isolated` the launch check on uncommitted changes runs in the
-    worktree, so main-checkout edits outside the change's folder no
-    longer stop the launch, bootstrap projects included.
+    worktree, so edits in the launch checkout no longer stop the
+    launch, bootstrap projects included.
 11. The release is a minor version step.
+12. The copy and its undo are one driver-side script; a failed gate run
+    undoes the copy before the unforced removals, and the gate output
+    goes outside the worktree.
 
 ## Left to the builder
 
@@ -494,7 +569,11 @@ The change ships as the next minor version after phase 2's, since
   whether they share code.
 - The exact wording of the brief's block, the implementer's line, the
   overrides bullet and the reference file, within the meaning above.
-- The stop message's wording, and how the gate output files are named.
+- The stop message's wording, and how the gate output files are named
+  and where, outside the worktree, they go.
+- `source-copy`'s arguments and how it copies, within item 2: file
+  modes kept, a deleted file deleted, and nothing written in the launch
+  checkout.
 - The test files' layout.
 - How the relaunch step finds a plan's workspace inside the worktree
   without creating one there (`sdd-workspace` creates the folder it
