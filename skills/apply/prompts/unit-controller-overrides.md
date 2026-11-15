@@ -19,6 +19,16 @@ the final message.
   validates the ids, then writes the ticks and the ledger line together;
   exit 5 means an id is not in the section and nothing was written); a plan source uses the
   sub-skill's own marking. Never hand-edit the task file.
+- **File list.** The unit's file list is the file beside its brief:
+  `section-N-files.txt` or `task-N-files.txt`, and `final-files.txt` in the
+  final phase; one path per line. Every rule here about the unit's files or
+  paths reads it, and it only grows. In the same call that ledgers an
+  implementer's return, first dispatch or fix round, run
+  `sdd-files-add <the list file> --` with the paths of its `Files:` line
+  (none for `Files: none`). In the final phase, when `final-files.txt` does
+  not exist yet, first run
+  `sdd-files-add <its path> --list <a unit's list file>`, one `--list` per
+  unit in the order of the ledger's `handed to controller` lines.
 - **Workspace.** Pass every sub-skill script (`review-package` included) an
   output path inside the dispatch's own workspace directory; a call without
   one falls back to `.superpowers/sdd/tasks*/` and is a defect.
@@ -90,7 +100,7 @@ the final message.
   ledger `Ruling: <decision>. Cost if wrong: <what>`, append the same line to
   `decisions.md`, and continue. Outside handsoff you may settle a finding
   or concern against the plan's own text yourself when all four hold: the
-  change stays inside the brief's file list; every check the plan step
+  change stays inside the unit's file list; every check the plan step
   names still passes unchanged; no spec line, task-list line or interface
   another unit consumes changes; nothing new happens on the live machine
   or outside the repository. Ledger it as `Ruling (controller):
@@ -133,8 +143,8 @@ the final message.
   of `pause requested` is a pause in force: ledger what just ended as
   usual (the report, or the failure and the fallback or retry you would
   make, `Model fallback:` included), run
-  `sdd-checkpoint` on the
-  brief's file list, ledger `Section N: paused (<point>; <script output>)`,
+  `sdd-checkpoint --list <the unit's file list>`, ledger
+  `Section N: paused (<point>; <script output>)`,
   the output being its stdout line, or `checkpoint failed (exit <n>)`,
   which a resume treats as drift; dispatch nothing and return `paused`;
   the retry or fallback runs on continue. Never stop a child to pause.
@@ -158,7 +168,7 @@ the final message.
   round 5), and nothing is discarded.
   While the unit's latest `paused` line has no `drift on resume` or
   `resumed` line after it (on a resume, or as a fresh controller after a
-  lost session), first rerun the script: if its line differs from the
+  lost session), first rerun the same command: if its line differs from the
   `paused` line's, ledger `Section N: drift on resume: <old> -> <new>`
   and return `needs-ruling` asking "the tree changed while paused;
   continue on it, or stop?"; on a ruling to continue, take a new
@@ -178,7 +188,7 @@ the final message.
   final phase, the Final phase bullet's note path).
   In the final phase these rules use
   `Final phase:` as the ledger prefix in place of `Section N:`, and the
-  checkpoint takes the union of the units' briefs' file lists.
+  unit's file list is `final-files.txt`.
 - **Waiting.** A dispatch returns at once and the harness re-invokes you
   when the child reports, so after a dispatch end your turn. Never start
   a background shell to wait, poll or sleep; this replaces the

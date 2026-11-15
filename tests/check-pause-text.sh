@@ -56,6 +56,8 @@ need 'resume grep has Noask' 'Final phase\|Noask\):'
 need 'noask pointer' 'before a push run `noask status`; unless it reads `off` or `expired`, `references/noask\.md` applies'
 need 'isolated pointer' 'or when `\.worktrees/<name>` holds this run.s ledger, `references/isolated\.md` applies before item 1 and any worktree, branch or dispatch, and again before the final message'
 need 'no bootstrap stop gone' '!none: stop before any worktree'
+need 'launch check reads named paths' '`scripts/named-paths` prints for its `tasks\.md`'
+need 'attempt paths are its list' 'incomplete attempt \(item 1\), which its `\*-files\.txt` lists'
 exit $fail
 fi
 needline 'Pause bullet' '^- \*\*Pause\.\*\*'
@@ -94,4 +96,9 @@ need 'late note own re-review' 'note +found +unapplied +by +the +read +before +t
 need 'note finding is a leftover' "finding +a +note's +re-review +raises +is +a +leftover[^.]*opens +no +further +round"
 need 'tick read points to final phase' 'unapplied +note +becomes +a +fix +round[^.]*\(in +the +final +phase, +the +Final +phase +bullet[^ ]* +note +path\)'
 need 'bare worktree gate set' 'bare worktree: <commands> passed\)`, those commands are the run.s gate set'
+needline 'File list bullet' '^- \*\*File list\.\*\*'
+need 'pause reads the list' 'sdd-checkpoint --list <the unit.s file list>'
+need 'list grows from reports' 'sdd-files-add'
+need 'final list' 'final-files\.txt'
+need 'no brief file list' '!brief.s file list|briefs. file lists'
 exit $fail

@@ -18,3 +18,7 @@ template your dispatch was composed from, wherever they differ.
   unless the constraints file names the suite command as the gate.
 - Never print a secret (database password, token, key) into tool output;
   read connection details from the environment without echoing them.
+- End the summary you return with `Files: <path>, <path>`: every path you
+  created, modified, deleted or renamed in this dispatch or fix round,
+  committed or not, relative to the repository root (absolute, or with
+  `~/`, outside it); `Files: none` when there is none.

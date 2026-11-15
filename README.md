@@ -137,9 +137,9 @@ once the current implementer or reviewer reports, `continue` resumes it,
 and `abort` stops the unit's agents and waits for `continue`.
 
 The run keeps its state in `.superpowers/sdd/<name>/` in the repository:
-the ledger `progress.md`, `decisions.md`, and each unit's brief, report and
-review. Launching again with the same source resumes from the ledger and
-dispatches nothing already complete or parked.
+the ledger `progress.md`, `decisions.md`, and each unit's brief, file list,
+report and review. Launching again with the same source resumes from the
+ledger and dispatches nothing already complete or parked.
 
 At the end, `skills/apply/scripts/run-archive` copies the workspace and the
 run's facts to
