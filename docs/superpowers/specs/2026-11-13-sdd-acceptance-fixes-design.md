@@ -556,9 +556,13 @@ the reference.
 
 ### Release and record
 
-The change ships as the next minor version after phase 2's, since
-`isolated` now goes on where it used to stop (my call). The next free
-`docs/decisions.md` entry records what was built and cites this spec.
+The change ships as the next minor version after the one the plugin
+carries at the launch, since `isolated` now goes on where it used to
+stop (my call). The next free `docs/decisions.md` entry records what
+was built and cites this spec. Version numbers and entries go in
+landing order: this build goes ahead of phase 2's held tasks, so it
+ships 0.2.0 and writes entry 5, and phase 2's own release takes the
+numbers after it (the owner, 2026-11-15).
 
 ## Decisions in this design (the owner may overrule)
 
