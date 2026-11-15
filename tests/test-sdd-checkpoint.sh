@@ -9,7 +9,7 @@
 #   script's directory
 # The temporary commits go through the configured signing setup. The
 # temporary directory (TMPDIR) must lie outside every git work tree, since
-# case 4 needs a path in no repository.
+# cases 4, 8 and 10 need paths in no repository.
 set -euo pipefail
 
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
@@ -138,5 +138,91 @@ if [ "$rc" -eq 0 ] && [ "$head_b" != "$(git -C "$b" log -n 1 --format=%h)" ] &&
 # 6. No arguments: usage error, exit 2, nothing on stdout.
 run
 if [ "$rc" -eq 2 ] && [ -z "$out" ]; then pass 6; else miss 6; fi
+
+L=$tmp/list.txt
+
+# 7. --list gives the PATH form's line for the same paths.
+printf '%s\n' "$a/file.txt" "$a/new.txt" > "$L"
+run --list "$L"
+listed=$out rc1=$rc
+run "$a/file.txt" "$a/new.txt"
+if [ "$rc1" -eq 0 ] && [ "$rc" -eq 0 ] && [ "$out" = "$listed" ] &&
+   [[ $out =~ $form ]]; then pass 7; else miss 7; fi
+
+# 8. Repeats dropped, keeping the first: the list twice over, plus
+#    "$a/./file.txt" as a PATH, gives case 7's line. git reads a repeated
+#    pathspec once, so the plain branch, which hashes each path in turn,
+#    shows a repeat kept or the wrong one dropped: p.txt, q.txt and p.txt
+#    again in the list, plus "$tmp/./p.txt" as a PATH, give the line of the
+#    PATHs p.txt and q.txt.
+printf '%s\n' "$a/file.txt" "$a/new.txt" "$a/file.txt" > "$L"
+run --list "$L" "$a/./file.txt"
+repeated=$out rc1=$rc
+printf 'p\n' > "$tmp/p.txt"
+printf 'q\n' > "$tmp/q.txt"
+run "$tmp/p.txt" "$tmp/q.txt"
+plain=$out rc2=$rc
+printf '%s\n' "$tmp/p.txt" "$tmp/q.txt" "$tmp/p.txt" > "$L"
+run --list "$L" "$tmp/./p.txt"
+if [ "$rc1" -eq 0 ] && [ "$repeated" = "$listed" ] && [ "$rc2" -eq 0 ] &&
+   [ "$rc" -eq 0 ] && [ "$out" = "$plain" ]; then pass 8; else miss 8; fi
+
+# 9. Blank and whitespace-only lines skipped; CRLF ends give the LF line.
+printf '\n%s\r\n   \n%s\r\n' "$a/file.txt" "$a/new.txt" > "$L"
+run --list "$L"
+if [ "$rc" -eq 0 ] && [ "$out" = "$listed" ]; then pass 9; else miss 9; fi
+
+# 10. A leading ~/ is HOME: with HOME=$tmp/home holding x.txt, a list line
+#     '~/x.txt' gives the line of PATH "$tmp/home/x.txt".
+mkdir "$tmp/home"
+printf 'x\n' > "$tmp/home/x.txt"
+# shellcheck disable=SC2088 # the list line holds a literal ~/
+printf '%s\n' '~/x.txt' > "$L"
+HOME=$tmp/home run --list "$L"
+home=$out rc1=$rc
+run "$tmp/home/x.txt"
+if [ "$rc1" -eq 0 ] && [ "$rc" -eq 0 ] && [ "$out" = "$home" ]; then
+  pass 10; else miss 10; fi
+
+# 11. An empty list file, and one of blank lines only: each prints exactly
+#     'heads none; tree e3b0c44298fc1c14', rc 0, nothing on stderr.
+none='heads none; tree e3b0c44298fc1c14'
+: > "$L"
+run --list "$L"
+empty=$out rc1=$rc err1=$err
+printf '\n  \n\n' > "$L"
+run --list "$L"
+if [ "$rc1" -eq 0 ] && [ -z "$err1" ] && [ "$empty" = "$none" ] && quiet &&
+   [ "$out" = "$none" ]; then pass 11; else miss 11; fi
+
+# 12. A missing list file: rc 2, nothing on stdout. '--list' as the last
+#     argument: rc 2, nothing on stdout. A directory as the list file, which
+#     would otherwise read as an empty list: rc 2, nothing on stdout.
+run --list "$tmp/no-list.txt"
+missing=$out rc1=$rc
+run "$a/file.txt" --list
+last=$out rc2=$rc
+run --list "$tmp"
+if [ "$rc1" -eq 2 ] && [ -z "$missing" ] && [ "$rc2" -eq 2 ] && [ -z "$last" ] &&
+   [ "$rc" -eq 2 ] && [ -z "$out" ]; then pass 12; else miss 12; fi
+
+# 13. --list and PATH mix in either order: repo-a's path from the list and
+#     repo-b's as a PATH, then repo-a's as a PATH and repo-b's from the list,
+#     each give case 5's line, two heads in first-seen order. A list line
+#     "$a/my file.txt" gives the line of PATH "$a/my file.txt".
+commit "$a" "my file.txt" delta
+printf '%s\n' "$a/file.txt" > "$L"
+run --list "$L" "$b/file.txt"
+first=$out rc1=$rc
+printf '%s\n' "$b/file.txt" > "$L"
+run "$a/file.txt" --list "$L"
+second=$out rc2=$rc
+printf '%s\n' "$a/my file.txt" > "$L"
+run --list "$L"
+spaced=$out rc3=$rc
+run "$a/my file.txt"
+if [ "$rc1" -eq 0 ] && [ "$rc2" -eq 0 ] && [[ $first =~ $both ]] &&
+   [ "$second" = "$first" ] && [ "$rc3" -eq 0 ] && [ "$rc" -eq 0 ] &&
+   [ "$out" = "$spaced" ] && [[ $out =~ $form ]]; then pass 13; else miss 13; fi
 
 exit "$fail"

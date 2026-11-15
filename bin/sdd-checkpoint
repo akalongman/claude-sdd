@@ -8,10 +8,15 @@
 # still hashed an empty stdin. The prompt files name only this script; it
 # is the definition.
 #
-# Usage: sdd-checkpoint PATH...
-#   PATH is the unit's brief's file list (the final phase passes the union of
-#   the units' lists), never the whole work tree, which would take in other
-#   sessions' untracked files. Paths that do not exist are allowed.
+# Usage: sdd-checkpoint [--list FILE]... [PATH...]
+#   The paths are the unit's file list, given as `--list <list file>` or as
+#   PATH arguments, the two forms mixable, never the whole work tree, which
+#   would take in other sessions' untracked files. Paths that do not exist
+#   are allowed. A list file holds one path per line: a line is read whole
+#   (spaces kept), a trailing CR is dropped, a line that is empty or only
+#   whitespace is skipped, and a leading `~/` is read as `$HOME/`. A path
+#   given earlier, in either form, is dropped, keeping the first; paths
+#   compare after `realpath -ms` (absolute, `.` and `..` folded).
 # Output, one line on stdout:
 #   heads <name> <sha7>[, <name> <sha7>...]; tree <hash>
 #   One head per repository in first-seen path order: <name> is the basename
@@ -21,17 +26,50 @@
 #   or `missing`) under the name `files`, whose head is `none`. <hash> is the
 #   first 16 hex characters of sha256 over, per repository, `git diff HEAD`,
 #   `git status --short --untracked-files=all` and the sha256sum of each
-#   untracked file, each followed by a `--` line.
-# Exit codes: 2 usage (no paths); 3 a path lies in no repository and exists
-#   but is not a regular file (nothing printed); any other non-zero is git's
-#   own failure, with its message on stderr.
+#   untracked file, each followed by a `--` line. An empty set of paths
+#   prints `heads none; tree e3b0c44298fc1c14`, the hash of empty state.
+# Exit codes: 2 usage (no argument, a `--list` without FILE, or a FILE that
+#   does not exist or is a directory; nothing printed); 3 a path lies in no
+#   repository and exists but is not a regular file (nothing printed); any
+#   other non-zero is git's own failure, or the shell's on a list file it
+#   cannot read, with its message on stderr.
 set -euo pipefail
 shopt -s inherit_errexit
 
-if [ $# -eq 0 ]; then
-  echo "usage: sdd-checkpoint PATH..." >&2
+usage() {
+  echo "usage: sdd-checkpoint [--list FILE]... [PATH...]" >&2
   exit 2
-fi
+}
+
+[ $# -gt 0 ] || usage
+
+# The paths in argument order, each list file's lines in place of its
+# `--list FILE` pair. A directory is refused here, since reading one ends
+# like an empty file and would print the empty set's line.
+paths=()
+while [ $# -gt 0 ]; do
+  if [ "$1" != --list ]; then
+    paths+=("$1")
+    shift
+    continue
+  fi
+  [ $# -ge 2 ] || usage
+  if [ ! -e "$2" ] || [ -d "$2" ]; then
+    echo "sdd-checkpoint: no list file: $2" >&2
+    exit 2
+  fi
+  while IFS= read -r entry || [ -n "$entry" ]; do
+    entry=${entry%$'\r'}
+    if [[ $entry =~ ^[[:space:]]*$ ]]; then
+      continue
+    fi
+    if [[ $entry == \~/* ]]; then
+      entry=$HOME/${entry#\~/}
+    fi
+    paths+=("$entry")
+  done < "$2"
+  shift 2
+done
 
 # git status refreshes the index under index.lock by default, and a commit
 # another session runs in the same checkout at that moment would fail.
@@ -41,7 +79,7 @@ export GIT_OPTIONAL_LOCKS=0
 # first-seen order; each path joins one group as a pathspec relative to the
 # top level (the path itself in the plain-file branch).
 groups=() tools=() member_group=() member_spec=()
-declare -A group_of=()
+declare -A group_of=() seen=()
 
 join_group() { # KEY TOOL SPEC
   if [ -z "${group_of[$1]+set}" ]; then
@@ -53,10 +91,15 @@ join_group() { # KEY TOOL SPEC
   member_spec+=("$3")
 }
 
-for path in "$@"; do
+for path in "${paths[@]}"; do
   # Absolute, with `.` and `..` folded and symlinks left as they are, so the
   # $HOME test below sees where the path is.
   abs=$(realpath -ms -- "$path")
+  # A path given earlier, in either form, is dropped, keeping the first.
+  if [ -n "${seen[$abs]+set}" ]; then
+    continue
+  fi
+  seen[$abs]=1
   # Discovery starts at the nearest existing ancestor, so a file the unit
   # deleted, or one in a directory deleted or not made yet, stays in its
   # repository; the missing components go back into the pathspec.
@@ -148,8 +191,9 @@ for g in "${!groups[@]}"; do
 done
 tree=$(state | sha256sum | cut -c1-16)
 
-line="heads ${heads[0]}"
-for h in "${heads[@]:1}"; do
-  line+=", $h"
+# The heads joined by ", ", or `none` for an empty set of paths.
+line=
+for h in "${heads[@]}"; do
+  line+=${line:+, }$h
 done
-printf '%s; tree %s\n' "$line" "$tree"
+printf 'heads %s; tree %s\n' "${line:-none}" "$tree"
