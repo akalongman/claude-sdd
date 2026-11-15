@@ -3,20 +3,26 @@
 Run `noask status` at launch, before acting on every controller return and
 before a push. It answers for your own session, on by the session's own
 switch or by the global one, and the rules below are the same under either.
-A line that ends in `handsoff` says one thing more: the owner switched this
-session with `/noask on handsoff`, which is the word to publish (rule 5).
-When it reads `off` or `expired` (`expired <until>`), nothing here applies,
-and a run launched with `handsoff` goes on as the skill says. Anything else
-means every rule below applies. The first `on ...` line of a run (the ledger
-holds no `Noask: seen on` line yet) is ledgered `Noask: seen on at <time>`;
-an `unreadable ...` line, or a status command that fails, is ledgered
-`Noask: status unreadable (<error>)` and counts as on, as it does for the
-hooks, `<error>` being the line's reason or the command's exit status and
-stderr. These lines are never removed: they tell a reader why a run launched
-without `handsoff` ruled for itself. `<time>` in a ledger line is the local
-time of the reading, `HH:MM`, taken from the clock (`date +%H:%M`), not from
-the status line. `Section N:` below stands for the unit's prefix, as in the
-skill (`Task N:` for a plan, `Final phase:` in the final phase).
+A status line whose last word is `handsoff` says one thing more: the owner
+switched this session with `/noask on handsoff`, which is the word to
+publish (rule 5). The status adds that word after a space to an `on` or
+`unreadable` line; a reason that merely contains `level=handsoff` is not
+the word. When the status reads `off` or `expired` (`expired <until>`),
+nothing here applies, and a run launched with `handsoff` goes on as the
+skill says. Anything else means every rule below applies, and an
+`unreadable ...` line or a status command that fails counts as on, as it
+does for the hooks. The first reading of a run that is neither `off` nor
+`expired` (the ledger holds no `Noask: seen on` or
+`Noask: status unreadable` line yet) is ledgered `Noask: seen on at <time>`
+when it is an `on ...` line, or `Noask: status unreadable (<error>)` when it
+is an `unreadable ...` line or the command fails, `<error>` being the line's
+reason or the command's exit status and stderr; later readings ledger
+nothing. These lines are never removed: they tell a reader why a run
+launched without `handsoff` ruled for itself. `<time>` in a ledger line is
+the local time of the reading, `HH:MM`, taken from the clock
+(`date +%H:%M`), not from the status line. `Section N:` below stands for the
+unit's prefix, as in the skill (`Task N:` for a plan, `Final phase:` in the
+final phase).
 
 1. **Waiting.** Every turn you end to wait (a dispatch made, a `waiting` or
    `paused` return, a relayed hand-back, a child not yet reported, a pause
@@ -58,9 +64,9 @@ skill (`Task N:` for a plan, `Final phase:` in the final phase).
 5. **Publication.** Publishing is the owner's word and nothing else. The
    `handsoff` ending's push and request (the skill's Handsoff section) run
    when the owner gave the word, at the launch or by the session's switch
-   (a status that ends in `handsoff` at the run's end), and never otherwise:
-   a run without the word rules for itself and pushes nothing. Read the
-   status once more before the push, and push with a plain push
+   (a status whose last word is `handsoff` at the run's end), and never
+   otherwise: a run without the word rules for itself and pushes nothing.
+   Read the status once more before the push, and push with a plain push
    (`git push -u <remote> <branch>`), never a forced one. When the push is
    refused, as it is under noask in a session whose own switch is not at
    `handsoff`, ledger `Handsoff: not pushed (refused under noask)`, open no
