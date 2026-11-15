@@ -1,23 +1,43 @@
 #!/usr/bin/env bash
 # This skill's copy of superpowers' subagent-driven-development
-# scripts/task-brief. It exists because the plugin's copy ends a task only
-# at the next "Task <digits>" heading, so every non-task section after a
-# task (Self-review, Final gate) leaks into that task's brief, and "Task 3b"
-# merges into "Task 3" (measured: 72 leaking task runs in 65 of 77 real
-# plans). The plugin file is replaced on plugin update, so it cannot be
-# patched in place; drop this copy once upstream fixes it.
+# scripts/task-brief. It exists for two reasons. The plugin's copy ends a
+# task only at the next "Task <digits>" heading, so every non-task section
+# after a task (Self-review, Final gate) leaks into that task's brief, and
+# "Task 3b" merges into "Task 3" (measured: 72 leaking task runs in 65 of 77
+# real plans). And this copy seeds the unit's file list (below), which the
+# plugin's copy has no part in. The plugin file is replaced on plugin
+# update, so it cannot be patched in place; an upstream fix of the task
+# boundary would still leave the list file to this copy.
 #
 # Extract one task's full text from an implementation plan into a file the
 # implementer reads in one call, so the task text never passes through the
 # controller's context.
+#
+# List file: writing the brief also creates the unit's file list,
+# task-<N>-files.txt beside OUTFILE, when it is missing, and adds through
+# the plugin's bin/sdd-files-add the paths of the task's **Files:** block
+# not yet on it. The block is the task text's first line that starts with
+# **Files:** outside a fence, and the lines after it up to the first blank
+# line or the first line that starts with **. Each backtick span on those
+# lines (a span never crosses a line; an empty one is skipped) is a path
+# unless it holds one of * ? [ ] { } < > $ | " ', so a glob, a variable or
+# a quoted JSON fragment is left out. A :N or :N-M suffix is dropped and
+# the rest kept as written, with no test on disk: the block is a file list
+# by intent, and it names files in folders not made yet. The list only
+# grows, so a brief written again adds paths and removes none.
 #
 # Usage: task-brief PLAN_FILE TASK [OUTFILE]
 #   TASK is digits with an optional lowercase letter (3, 12, 3b).
 #   Default OUTFILE: <repo-root>/.superpowers/sdd/<plan-basename>/task-<N>-brief.md,
 #   the directory the sub-skill's sdd-workspace derives; it is created and
 #   gitignored here so this copy needs no sibling script.
-# Exit codes: 2 usage or missing plan; 3 no such task heading (nothing written).
+# Exit codes: 2 usage or missing plan; 3 no such task heading (nothing
+# written, the list file included).
 set -euo pipefail
+
+here=$(cd "$(dirname "$0")" && pwd)
+add="$here/../../../bin/sdd-files-add"
+[ -x "$add" ] || { echo "missing or not executable: $add" >&2; exit 2; }
 
 if [ $# -lt 2 ] || [ $# -gt 3 ]; then
   echo "usage: task-brief PLAN_FILE TASK [OUTFILE]" >&2
@@ -69,5 +89,31 @@ if [ ! -s "$out" ]; then
   echo "task ${n} not found in ${plan} (no heading matching 'Task ${n}')" >&2
   exit 3
 fi
+
+# The backtick spans of the **Files:** block, one per line. Fences follow
+# the extraction's rule above, and the block's own lines are read as they
+# stand.
+spans=$(awk '
+  function spans(line,   part, k, i) {
+    k = split(line, part, "`")
+    for (i = 2; i < k; i += 2)
+      if (part[i] != "") print part[i]
+  }
+  !inblock && /^(```|~~~)/ { infence = !infence; next }
+  !inblock {
+    if (!infence && index($0, "**Files:**") == 1) { inblock = 1; spans($0) }
+    next
+  }
+  /^[ \t\r]*$/ || /^\*\*/ { exit }
+  { spans($0) }
+' "$out")
+dropped='[][*?{}<>$|"'\'']'
+paths=()
+while IFS= read -r path; do
+  [[ -n $path && ! $path =~ $dropped ]] || continue
+  [[ $path =~ ^(.*):[0-9]+(-[0-9]+)?$ ]] && path=${BASH_REMATCH[1]}
+  paths+=("$path")
+done <<< "$spans"
+"$add" "$(dirname -- "$out")/task-${n}-files.txt" "${paths[@]}"
 
 echo "wrote ${out}: $(wc -l < "$out" | tr -d ' ') lines"

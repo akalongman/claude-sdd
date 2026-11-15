@@ -21,17 +21,30 @@
 # not by file basename, because every change's task file is tasks.md).
 # A self-ignoring .gitignore keeps it out of git status.
 #
+# List file: writing the brief also creates the unit's file list,
+# section-<N>-files.txt beside OUTFILE, when it is missing, and adds through
+# the plugin's bin/sdd-files-add the section's named paths (the rule in
+# named-paths' header) not yet on it. The brief shows the same paths in a
+# **Files:** block just before the section text; a section that names none
+# gets no block and an empty list. The list only grows, so a brief written
+# again after tasks.md changed adds paths and removes none.
+#
 # Usage: openspec-section-brief CHANGE_NAME SECTION [OUTFILE]
 #   SECTION is digits with an optional lowercase letter (2, 10, 2b).
 # Exit codes: 2 usage or missing file; 3 no such section heading (stop
 # probing); 4 the section exists but holds no checkbox item outside a fence
 # (skip it, note it in the ledger, continue with the next section). Nothing
-# is written on exit 3 or 4.
+# is written on exit 3 or 4, the list file included.
 set -euo pipefail
 
 here=$(cd "$(dirname "$0")" && pwd)
 span="$here/section-span.awk"
 [ -f "$span" ] || { echo "missing $span" >&2; exit 2; }
+named_paths="$here/named-paths"
+add="$here/../../../bin/sdd-files-add"
+for tool in "$named_paths" "$add"; do
+  [ -x "$tool" ] || { echo "missing or not executable: $tool" >&2; exit 2; }
+done
 
 if [ $# -lt 2 ] || [ $# -gt 3 ]; then
   echo "usage: openspec-section-brief CHANGE_NAME SECTION [OUTFILE]" >&2
@@ -72,6 +85,11 @@ if [ $((open + closed)) -eq 0 ]; then
   exit 4
 fi
 
+# The section's named paths, one per line, first-seen order.
+named=$(printf '%s\n' "$section" | "$named_paths" -)
+paths=()
+[ -z "$named" ] || mapfile -t paths <<< "$named"
+
 # Preamble: everything between the H1 and the first level-2 heading, fences
 # respected. 11 of 469 sectioned tasks.md files carry a preamble, some of it
 # binding ("run tests targeted on the changed files"), which a section
@@ -106,7 +124,14 @@ preamble=$(awk '
   fi
   echo "Your unit is the section below. Other sections of tasks.md belong to other units: do not implement them, and do not open tasks.md to read them. If the section below conflicts with proposal.md, design.md or a spec, stop and report the conflict instead of resolving it yourself."
   echo
+  if [ "${#paths[@]}" -gt 0 ]; then
+    echo '**Files:** the paths this section names. The section may need others; your report names every file you change.'
+    printf -- "- \`%s\`\n" "${paths[@]}"
+    echo
+  fi
   printf '%s\n' "$section"
 } > "$out"
+
+"$add" "$(dirname -- "$out")/section-${n}-files.txt" "${paths[@]}"
 
 echo "wrote ${out}: $(wc -l < "$out" | tr -d ' ') lines, ${open} open items, ${closed} done or deferred"

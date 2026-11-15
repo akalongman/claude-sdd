@@ -1,0 +1,108 @@
+#!/usr/bin/env bash
+# Add paths to a unit's file list, the file `sdd-checkpoint --list` reads
+# for this skill's pause rule. Its callers: the two brief scripts
+# (skills/apply/scripts/openspec-section-brief and task-brief) seed the list
+# when they write a brief; the unit controller adds the paths of each
+# implementer's report; the final phase builds final-files.txt from every
+# unit's list with --list and adds its own reports' paths.
+#
+# The list only grows. A pause ledgers a checkpoint over the list, and the
+# resume recomputes it over the list as it stands then: a resume must never
+# compare fewer paths than its pause did, so no call rewrites, reorders or
+# shortens the file.
+#
+# Usage: sdd-files-add LIST [--list FILE]... [PATH...]
+#   Creates LIST when it does not exist (its folder must), then appends, in
+#   argument order, each path that is not already a line of LIST and not
+#   given earlier in the call. `--list FILE` adds FILE's lines. FILE's lines
+#   and LIST's own are read as `sdd-checkpoint --list` reads a list line:
+#   whole (spaces kept), a trailing CR dropped, a line that is empty or only
+#   whitespace skipped. A PATH that is empty or only whitespace is skipped
+#   too, so no call writes a blank line. Paths compare as written (`./a` and
+#   `a` are two lines; sdd-checkpoint folds them when it reads), and a
+#   leading `~/` is kept as written. When LIST's last line has no newline,
+#   one is added before the first appended path. Prints nothing.
+# Exit codes: 2 usage (no LIST, a first argument of --list, a --list without
+#   FILE, a FILE that does not exist or is a directory, a LIST that is a
+#   directory or whose folder does not exist), every check made before LIST
+#   is created or written; any other non-zero is the shell's own failure on
+#   a file it cannot read or write, with its message on stderr.
+set -euo pipefail
+
+usage() {
+  echo "usage: sdd-files-add LIST [--list FILE]... [PATH...]" >&2
+  exit 2
+}
+
+if [ $# -eq 0 ] || [ -z "$1" ] || [ "$1" = --list ]; then
+  usage
+fi
+list=$1
+shift
+if [ -d "$list" ]; then
+  echo "sdd-files-add: the list is a directory: $list" >&2
+  exit 2
+fi
+folder=$(dirname -- "$list")
+if [ ! -d "$folder" ]; then
+  echo "sdd-files-add: no folder for the list: $folder" >&2
+  exit 2
+fi
+
+# Set lines to FILE's lines as a list line is read.
+read_lines() {
+  lines=()
+  local line
+  while IFS= read -r line || [ -n "$line" ]; do
+    line=${line%$'\r'}
+    if [[ ! $line =~ ^[[:space:]]*$ ]]; then
+      lines+=("$line")
+    fi
+  done < "$1"
+}
+
+# The candidates in argument order, each list file's lines in place of its
+# `--list FILE` pair. A directory is refused, since reading one would end
+# like an empty file.
+paths=()
+while [ $# -gt 0 ]; do
+  if [ "$1" != --list ]; then
+    paths+=("$1")
+    shift
+    continue
+  fi
+  [ $# -ge 2 ] || usage
+  if [ ! -e "$2" ] || [ -d "$2" ]; then
+    echo "sdd-files-add: no list file: $2" >&2
+    exit 2
+  fi
+  read_lines "$2"
+  paths+=("${lines[@]}")
+  shift 2
+done
+
+declare -A seen=()
+if [ -e "$list" ]; then
+  read_lines "$list"
+  for line in "${lines[@]}"; do
+    seen[$line]=1
+  done
+fi
+
+new=()
+for path in "${paths[@]}"; do
+  if [[ $path =~ ^[[:space:]]*$ ]] || [ -n "${seen[$path]+set}" ]; then
+    continue
+  fi
+  seen[$path]=1
+  new+=("$path")
+done
+
+: >> "$list"
+[ "${#new[@]}" -gt 0 ] || exit 0
+# A last line without its newline gets one, so the first new path starts a
+# line of its own.
+if [ -s "$list" ] && [ -n "$(tail -c 1 -- "$list")" ]; then
+  echo >> "$list"
+fi
+printf '%s\n' "${new[@]}" >> "$list"
