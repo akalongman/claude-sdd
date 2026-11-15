@@ -251,18 +251,20 @@ python3 tools/transcript-clock.py [--gap MINUTES] [--skill NAME] [--tsv] [--runs
 
 Answers "where did the minutes go between the apply prompt and merge-ready".
 Per session it finds each apply run (from a `Skill` call naming
-`app-subagent-apply` or `sdd:apply`, or from the human prompt before the
-first dispatch of an `app-sdd-*`, `sdd:*` or `sdd-*` agent when the session
+`app-subagent-apply` or `sdd:apply`, from a typed launch of either such as
+`/sdd:apply docs/plan.md`, or from the human prompt before the first
+dispatch of an `app-sdd-*`, `sdd:*` or `sdd-*` agent when the session
 invokes neither skill, to the end of the controller turn in which the run's
 last subagent finished) and prints one line per run: start and end in UTC,
 elapsed minutes, active minutes (elapsed minus every gap over `--gap`
 minutes, default 10) split into subagent busy time, controller-alone time
 and the user's short answers, then the long gaps by bucket (prompt wait,
-ruling wait, idle, stall), units, dispatches (`Agent` calls whose
-`subagent_type` carries one of those prefixes, read case-insensitively, so
-a run from before the prefixed agents prints `dispatches 0` even where it
-counts units), prompts and questions.
-`--skill NAME` adds a skill whose calls start a run to those two;
+ruling wait, idle, stall), units, dispatches (the controller's `Agent`
+calls whose `subagent_type` carries one of those prefixes, read
+case-insensitively, so a run from before the prefixed agents prints
+`dispatches 0` even where it counts units), prompts and questions.
+`--skill NAME` adds a skill whose calls or typed launches start a run to
+those two;
 `--tsv` prints the same as a table; `--runs` merges runs with the same
 project and target across sessions; `--gaps` lists every long gap with the
 record and line number on each side. The docstring defines the four gap
@@ -356,17 +358,19 @@ the script's own pin (the record repository's
 `docs/superpowers/specs/2026-10-23-sub-skill-upgrade-content-pin-design.md`).
 `test-tools.sh` tests the
 transcript tools here on fixture transcripts and prints `ok <n>` or
-`FAIL <n>` for each of fourteen cases: the three agent name forms
+`FAIL <n>` for each of fifteen cases: the three agent name forms
 (`app-sdd-<role>`, `sdd:<role>`, `sdd-<role>`) and the prefix they need (a
 bare `<role>` is no sdd role whatever its prompt opens with, while
 `general-purpose` keeps the head rules) in `transcript-roles.py`, both skill
-names, the three agent name forms, the adding `--skill`, a bare
-`unit-controller`, `implementer` or `reviewer` that is no unit, and a
+names, a typed launch of either, the three agent name forms, the
+adding `--skill`, a bare `unit-controller`, `implementer` or
+`reviewer` that is no unit, and a
 `general-purpose` subagent opening "You run one unit" that is no unit
 controller in `transcript-clock.py`, both skill names in
 `transcript-tokens.py`, and an agent type read case-insensitively by both
 `transcript-roles.py` and `transcript-clock.py` (`SDD:Implementer` is
-prefixed, the built-in `Explore` is not).
+prefixed, the built-in `Explore` is not, and `Reviewer` and `Implementer`
+are bare names).
 `test-run.sh` tests the runner on a
 copy beside stub scripts, never the real suite, with a PATH built per case,
 and prints `ok <n>` or `FAIL <n>` for each of five cases: the skip when

@@ -11,9 +11,10 @@ ends at the session's last assistant record or the next invocation, so
 compare only active minutes.
 
 For every session it finds each apply run: a run starts at an invocation of
-the skill `app-subagent-apply` or `sdd:apply` (or, when the session invokes
-neither, at the human prompt that precedes the first dispatch of an agent
-named `app-sdd-*`, `sdd:*` or `sdd-*`) and ends at the end of the
+the skill `app-subagent-apply` or `sdd:apply`, a Skill call or a typed
+launch (or, when the session invokes neither, at the human prompt that
+precedes the first dispatch of an agent named `app-sdd-*`, `sdd:*` or
+`sdd-*`) and ends at the end of the
 controller turn in which the run's last such subagent finished (the next
 `turn_duration` system record at or after that subagent's last timestamp;
 the controller's last assistant record when there is none). A session can
@@ -42,10 +43,11 @@ active split into the union of subagent busy time and the remainder (the
 controller alone), the user share (short prompt and ruling gaps),
 the number of units (unit-controller subagents, or implementer subagents
 when the run has no unit controllers, by the role rule below), dispatches
-(Agent calls whose subagent_type carries an app-sdd-, sdd: or sdd- prefix,
-read case-insensitively, so a run from before the prefixed agents prints
-dispatches 0 even where it counts units), subagent files, human prompts,
-compactions and the sum of the harness's own turn_duration records. --tsv
+(the controller's Agent calls whose subagent_type carries an app-sdd-,
+sdd: or sdd- prefix, read case-insensitively, so a run from before the
+prefixed agents prints dispatches 0 even where it counts units),
+subagent files, human prompts, compactions and the sum of the
+harness's own turn_duration records. --tsv
 prints one tab-separated line per run with a header; --runs adds a block
 that merges runs with the same project and target across sessions
 (continuations after a context reset); --gaps lists every gap over the
@@ -80,6 +82,8 @@ SKILLS = {"app-subagent-apply", "sdd:apply"}  # --skill adds to the set
 HUMAN_ECHO = ("<command-name>", "<command-message>", "<local-command",
               "<task-notification", "<system-reminder>", "<bash-stdout>",
               "<bash-stderr>")
+LAUNCH = re.compile(r"<command-name>/([^<\s]+)</command-name>")
+LAUNCH_ARGS = re.compile(r"<command-args>(.*?)</command-args>", re.S)
 
 
 def parse_args(argv):
@@ -130,6 +134,27 @@ def is_human(r):
     return True
 
 
+def typed_launch(r):
+    """(skill, arguments) of a user record that echoes a skill launch typed
+    as a command (/sdd:apply docs/plan.md), else None. The harness writes it
+    as one string or one text block: <command-message>, <command-name> with
+    the slash and the name, and <command-args> when arguments were typed,
+    one per line. The text must open with one of the first two echoes, so a
+    compaction summary or a prompt that quotes a launch starts no run."""
+    if r.get("type") != "user":
+        return None
+    c = (r.get("message") or {}).get("content")
+    if isinstance(c, list):
+        c = "\n".join(str(b.get("text") or "") for b in c if isinstance(b, dict) and b.get("type") == "text")
+    if not isinstance(c, str) or not c.startswith(("<command-message>", "<command-name>")):
+        return None
+    m = LAUNCH.search(c)
+    if not m:
+        return None
+    a = LAUNCH_ARGS.search(c)
+    return m.group(1), (a.group(1) if a else "")
+
+
 def target_from_prompt(p):
     m = re.search(r"OpenSpec change `([^`]+)`", p)
     if m:
@@ -178,6 +203,9 @@ def load_controller(path):
             humans.append((t, c[:80].replace("\n", " ")))
             if c.startswith("<command-name>/compact") or "/compact" in c[:40]:
                 compactions += 1
+        launch = typed_launch(r)
+        if launch and launch[0] in SKILLS:
+            skills.append((t, launch[1]))
         if r.get("type") == "system" and r.get("subtype") == "turn_duration":
             turns.append((t, (r.get("durationMs") or 0) / 60000.0))
         if r.get("type") == "assistant":

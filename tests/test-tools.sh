@@ -51,7 +51,12 @@
 # rule matches), Explore, Reviewer and Implementer (all three opening "You
 # are implementing"), transcript-roles.py counts two implementers and two
 # others, and transcript-clock.py, on the same session with one dispatch of
-# each of the first two types, counts units 2 and dispatches 1.
+# each of the first two types, counts units 2 and dispatches 1. Case 15
+# holds the typed launch: transcript-clock.py starts a run at a user record
+# that echoes /sdd:apply or /app-subagent-apply typed as a command, as one
+# string or one text block, with no Skill call, and names it after the
+# command's arguments, or after the dispatch when none were typed; a
+# compaction summary that quotes such a launch starts no second run.
 #
 # Usage: bash tests/test-tools.sh
 set -euo pipefail
@@ -335,5 +340,60 @@ else
   if [ "$rc" -eq 0 ] && [[ $out != *$'\n'* && $out == 'proj kkkkkkkk case-plan: '*'; units 2, dispatches 1, '* ]]; then
     pass 14; else miss 14; fi
 fi
+
+# A typed launch as the harness writes it: one user record holding the
+# <command-message> and <command-name> echoes and, when arguments were typed,
+# <command-args>, one per line, with no Skill call after it.
+typed='<command-message>sdd:apply</command-message>\n<command-name>/sdd:apply</command-name>\n<command-args>docs/plan.md handsoff</command-args>'
+# launch SESSION CONTENT TYPE: a timestamped session whose first user record,
+# at 16:00, has the content CONTENT (a JSON value); the controller dispatches
+# one TYPE at 16:02 with a prompt naming docs/other-plan.md, its pair
+# follows, then the controller lines on stdin and a turn end at 16:15.
+launch() {
+  {
+    printf '{"type": "user", "timestamp": "2026-11-09T16:00:00Z", "message": {"role": "user", "content": %s}}\n' "$2"
+    printf '{"type": "assistant", "timestamp": "2026-11-09T16:02:00Z", "message": {"model": "m", %s, "content": [{"type": "tool_use", "id": "t12", "name": "Agent", "input": {"subagent_type": "%s", "description": "unit", "prompt": "You run one unit of docs/other-plan.md."}}]}}\n' "$usage" "$3"
+    cat
+    printf '{"type": "system", "subtype": "turn_duration", "timestamp": "2026-11-09T16:15:00Z", "durationMs": 900000}\n'
+  } > "$1.jsonl"
+  pair "$1" launch1 "$3" <<'EOF'
+{"type": "user", "timestamp": "2026-11-09T16:02:01Z", "message": {"role": "user", "content": "You run one unit of docs/other-plan.md."}}
+{"type": "assistant", "timestamp": "2026-11-09T16:06:00Z", "message": {"model": "m", "content": [{"type": "text", "text": "complete"}]}}
+EOF
+}
+# The clock on SESSION prints one line, matching PATTERN.
+one_run() {
+  run transcript-clock.py "$1.jsonl"
+  # shellcheck disable=SC2053
+  [ "$rc" -eq 0 ] && [[ $out != *$'\n'* && $out == $2 ]]
+}
+launch "$p/llllllll-typed" "\"$typed\"" sdd:unit-controller < /dev/null
+launch "$p/mmmmmmmm-typed-bare" '"<command-message>app-subagent-apply</command-message>\n<command-name>/app-subagent-apply</command-name>"' \
+  app-sdd-unit-controller < /dev/null
+launch "$p/nnnnnnnn-typed-block" "[{\"type\": \"text\", \"text\": \"$typed\"}]" sdd:unit-controller < /dev/null
+launch "$p/oooooooo-typed-compact" "\"$typed\"" sdd:unit-controller <<EOF
+{"type": "user", "isCompactSummary": true, "timestamp": "2026-11-09T16:08:00Z", "message": {"role": "user", "content": "This session is being continued from a previous conversation. The user typed: $typed"}}
+{"type": "assistant", "timestamp": "2026-11-09T16:09:00Z", "message": {"model": "m", $usage, "content": [{"type": "tool_use", "id": "t13", "name": "Agent", "input": {"subagent_type": "sdd:unit-controller", "description": "unit", "prompt": "You run one unit of docs/other-plan.md."}}]}}
+EOF
+pair "$p/oooooooo-typed-compact" launch2 sdd:unit-controller <<'EOF'
+{"type": "user", "timestamp": "2026-11-09T16:09:01Z", "message": {"role": "user", "content": "You run one unit of docs/other-plan.md."}}
+{"type": "assistant", "timestamp": "2026-11-09T16:14:00Z", "message": {"model": "m", "content": [{"type": "text", "text": "complete"}]}}
+EOF
+
+# 15. A typed launch of a skill in the set starts a run, although its echoes
+#     are no human prompt. Each session's dispatch, a minute later, names
+#     docs/other-plan.md, and no human prompt precedes it, so a clock that
+#     missed the launch would start the run at 16:02 and name it
+#     other-plan.md. One run each, from the launch at 16:00: /sdd:apply as a
+#     string, named after its arguments; /app-subagent-apply typed without
+#     any, named after the dispatch, as a Skill call without arguments is;
+#     /sdd:apply as one text block, as the first. In the fourth session a
+#     compaction summary that quotes the launch starts no second run, so the
+#     one run counts both dispatches.
+if one_run "$p/llllllll-typed" 'proj llllllll docs/plan.md handsoff: 2026-11-09T16:00Z to 2026-11-09T16:15Z, *; units 1, dispatches 1, *' &&
+   one_run "$p/mmmmmmmm-typed-bare" 'proj mmmmmmmm other-plan.md: 2026-11-09T16:00Z to 2026-11-09T16:15Z, *; units 1, dispatches 1, *' &&
+   one_run "$p/nnnnnnnn-typed-block" 'proj nnnnnnnn docs/plan.md handsoff: 2026-11-09T16:00Z to 2026-11-09T16:15Z, *; units 1, dispatches 1, *' &&
+   one_run "$p/oooooooo-typed-compact" 'proj oooooooo docs/plan.md handsoff: 2026-11-09T16:00Z to 2026-11-09T16:15Z, *; units 2, dispatches 2, *'; then
+  pass 15; else miss 15; fi
 
 exit "$fail"
