@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Test for tests/check-skill-size.sh of the sdd plugin: the substituted count
-# of its two references, the limit and the missing-file exit. Writes fixtures
+# of its three references, the limit and the missing-file exit. Writes fixtures
 # to a temporary directory, removed on exit, runs the check on them and
 # prints "ok <n>" or "FAIL <n>" per case; exits 1 when any case fails.
 #
@@ -13,7 +13,10 @@
 # (substituted)". Case 3, case 1's fixture against the limits 126, 125 and
 # 124: ok and exit 0 one above the count, "FAIL 125/125 (substituted)" and
 # exit 1 at it, "FAIL 125/124 (substituted)" and exit 1 over it. Case 4, a
-# missing file: exit 2, nothing on stdout.
+# missing file: exit 2, nothing on stdout. Case 5: 'a ${CLAUDE_PLUGIN_DATA}/x'
+# and a newline, 26 characters, in which the 21-character reference becomes
+# the 120-character stand-in, so 26 - 21 + 120 = 125: "ok 125/200
+# (substituted)".
 #
 # Usage: bash tests/test-check-skill-size.sh [SCRIPT]
 #   Default SCRIPT: tests/check-skill-size.sh beside this script
@@ -38,6 +41,8 @@ miss() { echo "FAIL $1: rc=$rc; ${out:-no output}${err:+; stderr: $err}"; fail=1
 printf '%s\n' 'a ${CLAUDE_PLUGIN_ROOT}/x' > "$tmp/root.md"
 # shellcheck disable=SC2016
 printf '%s\n' 'a ${CLAUDE_SKILL_DIR}/x' > "$tmp/skill-dir.md"
+# shellcheck disable=SC2016
+printf '%s\n' 'a ${CLAUDE_PLUGIN_DATA}/x' > "$tmp/data.md"
 
 # 1. The plugin root reference counts as the stand-in.
 run "$tmp/root.md" 200
@@ -61,5 +66,9 @@ if [ -z "$broken" ]; then pass 3; else miss "3 (${broken# })"; fi
 # 4. A missing file: exit 2 and nothing on stdout.
 run "$tmp/missing.md" 200
 if [ "$rc" -eq 2 ] && [ -z "$out" ]; then pass 4; else miss 4; fi
+
+# 5. The plugin data reference counts as the stand-in.
+run "$tmp/data.md" 200
+if [ "$rc" -eq 0 ] && [ "$out" = 'ok 125/200 (substituted)' ]; then pass 5; else miss 5; fi
 
 exit "$fail"

@@ -17,8 +17,9 @@
 # The count is taken on a temporary copy of FILE, removed on exit, in which
 # every ${CLAUDE_PLUGIN_ROOT} is replaced with a 120-character stand-in path
 # (/home/u/.claude/plugins/cache/akalongman/sdd/0.1.0 with x characters
-# appended up to 120) and every ${CLAUDE_SKILL_DIR} with that path plus
-# /skills/apply, since the compaction cut falls on the substituted text.
+# appended up to 120), every ${CLAUDE_PLUGIN_DATA} with the same stand-in
+# and every ${CLAUDE_SKILL_DIR} with that path plus /skills/apply, since the
+# compaction cut falls on the substituted text.
 # Prints "ok <n>/<limit> (substituted)" and exits 0 below the limit; prints
 # "FAIL <n>/<limit> (substituted)" and exits 1 at or over it, <n> being the
 # count of the copy. Exit 2 on a missing FILE.
@@ -33,6 +34,7 @@ while [ "${#stand}" -lt 120 ]; do stand+=x; done
 copy=$(mktemp)
 trap 'rm -f "$copy"' EXIT
 LC_ALL=C sed -e 's|[$]{CLAUDE_PLUGIN_ROOT}|'"$stand"'|g' \
+  -e 's|[$]{CLAUDE_PLUGIN_DATA}|'"$stand"'|g' \
   -e 's|[$]{CLAUDE_SKILL_DIR}|'"$stand"'/skills/apply|g' "$file" > "$copy"
 n=$(LC_ALL=C.UTF-8 wc -m < "$copy")
 n=${n//[[:space:]]/}

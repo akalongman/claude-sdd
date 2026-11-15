@@ -187,7 +187,7 @@ function noRunningClaim(r) {
   return ack.trim() !== '' && !/pauses when its current implementer or reviewer reports/.test(ack)
 }
 
-const sit = 'Situation: OpenSpec change `demo`, workspace /repo/.superpowers/sdd/demo, on branch dev, commit mode "commit on dev", no handsoff.'
+const sit = 'Situation: OpenSpec change `demo`, workspace /repo/.superpowers/sdd/demo, on branch dev, commit mode "commit on dev", no handsoff. `noask status` prints `off`.'
 const SCEN = [
   { key: 'D1-complete', who: 'driver', prompt: `${sit} You dispatched the unit controller for section 2. Its return is the file ${F}/return-complete.md (read it). What do you do next?`, schema: DRIVER_SCHEMA,
     check: r => ({ next: r.next_action === 'dispatch_next_unit', no_review_in_driver: !/review/i.test(r.command_text || ''), handoff_line: (r.ledger_lines || []).some(l => /^Section (2b|3): handed to controller/.test(l)) }) },

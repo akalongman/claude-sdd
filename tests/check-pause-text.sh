@@ -52,6 +52,8 @@ need 'note carry rule' 'owner note: <text>` \(with none live, for the next unit\
 needline 'archive points to final hold' 'Either way, once item 3 has acted on the return \(a held return only on `continue`, after the `Final phase: pause released` line\), run `scripts/run-archive <ws>`'
 needline 'push points to final hold' 'After a final phase that returned `complete`, once the driver loop.s item 3 has acted on the return \(a held return only on `continue`, after the `Final phase: pause released` line\): `git push -u <remote> <branch>`'
 need 'skill never names the checkpoint' '!sdd-checkpoint'
+need 'resume grep has Noask' 'Final phase\|Noask\):'
+need 'noask pointer' 'before a push run `noask status`; unless it reads `off` or `expired`, `references/noask\.md` applies'
 exit $fail
 fi
 needline 'Pause bullet' '^- \*\*Pause\.\*\*'

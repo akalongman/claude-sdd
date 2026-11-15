@@ -334,17 +334,18 @@ directory), of `skills/apply/scripts/run-archive` in an isolated temporary
 directory, with the laterbox engine (`later`) linked on PATH, and prints
 `ok <n>` or `FAIL <n>` for each of nineteen cases.
 `check-skill-size.sh` counts the characters of `skills/apply/SKILL.md` on a
-copy in which every `${CLAUDE_PLUGIN_ROOT}` is a 120-character stand-in
-install path and every `${CLAUDE_SKILL_DIR}` that path plus
-`/skills/apply`, and prints `ok <n>/<limit> (substituted)`, or
+copy in which every `${CLAUDE_PLUGIN_ROOT}` and every `${CLAUDE_PLUGIN_DATA}`
+is a 120-character stand-in install path and every `${CLAUDE_SKILL_DIR}`
+that path plus `/skills/apply`, and prints `ok <n>/<limit> (substituted)`, or
 `FAIL <n>/<limit> (substituted)` with exit 1 at or over the limit; the
 default limit of 19,500 leaves room under the 20,000 characters a
 compaction re-attaches (decision 23). `test-check-skill-size.sh` tests
-that check on fixtures and prints `ok <n>` or `FAIL <n>` for each of four
+that check on fixtures and prints `ok <n>` or `FAIL <n>` for each of five
 cases: a `${CLAUDE_PLUGIN_ROOT}` reference (`ok 125/200 (substituted)`), a
 `${CLAUDE_SKILL_DIR}` reference (`ok 138/200 (substituted)`), the limit
-(ok below it, `FAIL` with exit 1 at it and over it) and exit 2 on a
-missing file. `test-sub-skill-check.sh` tests
+(ok below it, `FAIL` with exit 1 at it and over it), exit 2 on a missing
+file and a `${CLAUDE_PLUGIN_DATA}` reference (`ok 125/200 (substituted)`).
+`test-sub-skill-check.sh` tests
 `skills/apply/scripts/sub-skill-check` on copies of the sub-skill directory
 that `sub-skill-check --dir` resolves, in a temporary plugin tree, and prints
 `ok <n>` or `FAIL <n>` for each of seven cases: the pinned copy (also with
