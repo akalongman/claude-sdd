@@ -35,4 +35,5 @@ need 'status command' 'noask status'
 need 'nothing running continuation' 'nothing of yours is running'
 need 'launch branch' 'the branch it was launched on'
 need 'switched off by' '`off` or `expired`'
+need 'never switch' "Never switch noask yourself, for this session or for every session: \`/noask\` and \`noask global\` are the owner's."
 exit $fail

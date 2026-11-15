@@ -3,6 +3,8 @@
 Run `noask status` at launch, before acting on every controller return and
 before a push. It answers for your own session, on by the session's own
 switch or by the global one, and the rules below are the same under either.
+Never switch noask yourself, for this session or for every session:
+`/noask` and `noask global` are the owner's.
 A status line whose last word is `handsoff` says one thing more: the owner
 switched this session with `/noask on handsoff`, which is the word to
 publish (rule 5). The status adds that word after a space to an `on` or
