@@ -3,18 +3,21 @@
 # with its default path: the size check of skills/apply/SKILL.md, the
 # pause-text guard on that file and then on
 # skills/apply/prompts/unit-controller-overrides.md (two runs, both named
-# check-pause-text), the guard of skills/apply/references/noask.md
-# (check-noask-reference), the tests of run-archive, sdd-checkpoint, noask and
-# sub-skill-check, test-tools (the transcript tools in tools/),
-# test-check-skill-size (the size check) and test-run (this runner, on a
-# copy beside stubs). Each script's own output is followed by one line for it:
-# "ok <name>", "FAIL <name>" or "skip <name> (<reason>)", <name> being the
-# script's file name without .sh. A missing prerequisite skips its test
-# without failing the run: test-run-archive.sh is skipped when the laterbox
-# engine (later) is not on PATH, and test-sub-skill-check.sh when
-# skills/apply/scripts/sub-skill-check exists and its --dir exits 2 (no
-# installed superpowers copy), with the reason --dir prints on stderr. Any
-# other --dir status runs the test, so a missing sub-skill-check fails it.
+# check-pause-text), the guards of skills/apply/references/noask.md
+# (check-noask-reference) and skills/apply/references/isolated.md
+# (check-isolated-reference), the tests of run-archive, sdd-checkpoint,
+# named-paths, the brief scripts and sdd-files-add (test-briefs),
+# source-copy, noask and sub-skill-check, test-tools (the transcript tools
+# in tools/), test-check-skill-size (the size check) and test-run (this
+# runner, on a copy beside stubs). Each script's own output is followed by
+# one line for it: "ok <name>", "FAIL <name>" or "skip <name> (<reason>)",
+# <name> being the script's file name without .sh. A missing prerequisite
+# skips its test without failing the run: test-run-archive.sh is skipped
+# when the laterbox engine (later) is not on PATH, and
+# test-sub-skill-check.sh when skills/apply/scripts/sub-skill-check exists
+# and its --dir exits 2 (no installed superpowers copy), with the reason
+# --dir prints on stderr. Any other --dir status runs the test, so a missing
+# sub-skill-check fails it.
 #
 # Usage: bash tests/run.sh
 # Ends with "<n> ok, <n> skipped, <n> failed"; exits 1 when any failed.
@@ -46,12 +49,16 @@ for f in "$root/skills/apply/SKILL.md" "$root/skills/apply/prompts/unit-controll
   check check-pause-text bash "$root/tests/check-pause-text.sh" "$f"
 done
 check check-noask-reference bash "$root/tests/check-noask-reference.sh"
+check check-isolated-reference bash "$root/tests/check-isolated-reference.sh"
 if command -v later >/dev/null; then
   check test-run-archive bash "$root/tests/test-run-archive.sh"
 else
   skip test-run-archive 'later not on PATH'
 fi
 check test-sdd-checkpoint bash "$root/tests/test-sdd-checkpoint.sh"
+check test-named-paths bash "$root/tests/test-named-paths.sh"
+check test-briefs bash "$root/tests/test-briefs.sh"
+check test-source-copy bash "$root/tests/test-source-copy.sh"
 check test-noask bash "$root/tests/test-noask.sh"
 sub=$root/skills/apply/scripts/sub-skill-check
 rc=0 reason=
