@@ -15,11 +15,11 @@
 # 1>; <reason line 2>)" and its stub not run. 3, --dir exits 0, then 1: the
 # test runs, "ok test-sub-skill-check". 4, no sub-skill-check: the test runs,
 # and its failing stub is "FAIL test-sub-skill-check". Every case also checks
-# the totals line, last, and the exit: "8 ok, 1 skipped, 0 failed" and 0 in
-# cases 1 and 2, "9 ok, 0 skipped, 0 failed" and 0 in case 3, "8 ok, 0
+# the totals line, last, and the exit: "9 ok, 1 skipped, 0 failed" and 0 in
+# cases 1 and 2, "10 ok, 0 skipped, 0 failed" and 0 in case 3, "9 ok, 0
 # skipped, 1 failed" and 1 in case 4; case 5, both skips and the failing
-# pause-text stub (two runs), "5 ok, 2 skipped, 2 failed" and 1. The counts
-# follow the runner's nine verdict lines (check-pause-text runs twice); a
+# pause-text stub (two runs), "6 ok, 2 skipped, 2 failed" and 1. The counts
+# follow the runner's ten verdict lines (check-pause-text runs twice); a
 # check added to the runner needs its stub here and new counts.
 #
 # Usage: bash tests/test-run.sh [RUNNER]
@@ -47,7 +47,7 @@ make_tree() {
   shift
   mkdir -p "$d/tests" "$d/skills/apply/scripts"
   cp "$runner" "$d/tests/run.sh"
-  for s in check-skill-size check-pause-text test-run-archive test-sdd-checkpoint \
+  for s in check-skill-size check-pause-text test-run-archive test-sdd-checkpoint test-noask \
     test-sub-skill-check test-tools test-check-skill-size test-run; do
     printf 'echo "ran %s"\n' "$s" > "$d/tests/$s.sh"
   done
@@ -88,7 +88,7 @@ sub one 0
 run one "$without_later"
 has 'skip test-run-archive (later not on PATH)' || broken+=" skip-line"
 ! has 'ran test-run-archive' || broken+=" ran"
-ends 0 '8 ok, 1 skipped, 0 failed' || broken+=" totals"
+ends 0 '9 ok, 1 skipped, 0 failed' || broken+=" totals"
 verdict 1
 
 # 2. sub-skill-check --dir exits 2: test-sub-skill-check is skipped with the
@@ -99,7 +99,7 @@ sub two 2
 run two "$with_later"
 has 'skip test-sub-skill-check (no superpowers copy; install it first)' || broken+=" skip-line"
 ! has 'ran test-sub-skill-check' || broken+=" ran"
-ends 0 '8 ok, 1 skipped, 0 failed' || broken+=" totals"
+ends 0 '9 ok, 1 skipped, 0 failed' || broken+=" totals"
 verdict 2
 
 # 3. --dir exits 0, then 1: any status but 2 runs the test.
@@ -109,7 +109,7 @@ for status in 0 1; do
   sub three "$status"
   run three "$with_later"
   has 'ran test-sub-skill-check' && has 'ok test-sub-skill-check' || broken+=" status-$status"
-  ends 0 '9 ok, 0 skipped, 0 failed' || broken+=" totals-$status"
+  ends 0 '10 ok, 0 skipped, 0 failed' || broken+=" totals-$status"
 done
 verdict 3
 
@@ -118,7 +118,7 @@ broken=
 make_tree four test-sub-skill-check
 run four "$with_later"
 has 'ran test-sub-skill-check' && has 'FAIL test-sub-skill-check' || broken+=" fail-line"
-ends 1 '8 ok, 0 skipped, 1 failed' || broken+=" totals"
+ends 1 '9 ok, 0 skipped, 1 failed' || broken+=" totals"
 verdict 4
 
 # 5. All three counts at once: both skips, and the pause-text stub failing in
@@ -128,7 +128,7 @@ make_tree five check-pause-text
 sub five 2
 run five "$without_later"
 [ "$(grep -cxF 'FAIL check-pause-text' <<< "$out")" -eq 2 ] || broken+=" fail-lines"
-ends 1 '5 ok, 2 skipped, 2 failed' || broken+=" totals"
+ends 1 '6 ok, 2 skipped, 2 failed' || broken+=" totals"
 verdict 5
 
 exit "$fail"

@@ -3,7 +3,7 @@
 # with its default path: the size check of skills/apply/SKILL.md, the
 # pause-text guard on that file and then on
 # skills/apply/prompts/unit-controller-overrides.md (two runs, both named
-# check-pause-text), the tests of run-archive, sdd-checkpoint and
+# check-pause-text), the tests of run-archive, sdd-checkpoint, noask and
 # sub-skill-check, test-tools (the transcript tools in tools/),
 # test-check-skill-size (the size check) and test-run (this runner, on a
 # copy beside stubs). Each script's own output is followed by one line for it:
@@ -50,6 +50,7 @@ else
   skip test-run-archive 'later not on PATH'
 fi
 check test-sdd-checkpoint bash "$root/tests/test-sdd-checkpoint.sh"
+check test-noask bash "$root/tests/test-noask.sh"
 sub=$root/skills/apply/scripts/sub-skill-check
 rc=0 reason=
 if [ -f "$sub" ]; then reason=$(bash "$sub" --dir 2>&1 >/dev/null) || rc=$?; fi
