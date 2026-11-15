@@ -132,6 +132,7 @@ preamble=$(awk '
   printf '%s\n' "$section"
 } > "$out"
 
-"$add" "$(dirname -- "$out")/section-${n}-files.txt" "${paths[@]}"
+# After --, every named path is a path, never an option.
+"$add" "$(dirname -- "$out")/section-${n}-files.txt" -- "${paths[@]}"
 
 echo "wrote ${out}: $(wc -l < "$out" | tr -d ' ') lines, ${open} open items, ${closed} done or deferred"

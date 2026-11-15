@@ -11,30 +11,33 @@
 # compare fewer paths than its pause did, so no call rewrites, reorders or
 # shortens the file.
 #
-# Usage: sdd-files-add LIST [--list FILE]... [PATH...]
+# Usage: sdd-files-add LIST [--list FILE]... [PATH...] [-- PATH...]
 #   Creates LIST when it does not exist (its folder must), then appends, in
 #   argument order, each path that is not already a line of LIST and not
-#   given earlier in the call. `--list FILE` adds FILE's lines. FILE's lines
-#   and LIST's own are read as `sdd-checkpoint --list` reads a list line:
-#   whole (spaces kept), a trailing CR dropped, a line that is empty or only
-#   whitespace skipped. A PATH that is empty or only whitespace is skipped
-#   too, so no call writes a blank line. Paths compare as written (`./a` and
-#   `a` are two lines; sdd-checkpoint folds them when it reads), and a
-#   leading `~/` is kept as written. When LIST's last line has no newline,
-#   one is added before the first appended path. Prints nothing.
-# Exit codes: 2 usage (no LIST, a first argument of --list, a --list without
-#   FILE, a FILE that does not exist or is a directory, a LIST that is a
-#   directory or whose folder does not exist), every check made before LIST
-#   is created or written; any other non-zero is the shell's own failure on
-#   a file it cannot read or write, with its message on stderr.
+#   given earlier in the call. `--list FILE` adds FILE's lines. `--` ends
+#   the options: every argument after it is a PATH, `--list` and `--`
+#   included. A caller passing paths it did not choose (a plan's span, a
+#   report's path) puts `--` before them. FILE's lines and LIST's own are
+#   read as `sdd-checkpoint --list` reads a list line: whole (spaces kept),
+#   a trailing CR dropped, a line that is empty or only whitespace skipped.
+#   A PATH that is empty or only whitespace is skipped too, so no call
+#   writes a blank line. Paths compare as written (`./a` and `a` are two
+#   lines; sdd-checkpoint folds them when it reads), and a leading `~/` is
+#   kept as written. When LIST's last line has no newline, one is added
+#   before the first appended path. Prints nothing.
+# Exit codes: 2 usage (no LIST, a first argument of --list or --, a --list
+#   without FILE, a FILE that does not exist or is a directory, a LIST that
+#   is a directory or whose folder does not exist), every check made before
+#   LIST is created or written; any other non-zero is the shell's own
+#   failure on a file it cannot read or write, with its message on stderr.
 set -euo pipefail
 
 usage() {
-  echo "usage: sdd-files-add LIST [--list FILE]... [PATH...]" >&2
+  echo "usage: sdd-files-add LIST [--list FILE]... [PATH...] [-- PATH...]" >&2
   exit 2
 }
 
-if [ $# -eq 0 ] || [ -z "$1" ] || [ "$1" = --list ]; then
+if [ $# -eq 0 ] || [ -z "$1" ] || [ "$1" = --list ] || [ "$1" = -- ]; then
   usage
 fi
 list=$1
@@ -62,10 +65,15 @@ read_lines() {
 }
 
 # The candidates in argument order, each list file's lines in place of its
-# `--list FILE` pair. A directory is refused, since reading one would end
-# like an empty file.
+# `--list FILE` pair, and every argument after `--` as given. A directory
+# is refused, since reading one would end like an empty file.
 paths=()
 while [ $# -gt 0 ]; do
+  if [ "$1" = -- ]; then
+    shift
+    paths+=("$@")
+    break
+  fi
   if [ "$1" != --list ]; then
     paths+=("$1")
     shift

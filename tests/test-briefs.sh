@@ -5,7 +5,8 @@
 # committed bin/report, an OpenSpec change add-export (proposal.md and
 # tasks.md) and docs/plan.md, runs the scripts from its root and prints
 # "ok <n>" or "FAIL <n>: <what was found>" per case; exits 1 when any case
-# fails.
+# fails. Case 7 adds docs/plan-list.md and tests/a.sh to the work tree,
+# uncommitted.
 #
 # Usage: bash tests/test-briefs.sh
 # The scripts are the ones in the plugin root, the parent of this script's
@@ -201,5 +202,42 @@ run "$add" "$six" a.txt
 refused || broke directory-as-list ''
 
 if [ -z "$broken" ]; then pass 6; else miss 6 "${broken# }"; fi
+
+# 7. `--` ends sdd-files-add's options, so a path that reads like an option
+#    is still a path. A plan's **Files:** block naming `--list` (a span
+#    decision 2 keeps) lists it as written, followed by the next span, and
+#    never reads that file's lines into the list. Each part names itself
+#    when it fails.
+broken=
+seven=$W/seven
+mkdir "$seven" "$repo/tests"
+printf 'line one\n#!/usr/bin/env bash\n' > "$repo/tests/a.sh"
+cat > "$repo/docs/plan-list.md" <<'EOF'
+### Task 1: Checkpoint
+
+**Files:**
+- Modify: `bin/sdd-checkpoint` (new `--list` mode), `tests/a.sh`
+EOF
+brief=$seven/task-1-brief.md l=$seven/task-1-files.txt
+run bash "$scripts/task-brief" docs/plan-list.md 1 "$brief"
+{ [ "$rc" -eq 0 ] && [ -z "$err" ] && [[ $out =~ ^"wrote $brief: "[0-9]+" lines"$ ]] &&
+  holds "$l" bin/sdd-checkpoint --list tests/a.sh; } || broke plan-span "$l"
+
+# After the marker, --list and a second -- are paths.
+l=$seven/marker.txt
+run "$add" "$l" a.txt -- --list -- b.txt
+added "$l" a.txt --list -- b.txt || broke marker "$l"
+
+# --list before the marker is still the option.
+l=$seven/list-then-marker.txt
+printf 'p.txt\n' > "$seven/in.txt"
+run "$add" "$l" --list "$seven/in.txt" -- --list
+added "$l" p.txt --list || broke list-then-marker "$l"
+
+# A first argument of -- is no LIST.
+run "$add" -- a.txt
+refused "$repo/--" || broke marker-as-list "$repo/--"
+
+if [ -z "$broken" ]; then pass 7; else miss 7 "${broken# }"; fi
 
 exit "$fail"
