@@ -76,5 +76,5 @@ jobs:
             exit 1
           fi
       - name: Run shellcheck
-        # The six bash scripts by name; section-span.awk is not shell.
-        run: shellcheck bin/sdd-checkpoint skills/apply/scripts/openspec-section-brief skills/apply/scripts/openspec-section-tick skills/apply/scripts/run-archive skills/apply/scripts/sub-skill-check skills/apply/scripts/task-brief tests/*.sh
+        # The nine bash scripts by name; section-span.awk is not shell.
+        run: shellcheck bin/sdd-checkpoint bin/sdd-files-add skills/apply/scripts/named-paths skills/apply/scripts/openspec-section-brief skills/apply/scripts/openspec-section-tick skills/apply/scripts/run-archive skills/apply/scripts/source-copy skills/apply/scripts/sub-skill-check skills/apply/scripts/task-brief tests/*.sh

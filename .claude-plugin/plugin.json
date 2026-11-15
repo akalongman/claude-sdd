@@ -1,7 +1,7 @@
 {
   "name": "sdd",
   "displayName": "sdd",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Implement a superpowers plan or an OpenSpec change through subagents: /sdd:apply drives one unit controller per unit, with implementers and reviewers one layer down, and archives the run.",
   "author": { "name": "Avtandil Kikabidze", "url": "https://github.com/akalongman" },
   "repository": "https://github.com/akalongman/claude-sdd",

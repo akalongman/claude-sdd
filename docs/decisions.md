@@ -1584,3 +1584,376 @@ its `logs/` and `settings/`, and the probe plugin.
 - P9 session id: variable CLAUDE_CODE_SESSION_ID; shell, hook input and module agree yes; a subagent's shell, hook input and module carry the main session's (shell and module; hook input not observed); after compact same, after clear new, after continue same, after fork new
 - P10 hook stdin: `{"session_id":"s-1","transcript_path":"/home/u/<second config dir>/projects/-home-u-projects-scratch-sdd-probe-2/s-1.jsonl","cwd":"/home/u/projects/scratch/sdd-probe-2","scratchpad_dir":"/tmp/claude-1000/-home-u-projects-scratch-sdd-probe-2/s-1/scratchpad","hook_event_name":"SessionStart","source":"startup","model":"claude-opus-5-5"}`
 - P11 goal proposal: tool absent
+
+## 5. Give every unit a file list, and run isolated with or without a bootstrap (2026-11-16)
+
+On 2026-11-16 the plugin moved to version 0.2.0 with the build of the
+design `docs/superpowers/specs/2026-11-13-sdd-acceptance-fixes-design.md`,
+cited at `f964095` and unchanged since. The build followed the plan
+`docs/superpowers/plans/2026-11-14-sdd-acceptance-fixes.md`, a local
+working document that is not committed, in eight commits on the base
+`47e9f77`, `4c96a62` to `43ad2f7`, and this entry's commit. It answers
+the two findings of entry 3's acceptance: an OpenSpec brief carried no
+file list, so a pausing controller had no paths to checkpoint, and
+`isolated` stopped in every project without a worktree bootstrap, where
+entry 3 ruled that it should go on in a bare worktree.
+
+### What was built
+
+- `4c96a62`: `sdd-checkpoint --list FILE` reads a unit's list file, one
+  path per line (a trailing CR dropped, a blank line skipped, a leading
+  `~/` read as the home folder), beside PATH arguments. A path given
+  twice counts once, an empty set is a valid checkpoint
+  (`heads none; tree e3b0c44298fc1c14`), and a missing list file
+  exits 2. The output for the same distinct paths is unchanged, so a
+  `paused` line ledgered before this release still compares on a resume
+  after it.
+- `5b50e7c`: `skills/apply/scripts/named-paths` prints the paths a
+  Markdown text names: the backtick spans outside code fences that have
+  the shape of a path and, relative to the repository root, are a file
+  or a new file in a folder that exists. A folder is never a named path.
+- `c67b3c6` and `8a5484b`: `openspec-section-brief` and `task-brief`
+  write a list file beside each brief, `section-<N>-files.txt` or
+  `task-<N>-files.txt`, seeded with the section's named paths or the
+  plan task's `**Files:**` block, and the OpenSpec brief gains a
+  `**Files:**` block of those paths. `bin/sdd-files-add` creates a list
+  file or adds lines to it, and never rewrites or reorders it.
+  `8a5484b` ends its options at `--`, so a plan's span `--list` is added
+  as a path, not read as the option.
+- `ed61edd`: `skills/apply/scripts/source-copy` copies the source's
+  files from the launch checkout into the worktree as they stand, and
+  its `--undo` puts the worktree back as HEAD holds those paths.
+- `e5e7a7e`: `skills/apply/references/isolated.md` holds the `isolated`
+  rules, and `skills/apply/SKILL.md` keeps one pointer to it. A launch
+  whose `.worktrees/<name>` holds the run's ledger goes on there and
+  makes, copies or runs nothing again. A first launch copies the source
+  into the worktree and commits none of it. With a bootstrap the
+  worktree is made and bootstrapped as before; without one, git must
+  ignore `.worktrees/`, the worktree is made bare and the project's
+  gates run once in it, and a failed gate run undoes the copy and
+  removes the worktree and its branch with the unforced commands. At the
+  end the run's archive keeps the source's final state in
+  `<archive>/source`.
+- `6cf37e3`: every file rule of the prompts names the unit's list file.
+  An implementer's report ends with `Files: <path>, <path>` or
+  `Files: none`, and the controller adds those paths to the list with
+  `sdd-files-add`.
+- `43ad2f7`: `tests/run.sh` runs the four new tests.
+- This entry's commit names the three new scripts on README's and CI's
+  shellcheck lines, raises the version to 0.2.0, and describes the four
+  new tests in `tools/README.md`, where `test-sdd-checkpoint.sh` now has
+  thirteen cases.
+
+### The owner's rulings
+
+- 2026-11-13, in entry 3: without a bootstrap, `isolated` makes the
+  worktree bare and runs the project's gates once in it, instead of
+  stopping.
+- 2026-11-14: a review of the design found two more defects in
+  `isolated`, in projects with a bootstrap too. The worktree is made
+  from HEAD, so a source launched uncommitted was missing from it, or
+  read as an older committed copy; and a relaunch ran
+  `git worktree add` again, which refuses once the branch and the folder
+  exist, so an `isolated` run could not be resumed. The owner ruled that
+  both fixes apply to every `isolated` run, with a bootstrap or without:
+  a relaunch goes on in the ledgered worktree, for a bootstrap worktree
+  and a bare one (the spec's decision 7).
+- 2026-11-14: an `isolated` run copies its source into the worktree as
+  it stands and commits none of it, on the launch branch or on the
+  run's, for every kind of source, an OpenSpec change, a superpowers
+  plan or a custom plan alike (the spec's decision 8). This replaced the
+  approved draft's rule that an OpenSpec change be committed before the
+  launch.
+- 2026-11-15: version numbers and entries go in landing order. This
+  build lands ahead of phase 2's held tasks, so it ships 0.2.0, the next
+  minor version after 0.1.0 since `isolated` now goes on where it used
+  to stop, and writes entry 5; phase 2's own release takes the numbers
+  after it (the spec's "Release and record").
+
+### The plan's decisions
+
+Where the spec leaves the shape to the builder, the plan decided:
+
+1. `bin/sdd-files-add` exists so that no prompt carries a shell recipe
+   for the add-only rule; `bin/sdd-checkpoint`'s header records how a
+   prose recipe failed once. It lives in `bin/` because a controller
+   calls it by bare name; the brief scripts call it as
+   `"$here/../../../bin/sdd-files-add"`.
+2. A plan's `**Files:**` block contributes every backtick span holding
+   none of `* ? [ ] { } < > $ | " '`, so a glob (`tests/*.sh`), a
+   variable or a quoted JSON fragment is not taken as a path. The
+   OpenSpec shape and disk tests do not apply there: the block is a file
+   list by intent, and names `Makefile`, paths under the home folder and
+   files in folders not made yet.
+3. `named-paths` treats a line whose first non-blank characters are
+   ```` ``` ```` or `~~~` as a fence line, indented or not.
+4. `sdd-checkpoint --list` and `sdd-files-add --list` drop a trailing CR
+   from each line.
+5. `source-copy` mirrors each path by removing it in the worktree and
+   copying it with `cp -a`, so modes, symlinks and deletions carry over;
+   its undo removes the path and restores HEAD's version with
+   `git -C TO checkout HEAD -- PATH`. It checks every path before it
+   writes anything, so a bad call leaves the worktree as
+   `git worktree add` made it.
+6. The bare worktree's gate outputs go to a folder made with
+   `mktemp -d`, outside the worktree, so they cannot block the unforced
+   removal; the stop message names that folder.
+
+### Rulings during the run
+
+R1 to R7 are the run's own rulings, numbered as in the run's
+`decisions.md`, a workspace file that is not committed; each says what
+it would cost if it were wrong.
+
+- R1. The usage sentence of `bin/sdd-checkpoint` that Task 1 quotes
+  wraps across two comment lines, and was matched across the wrap. Cost
+  if wrong: none beyond a search.
+- R2. `task-brief`'s header said the copy exists to fix the task
+  boundary and should be dropped once upstream fixes it. Since the copy
+  now also seeds the unit's list file, that clause says the copy stays
+  for the list file. Cost if wrong: one header sentence.
+- R3. The shellcheck lines gain this run's three scripts only.
+  `bin/noask`, a phase 2 script that predates this run, stays off both
+  until phase 2's held Task 10 edits README and CI, which the owner
+  ruled runs after this build. Cost if wrong: CI does not check that
+  script until then.
+- R4. This entry's commit raises the version locally, and the run
+  pushes nothing. What a push of `main` then releases is a question put
+  to the owner at the launch, and this release adds no README text on
+  it. Cost if wrong: none for the build.
+- R5. The totals the runner's own test expects were checked at the
+  launch, and the plan's figures (each four higher, with fifteen verdict
+  lines) stood. Cost if wrong: none.
+- R6. The spec does not say what happens when the source's copy itself
+  fails. `source-copy` checks every path before it writes anything and
+  exits 2 when one is absent from the launch checkout, for example a
+  plan's spec deleted there and not committed. `isolated.md` treats that
+  as a stop before any dispatch, with a bootstrap or without: the
+  unforced `git worktree remove` and `git branch -d` run with no undo,
+  since nothing was copied, and the stop names the refused path. Going
+  on would read HEAD's older copy, the defect the copy exists to remove.
+  The undo of a failed gate run is passed the worktree's root, never the
+  launch checkout's. Cost if wrong: the owner meets a stop where they
+  wanted the deletion mirrored, and relaunches after restoring or
+  committing the file.
+- R7. `tools/README.md` joins this release: its paragraph on the tests
+  `tests/run.sh` runs gains a sentence for each of the four new test
+  scripts, and `test-sdd-checkpoint.sh` thirteen cases. The paragraph's
+  two missing phase 2 tests stay phase 2's, as R3 rules for its script.
+  Cost if wrong: one paragraph reverted.
+
+One ruling of a unit controller settled what was built, in Task 1: a
+relative line of a list file resolves as a relative PATH argument does,
+against the working directory, and no repository-root rule was added,
+since neither the brief nor the spec's Part 1, item 6 names one. Cost if
+wrong: a caller running `sdd-checkpoint` outside the repository root
+gets missing-path entries for relative lines.
+
+### Known limits
+
+From the spec's Part 1, item 7:
+
+- An implementer the owner stops by hand returns no report, so a file
+  it created and never reported is not on the list until its
+  replacement reports it; the pause's checkpoint does not cover it.
+- A brief written again during a pause (a source amended after a
+  `needs-ruling`) can add paths, and the resume may then report drift
+  that is only the longer list; the owner answers the drift question.
+
+### Not covered
+
+`isolated.md` is prose a driver follows, so no script test runs it. The
+spec leaves it to the next acceptance run, which this build did not
+include: a first launch with an uncommitted OpenSpec change, a first
+launch without a bootstrap, a relaunch from the main checkout without
+the word `isolated`, a plan from an ignored plans folder, and an
+untracked custom plan outside it.
+
+### Gates
+
+At the repository root, in the working tree before this entry's
+commit and with this entry's text in place, the plan's gate chain for
+the release. Its last command, the dash `grep` over `README.md` and this
+file, finds nothing and so exits 1, which makes 1 the chain's exit
+status when every gate passes. The output is whole; only the home
+directory is written as `~`:
+
+```
+$ bash tests/run.sh && bash tests/check-skill-size.sh && claude plugin validate . --strict && /bin/grep -nP '[\x{2014}\x{2013}]' README.md docs/decisions.md
+ok 19336/19500 (substituted)
+ok check-skill-size
+ok check-pause-text
+ok check-pause-text
+ok check-noask-reference
+ok check-isolated-reference
+ok 1
+ok 2
+ok 3
+ok 4
+ok 5
+ok 6
+ok 7
+ok 8
+ok 9
+ok 10
+ok 11
+ok 12
+ok 13
+ok 14
+ok 15
+ok 16
+ok 17
+ok 18
+ok 19
+ok test-run-archive
+ok 1
+ok 2
+ok 3
+ok 4
+ok 5
+ok 6
+ok 7
+ok 8
+ok 9
+ok 10
+ok 11
+ok 12
+ok 13
+ok test-sdd-checkpoint
+ok kept-file
+ok kept-new
+ok kept-range
+ok kept-line
+ok kept-dot
+ok folder
+ok no-folder
+ok no-root-file
+ok new-no-folder
+ok space
+ok trailing-slash
+ok glob
+ok method
+ok url
+ok flag
+ok variable
+ok tilde
+ok absolute
+ok scoped
+ok setting
+ok bare-name
+ok order
+ok fence
+ok indented-fence
+ok stdin
+ok subfolder
+ok errors
+ok test-named-paths
+ok 1
+ok 2
+ok 3
+ok 4
+ok 5
+ok 6
+ok 7
+ok test-briefs
+ok 1
+ok 2
+ok 3
+ok 4
+ok 5
+ok 6
+ok test-source-copy
+ok 1
+ok 2
+ok 3
+ok 4
+ok 5
+ok 6
+ok 7
+ok 8
+ok 9
+ok 10
+ok 11
+ok 12
+ok 13
+ok 14
+ok 15
+ok 16
+ok 17
+ok 18
+ok 19
+ok 20
+ok 21
+ok 22
+ok 23
+ok 24
+ok 25
+ok 26
+ok 27
+ok 28
+ok 29
+ok 30
+ok test-noask
+ok 1
+ok 2
+ok 3
+ok 4
+ok 5
+ok 6
+ok 7
+ok 8
+ok test-sub-skill-check
+ok 1
+ok 2
+ok 3
+ok 4
+ok 5
+ok 6
+ok 7
+ok 8
+ok 9
+ok 10
+ok 11
+ok 12
+ok 13
+ok 14
+ok 15
+ok test-tools
+ok 1
+ok 2
+ok 3
+ok 4
+ok 5
+ok test-check-skill-size
+ok 1
+ok 2
+ok 3
+ok 4
+ok 5
+ok test-run
+15 ok, 0 skipped, 0 failed
+ok 19336/19500 (substituted)
+Validating plugin manifest: ~/projects/akalongman/claude-sdd/.claude-plugin/plugin.json
+
+Plugin directory checks for ~/projects/akalongman/claude-sdd. The plugin directory is the catalog that plugins are submitted to; this is a subset of what it runs.
+
+⚠ Found 1 plugin directory warning:
+
+  ❯ .claude-plugin/plugin.json icon: No icon (ICON_MISSING). No icon found in the plugin. The validator looked for `icon` in plugin.json and for a file at .claude-plugin/icon.png or .svg, assets/icon.png or .svg, or a similar path.
+    Fix: Add a square PNG to the plugin folder at .claude-plugin/icon.png, or set `icon` in plugin.json to the path of a square PNG or JPEG in the plugin: 512 to 2048 px on each side, under 2 MB. SVG and WebP are not accepted. That file may become the listing icon only once: the first time the plugin is saved or submitted in the developer portal. Adding or changing it later does not change the icon.
+
+These plugin directory checks do not change the result below.
+
+The directory also runs a safety scan and a policy review that this command does not.
+
+✔ Validation passed
+```
+
+The suite's totals line reads `15 ok, 0 skipped, 0 failed`, the size
+check `ok 19336/19500 (substituted)`, and the validation passed. Its
+one warning, the missing icon, is not this release's: a validation of
+`43ad2f7`, exported with `git archive`, gives the same warning. The same
+chain, run again on this entry's final text, printed the same output
+and exited 1 again.
+
+Result: pass. Nothing was pushed.

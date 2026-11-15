@@ -323,9 +323,40 @@ PATH, and `test-sub-skill-check.sh` when `sub-skill-check --dir` exits 2
 and 22 of the record repository's `docs/decisions.md`, as are the decision
 numbers below); the runner gives it `skills/apply/SKILL.md` and then
 `skills/apply/prompts/unit-controller-overrides.md`.
+`check-isolated-reference.sh` checks `skills/apply/references/isolated.md`,
+the driver's rules for an `isolated` run, with a project bootstrap or
+without: each command, ledger line and phrase the rules name must be in
+the file, and a forced removal, a forced branch deletion, the old launch
+word `hands-off` and a commit of the source must not be; it prints
+`missing: <string>` or `present: <string>` for each miss and exits 1 on any.
 `test-sdd-checkpoint.sh` tests the checkpoint script, `bin/sdd-checkpoint`,
 in two temporary git repositories and prints `ok <n>` or `FAIL <n>` for each
-of six cases (decision 22). `test-run-archive.sh` tests the `Sub-skill:`
+of thirteen cases (decision 22). `test-named-paths.sh` tests the
+named-path rule, `skills/apply/scripts/named-paths`, in a temporary git
+repository with committed `bin/report`, `src/app.php`, `README.md`,
+`tests/unit/a.txt` and `Makefile`, and prints `ok <name>` or
+`FAIL <name>` for each of twenty-seven cases: twenty-one backtick spans,
+each kept in its cleaned form or dropped, then whole files for first-seen
+order, spans inside a fence (an indented one too), stdin, a run from a
+subfolder, and exit 2 for no argument, a missing file and a folder in no
+repository. `test-briefs.sh` tests how each unit's file list is seeded
+from its brief: the two brief scripts
+(`skills/apply/scripts/openspec-section-brief` and `task-brief`) seed the
+list file beside the brief and `bin/sdd-files-add` grows it, in a
+temporary git repository with an OpenSpec change and a plan; it prints
+`ok <n>` or `FAIL <n>: <what was found>` for each of seven cases: an
+OpenSpec section's `**Files:**` block and its list, a section that names
+no path, a list that keeps its earlier lines, a plan's `**Files:**`
+block, no list for a missing section, `sdd-files-add`'s add-only rule
+and its exits, and `--` ending its options. `test-source-copy.sh` tests
+`skills/apply/scripts/source-copy` on a temporary repository whose
+OpenSpec change folder holds an edited, a deleted, an added and an
+executable file beside an ignored plan and an untracked note, all left
+uncommitted, and prints `ok <n>` or `FAIL <n>` for each of six cases: the
+copy into a new worktree, its content and the executable bit, the launch
+checkout left as it was, the undo that lets the unforced worktree removal
+succeed, bad calls that copy nothing, and the copy into a plain folder
+outside every repository. `test-run-archive.sh` tests the `Sub-skill:`
 line (decision 23), the park step (the record repository's
 `docs/superpowers/specs/2026-10-27-handed-items-design.md`), the
 `Skill:` line, whose two hashes must be those of `skills/apply/SKILL.md`

@@ -163,7 +163,7 @@ Validate the plugin, run the tests and check the shell scripts:
 ```bash
 claude plugin validate . --strict
 bash tests/run.sh
-shellcheck bin/sdd-checkpoint skills/apply/scripts/openspec-section-brief skills/apply/scripts/openspec-section-tick skills/apply/scripts/run-archive skills/apply/scripts/sub-skill-check skills/apply/scripts/task-brief tests/*.sh
+shellcheck bin/sdd-checkpoint bin/sdd-files-add skills/apply/scripts/named-paths skills/apply/scripts/openspec-section-brief skills/apply/scripts/openspec-section-tick skills/apply/scripts/run-archive skills/apply/scripts/source-copy skills/apply/scripts/sub-skill-check skills/apply/scripts/task-brief tests/*.sh
 ```
 
 `tests/run.sh` ends with `<n> ok, <n> skipped, <n> failed`. It skips
