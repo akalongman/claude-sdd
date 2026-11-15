@@ -72,7 +72,7 @@ the next session, or after `/reload-plugins` in a session already open.
 ## Using it
 
 ```text
-/sdd:apply <source> [step|hands-off] [isolated] [tier=<alias>]
+/sdd:apply <source> [step|handsoff] [isolated] [tier=<alias>]
 ```
 
 `<source>` is an OpenSpec change name, a plan file path, or a PRD or spec
@@ -88,7 +88,7 @@ there are several candidates.
 result and asks whether to continue; stopping ends the run there, with the
 stop recorded in the ledger.
 
-`hands-off` means nothing stops after the launch. Unit controllers rule on
+`handsoff` means nothing stops after the launch. Unit controllers rule on
 their own reading and record each ruling with its cost if wrong, and
 mismatches are parked instead of asked. After a final phase that completes,
 the skill pushes the branch to its remote, else `origin`. Off the default
@@ -97,7 +97,8 @@ request with `gh` on github.com, with the run summary and the run's
 rulings, handed-on, parked and open-before-merge lines as its description;
 on any other host it stops and says the branch is pushed. On the default
 branch it pushes and opens nothing. A final phase with any other status
-pushes nothing.
+pushes nothing. The word was spelled `hands-off` before version 0.2.0, and
+that earlier spelling is no longer read.
 
 Without `isolated`, the run commits on the current branch, the default
 branch included, with path-limited commits, and never creates or switches a

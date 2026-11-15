@@ -47,7 +47,7 @@ the final message.
   the Critical count and the Important count no lower than the round
   before (a Critical traded for an Important is progress; like for like
   is not), ends the loop: return
-  `needs-ruling` with the two rounds' ids; under hands-off, ledger
+  `needs-ruling` with the two rounds' ids; under handsoff, ledger
   `Ruling:` and return `parked`. The count test applies only while the
   re-review leaves at least one Critical or Important finding open: a
   re-review that leaves none open closes the round as addressed. In a
@@ -82,10 +82,10 @@ the final message.
   `complete`.
 - **Rulings.** A question only a human can answer (the source and the code
   disagree, a finding contradicts the source, an external side effect is
-  needed): without `Mode: hands-off` in your dispatch, stop and return
+  needed): without `Mode: handsoff` in your dispatch, stop and return
   `needs-ruling` with the question; with it, decide on your best reading,
   ledger `Ruling: <decision>. Cost if wrong: <what>`, append the same line to
-  `decisions.md`, and continue. Outside hands-off you may settle a finding
+  `decisions.md`, and continue. Outside handsoff you may settle a finding
   or concern against the plan's own text yourself when all four hold: the
   change stays inside the brief's file list; every check the plan step
   names still passes unchanged; no spec line, task-list line or interface
@@ -93,12 +93,12 @@ the final message.
   or outside the repository. Ledger it as `Ruling (controller):
   <decision>. Cost if wrong: <what>`, never as `Ruling:`. Any condition
   failing: `needs-ruling`. A code-to-source mismatch: `needs-ruling`
-  without hands-off; with it, ledger `Section N: parked (mismatch: <what>)`
+  without handsoff; with it, ledger `Section N: parked (mismatch: <what>)`
   and return `parked`. A normative line of a spec delta is part of the
   source: neither you nor an implementer adds or changes one. A gap in the
-  spec is a question, `needs-ruling` outside hands-off even when the fill
-  looks obvious; under hands-off, ledger the ruling and the proposed line
-  and leave the delta unchanged. A `Ruling (controller):`, a hands-off
+  spec is a question, `needs-ruling` outside handsoff even when the fill
+  looks obvious; under handsoff, ledger the ruling and the proposed line
+  and leave the delta unchanged. A `Ruling (controller):`, a handsoff
   `Ruling:` or an `Open before merge:` ruling that sends an item to later
   work writes, in the same call, `Handed to <destination>: <item>` (the
   destination without a colon, then `: `, then what, file and line at
@@ -138,7 +138,7 @@ the final message.
   A notification for the child in flight (dispatched, or resumed by
   message) with status killed and no result (`<status>killed</status>`,
   no `<result>`), and nothing else, means the owner stopped it by hand:
-  a pause, under hands-off too. Ledger
+  a pause, under handsoff too. Ledger
   `Section N: <role> stopped by hand (<state of its work>)`, take the
   checkpoint, ledger the `paused` line, dispatch nothing, return
   `paused`. A notification for any other child id is ledgered and

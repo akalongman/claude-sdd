@@ -1,5 +1,9 @@
 # Scenario check of the skill text
 
+The results in this directory were recorded before the launch word
+`hands-off` was renamed `handsoff`, and keep `hands-off`, in the files and
+in the scenario keys.
+
 Decision numbers in this file are those of `docs/decisions.md` in the
 record repository (`akalongman/claude-subagent-apply`, private), not of
 this repository's own log.

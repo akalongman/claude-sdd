@@ -12,6 +12,7 @@ need() {
   fi
 }
 needline() { /bin/grep -qE "$2" "$f" || { echo "missing: $1"; fail=1; }; }
+need 'no old spelling' '![Hh]ands-off'
 if [ "$(basename "$f")" = SKILL.md ]; then
 need 'paused case' 'controller returned paused'
 need 'hold defers dispatch only' 'cleanup at once|cleanup .* at once'
@@ -20,7 +21,7 @@ need 'pause requested line' 'Section N: pause requested'
 need 'mirror rule' 'Stopped by user mid-unit <N>'
 need 'own stops consumed' 'stops the driver issued'
 need 'superseded attempt' 'superseded attempt'
-need 'drift ruling asked under hands-off' 'under hands-off too'
+need 'drift ruling asked under handsoff' 'under handsoff too'
 need 'owner words' '`pause`, `continue` and `abort`'
 need 'bare stop' 'bare `stop`'
 need 'step prompt wins' 'step.*prompt.*wins|answer wins'
@@ -42,7 +43,7 @@ need 'no still paused framing' '!still paused: answer in your block'
 needline 'complete held under a request' '`complete` or `parked`: .*Then next unit[^;]*request is in force[^;]*held'
 needline 'continue makes the deferred dispatch' 'every `continue`.*or make the dispatch, or ask again the question, that the pause deferred.*nothing to resume'
 needline 'resume grep has handed to controller' 'pause released\|resumed\|handed to controller\)'
-needline 'final hold defers' '`complete` or `parked`: .*Then next unit[^;]*\(in the final phase, `scripts/run-archive`, the final message and the hands-off push and request wait in its place, and on `continue` the driver ledgers `Final phase: pause released` and then runs them in the usual order\).*defers the next dispatch only \(in the final phase with no dispatch left, `scripts/run-archive`, the final message and the hands-off push and request in its place\)'
+needline 'final hold defers' '`complete` or `parked`: .*Then next unit[^;]*\(in the final phase, `scripts/run-archive`, the final message and the handsoff push and request wait in its place, and on `continue` the driver ledgers `Final phase: pause released` and then runs them in the usual order\).*defers the next dispatch only \(in the final phase with no dispatch left, `scripts/run-archive`, the final message and the handsoff push and request in its place\)'
 need 'relaunch runs deferred steps' 'relaunch whose ledger shows the final phase held \(`Paused by user after the final phase` with no `Final phase: pause released` after it\) writes that release and then runs the steps the hold deferred[^.]*for a plan and for an OpenSpec change alike'
 need 'all_done after deferred steps' '`all_done`: with a `Final phase: complete <sha7>` ledger line at the current HEAD, first release a held final phase and run the steps its hold deferred \(This machine, item 1\), then render the table'
 needline 'ack with no unit live' 'with none live, "pause requested; nothing is dispatched until `continue`"\) and end the turn; forward nothing'
