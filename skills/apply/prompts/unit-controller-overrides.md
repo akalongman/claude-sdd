@@ -57,7 +57,10 @@ the final message.
 - **Gates.** Before the unit's `complete` line: the project's own lint,
   analysis and test commands over the unit's files (OpenSpec:
   `openspec validate <name> --strict` first); none defined: say so in the
-  ledger. Ledger `Gates: <commands> passed`.
+  ledger. Ledger `Gates: <commands> passed`. When the ledger's `Commit mode`
+  line ends `(bare worktree: <commands> passed)`, those commands are the run's gate set:
+  run them, scoped to the unit as usual, and add none; `(bare worktree: no gates)`
+  means the run has none.
 - **Final phase** (brief `final-brief.md`): the gates; the whole-branch
   review over `Run base`..HEAD, never a computed merge base, on `fable`,
   requirements as paths plus the ledger's deferred and parked lines, report

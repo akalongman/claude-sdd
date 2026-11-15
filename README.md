@@ -103,12 +103,24 @@ that earlier spelling is no longer read.
 Without `isolated`, the run commits on the current branch, the default
 branch included, with path-limited commits, and never creates or switches a
 branch; it stops on uncommitted changes in the units' files. With
-`isolated`, the skill looks for the project's worktree bootstrap, the first
-that exists of `composer worktree:setup`, `npm run worktree:setup` and
-`make worktree:setup`, and stops before creating anything when there is
-none. It then runs `git worktree add .worktrees/<name> -b <name>` from HEAD,
-runs the bootstrap and works from that worktree, which stays until you run
-the project's teardown.
+`isolated`, the run works in `.worktrees/<name>` on a branch `<name>`, the
+OpenSpec change's name or the plan's file name without `.md`. A launch
+whose `.worktrees/<name>` already holds the run's ledger goes on there,
+with `isolated` or without it. A first launch copies the source (an
+OpenSpec change's folder, or a plan and the spec it names, from any path)
+into the worktree as it stands, commits none of it, and reads only that
+copy from then on; at the end the skill keeps the copy's final state in the
+run's archive and says how to keep the run's version (an OpenSpec change
+goes through `/opsx:archive` inside the worktree and is committed on the
+run's branch). When the project has a worktree bootstrap, the first that
+exists of `composer worktree:setup`, `npm run worktree:setup` and
+`make worktree:setup`, the skill runs
+`git worktree add .worktrees/<name> -b <name>` from HEAD and the bootstrap,
+and the worktree stays until you run the project's teardown. Without one,
+git must ignore `.worktrees/`; the skill makes the worktree bare and runs
+the project's gates once in it. When they pass, the run goes on there and
+the worktree stays until you remove it; when one fails, the worktree and
+its branch are removed and the run stops, naming the failing command.
 
 `tier=<alias>` sets the model of the unit controllers, implementers and
 reviewers, `opus` by default; the aliases are `sonnet`, `opus` and `fable`.
