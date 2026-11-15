@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+# Copy a run's source (an OpenSpec change folder, a plan, the spec it
+# names) from one folder into another as it stands, and undo that copy in a
+# worktree. Only the driver of an `isolated` run calls it, at three steps of
+# the isolated reference: item 2 copies the source from the checkout the run
+# was launched in into the run's new worktree, right after
+# `git worktree add`; item 8 undoes that copy when a bare worktree's one
+# gate run fails; item 11, at the run's end, copies the worktree's final
+# source into the run archive's `source` folder.
+#
+# It commits nothing, because the owner ruled that an `isolated` run commits
+# none of its source, on the launch branch or on the run's (2026-11-14). The
+# copy carries edits, deletions, untracked and ignored files, modes and
+# symlinks: each PATH is removed in TO and copied whole from FROM with
+# `cp -a`. The copy itself never calls git, so TO may lie in no repository.
+#
+# The undo exists because the bare worktree's removal is never forced, and
+# an unforced `git worktree remove` refuses a worktree with untracked or
+# edited files. It removes each PATH in TO and restores HEAD's version of
+# the ones HEAD holds, so the worktree is clean again.
+#
+# Usage: source-copy FROM TO PATH...
+#        source-copy --undo TO PATH...
+#   FROM  the root of the checkout the run was launched in (at the run's end,
+#         the worktree's root)
+#   TO    the root of the new worktree (at the run's end, the run archive's
+#         source folder)
+#   PATH  a file or a folder, relative to the repository root
+# Every PATH is checked before anything is written: not empty, not
+# absolute, no .. component and, for the copy only, present in FROM (a
+# symlink counts even when its target is missing).
+# Exit codes: 0, printing nothing; 2 usage (too few arguments, FROM or TO
+# not a folder, FROM and TO the same folder, a PATH that fails its check),
+# with a message on stderr and nothing written. A failing git, rm, mkdir or
+# cp stops the script with that command's status and message.
+set -euo pipefail
+
+usage() {
+  echo "usage: source-copy FROM TO PATH... | source-copy --undo TO PATH..." >&2
+  exit 2
+}
+refuse() {
+  echo "source-copy: $1" >&2
+  exit 2
+}
+
+undo=0
+from=
+if [ "${1:-}" = --undo ]; then
+  undo=1
+  shift
+  [ $# -ge 2 ] || usage
+else
+  [ $# -ge 3 ] || usage
+  from=$1
+  shift
+  [ -d "$from" ] || refuse "FROM is not a folder: $from"
+fi
+to=$1
+shift
+[ -d "$to" ] || refuse "TO is not a folder: $to"
+# The copy removes each PATH in TO before reading it from FROM, so the same
+# folder twice would delete the source's uncommitted files.
+if [ "$undo" -eq 0 ] && [ "$from" -ef "$to" ]; then
+  refuse "FROM and TO are the same folder: $to"
+fi
+
+for p in "$@"; do
+  [ -n "$p" ] || refuse "an empty PATH"
+  [[ $p != /* ]] || refuse "an absolute PATH: $p"
+  [[ /$p/ != */../* ]] || refuse "a PATH with a .. component: $p"
+  if [ "$undo" -eq 0 ] && [ ! -e "$from/$p" ] && [ ! -L "$from/$p" ]; then
+    refuse "a PATH not in FROM: $p"
+  fi
+done
+
+if [ "$undo" -eq 1 ]; then
+  # HEAD is read before the removal, so a TO where git finds no HEAD fails
+  # on the first PATH with nothing removed.
+  for p in "$@"; do
+    tree=$(git -C "$to" ls-tree HEAD -- "$p")
+    rm -rf -- "${to:?}/${p:?}"
+    if [ -n "$tree" ]; then git -C "$to" checkout -q HEAD -- "$p"; fi
+  done
+  exit 0
+fi
+
+for p in "$@"; do
+  rm -rf -- "${to:?}/${p:?}"
+  mkdir -p -- "$(dirname -- "$to/$p")"
+  cp -a -- "$from/$p" "$to/$p"
+done
