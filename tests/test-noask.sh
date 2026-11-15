@@ -256,7 +256,8 @@ verdict 9
 
 # 10. An unreadable global marker, one sub-case each: read by status and the
 #     bare command, then replaced by on and removed by off, each on a fresh
-#     copy. The FIFO is a marker whose read never answers.
+#     copy. The FIFO is a marker whose read never answers. No status line
+#     ends in handsoff, the word that lets a session publish.
 # bad_global KIND: the global marker of sub-case KIND.
 bad_global() {
   mkdir -p -- "$st"
@@ -286,6 +287,7 @@ for kind in two-lines no-level level-push level-handsoff empty-generation genera
   fresh "10-$kind"
   bad_global "$kind"
   noask status; like "$kind-status" 3 '^unreadable .+$'
+  [[ $out != *handsoff ]] || broken+=" $kind-status-ends-handsoff"
   noask; like "$kind-plain" 3 '^noask: unreadable \(.+\); sessions treat it as on; noask global off removes it$'
   fresh "10-$kind-on"
   bad_global "$kind"

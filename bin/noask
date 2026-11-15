@@ -248,7 +248,8 @@ read_marker() {
   elif ! [[ ${lines[2]} =~ $UNTIL_RE ]] || { [ "${lines[2]}" != until= ] && ! u=$(shown "${lines[2]#until=}"); }; then
     reason='line 3 is not until=<time> or until='
   elif ! [[ ${lines[3]} =~ ^level=(noask|handsoff)$ ]]; then
-    reason='line 4 is not level=noask or level=handsoff'
+    # No reason ends in handsoff: a status line that ends in it lets a session publish.
+    reason='line 4 is not level=handsoff or level=noask'
   elif [ "$kind" = global ] && [ "${lines[3]}" = level=handsoff ]; then
     reason="level=handsoff in the global marker, which only a session's marker holds"
   elif [ "$kind" = session ] && [ "${lines[2]}" = until= ]; then
