@@ -10,16 +10,15 @@ do, app-subagent-apply and sdd:apply; with no subagents in the run, the run
 ends at the session's last assistant record or the next invocation, so
 compare only active minutes.
 
-For every session it finds each apply run: a run starts at an invocation of
-the skill `app-subagent-apply` or `sdd:apply`, a Skill call or a typed
-launch (or, when the session invokes neither, at the human prompt that
-precedes the first dispatch of an agent named `app-sdd-*`, `sdd:*` or
-`sdd-*`) and ends at the end of the
-controller turn in which the run's last such subagent finished (the next
-`turn_duration` system record at or after that subagent's last timestamp;
-the controller's last assistant record when there is none). A session can
-hold several runs; a run ends early when one of those skills is invoked
-again.
+For every session it finds each apply run: a run starts at a Skill call or
+a typed launch of the skill `app-subagent-apply` or `sdd:apply` (or, when
+the session invokes neither, at the human prompt that precedes the first
+dispatch of an agent named `app-sdd-*`, `sdd:*` or `sdd-*`) and ends at the
+end of the controller turn in which the run's last such subagent finished
+(the next `turn_duration` system record at or after that subagent's last
+timestamp; the controller's last assistant record when there is none). A
+session can hold several runs; a run ends early when one of those skills is
+invoked again.
 
 Inside each run every record of the controller and of every subagent
 under <session-id>/subagents/ is an event, and the gap between two

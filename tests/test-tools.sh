@@ -56,7 +56,11 @@
 # that echoes /sdd:apply or /app-subagent-apply typed as a command, as one
 # string or one text block, with no Skill call, and names it after the
 # command's arguments, or after the dispatch when none were typed; a
-# compaction summary that quotes such a launch starts no second run.
+# compaction summary that quotes such a launch starts no second run. Case
+# 16 holds the skill name of a typed launch: a typed command whose name is
+# outside the set (/other:skill) starts no run, so the run starts at the
+# dispatch and is named after it, and with --skill other:skill the same
+# command starts the run and names it after its arguments.
 #
 # Usage: bash tests/test-tools.sh
 set -euo pipefail
@@ -361,9 +365,10 @@ launch() {
 {"type": "assistant", "timestamp": "2026-11-09T16:06:00Z", "message": {"model": "m", "content": [{"type": "text", "text": "complete"}]}}
 EOF
 }
-# The clock on SESSION prints one line, matching PATTERN.
+# The clock on SESSION, with any further arguments before it, prints one
+# line, matching PATTERN.
 one_run() {
-  run transcript-clock.py "$1.jsonl"
+  run transcript-clock.py "${@:3}" "$1.jsonl"
   # shellcheck disable=SC2053
   [ "$rc" -eq 0 ] && [[ $out != *$'\n'* && $out == $2 ]]
 }
@@ -381,7 +386,7 @@ pair "$p/oooooooo-typed-compact" launch2 sdd:unit-controller <<'EOF'
 EOF
 
 # 15. A typed launch of a skill in the set starts a run, although its echoes
-#     are no human prompt. Each session's dispatch, a minute later, names
+#     are no human prompt. Each session's dispatch, two minutes later, names
 #     docs/other-plan.md, and no human prompt precedes it, so a clock that
 #     missed the launch would start the run at 16:02 and name it
 #     other-plan.md. One run each, from the launch at 16:00: /sdd:apply as a
@@ -395,5 +400,20 @@ if one_run "$p/llllllll-typed" 'proj llllllll docs/plan.md handsoff: 2026-11-09T
    one_run "$p/nnnnnnnn-typed-block" 'proj nnnnnnnn docs/plan.md handsoff: 2026-11-09T16:00Z to 2026-11-09T16:15Z, *; units 1, dispatches 1, *' &&
    one_run "$p/oooooooo-typed-compact" 'proj oooooooo docs/plan.md handsoff: 2026-11-09T16:00Z to 2026-11-09T16:15Z, *; units 2, dispatches 2, *'; then
   pass 15; else miss 15; fi
+
+# The echoes of a typed command whose name is outside the set, with arguments.
+typed_other='<command-message>other:skill</command-message>\n<command-name>/other:skill</command-name>\n<command-args>docs/plan.md handsoff</command-args>'
+launch "$p/pppppppp-typed-other" "\"$typed_other\"" sdd:unit-controller < /dev/null
+
+# 16. A typed command starts a run only when its name is in the set. The
+#     session types /other:skill with arguments at 16:00 and dispatches at
+#     16:02, as in case 15. Without --skill the command starts no run, so
+#     the run starts at the dispatch, as when nothing was typed, and is
+#     named after it; with --skill other:skill the same command starts the
+#     run at 16:00 and names it after its arguments.
+if one_run "$p/pppppppp-typed-other" 'proj pppppppp other-plan.md: 2026-11-09T16:02Z to 2026-11-09T16:15Z, *; units 1, dispatches 1, *' &&
+   one_run "$p/pppppppp-typed-other" 'proj pppppppp docs/plan.md handsoff: 2026-11-09T16:00Z to 2026-11-09T16:15Z, *; units 1, dispatches 1, *' \
+     --skill other:skill; then
+  pass 16; else miss 16; fi
 
 exit "$fail"

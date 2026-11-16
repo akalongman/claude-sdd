@@ -389,11 +389,12 @@ the script's own pin (the record repository's
 `docs/superpowers/specs/2026-10-23-sub-skill-upgrade-content-pin-design.md`).
 `test-tools.sh` tests the
 transcript tools here on fixture transcripts and prints `ok <n>` or
-`FAIL <n>` for each of fifteen cases: the three agent name forms
+`FAIL <n>` for each of sixteen cases: the three agent name forms
 (`app-sdd-<role>`, `sdd:<role>`, `sdd-<role>`) and the prefix they need (a
 bare `<role>` is no sdd role whatever its prompt opens with, while
 `general-purpose` keeps the head rules) in `transcript-roles.py`, both skill
-names, a typed launch of either, the three agent name forms, the
+names, a typed launch of either (a typed command of another name starts no
+run unless `--skill` names it), the three agent name forms, the
 adding `--skill`, a bare `unit-controller`, `implementer` or
 `reviewer` that is no unit, and a
 `general-purpose` subagent opening "You run one unit" that is no unit
