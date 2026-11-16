@@ -864,8 +864,8 @@ person installs, a `--plugin-dir` module included. The probe module's
 probe; its `tool.call` and `session.start` hooks ran every time. Three
 values therefore take the plan's branch that stops for the owner (P2, P4,
 P6), two have no reading in the form the plan states (P3, P5), and six
-read as the plan expects (P1, P7, P8, P9, P10, P11), P9 with one part
-unobserved.
+read as the plan expects (P1, P7, P8, P9, P10, P11), P9 and P10 each with
+a subagent case unobserved.
 
 The words used for the outcomes below:
 
@@ -989,13 +989,16 @@ Enter sent as its own key once the text showed. Twice an Enter was lost,
 once sent in the same call as a long prompt and once just after a fork's
 start, and was sent again. Screens were read with
 `tmux capture-pane -p -t <session> -S -300`; a quoted screen is an
-excerpt, without blank lines and without the status line, which names the
-account. Waits were bounded loops on the logs and transcripts. The
-transcripts are
+excerpt that keeps its blank lines and leaves out the drawn rule lines and
+the status line, which names the account. Waits were bounded loops on the
+logs and transcripts. The transcripts are
 `~/<second config dir>/projects/-home-<user>-projects-scratch-sdd-probe-2/<session id>.jsonl`,
 written in UTC. After each probe its logs moved to
-`~/projects/scratch/sdd-probe-2/logs/<probe>.<log>`, where the commands
-below read them, and its `tmux` session was killed.
+`~/projects/scratch/sdd-probe-2/logs/<step>.<log>`, named by the plan step
+that ran the probe (`step2` for F, `step3` for E and `step3c` for its
+control, `step4` to `step7` for A to D, `step8a` to `step8c` for G's three
+sessions, `step9` for H and `step10` for I), where the commands below read
+them, and its `tmux` session was killed.
 
 The first start in the new folder asked whether to trust it, and "Yes, I
 trust this folder" was chosen, which records that folder's trust in the
@@ -1040,9 +1043,19 @@ $ cd ~/<second config dir>/projects/-home-<user>-projects-scratch-sdd-probe-2 &&
      19 noaskprobe: its classic.Stop hook was skipped. "cc-plugin-sec-default" runs first and sent the event on past it.
 ```
 
-The status plugin's `classic.Notification`, `classic.Elicitation` and
-`classic.ElicitationResult` hooks were passed over the same way. The
-module's own logs hold no line for a classic event in any probe:
+The status plugin, installed rather than loaded with `--plugin-dir`, had
+its `classic.Notification`, `classic.Elicitation` and
+`classic.ElicitationResult` hooks passed over the same way (its name
+written `<status plugin>` by the command):
+
+```
+$ cd ~/<second config dir>/projects/-home-<user>-projects-scratch-sdd-probe-2 && jq -r 'select(.type=="system" and .subtype=="informational") | .content' *.jsonl | /bin/grep -F 'hook was skipped' | /bin/grep -v -F 'noaskprobe:' | sed 's/^[^:]*: /<status plugin>: /' | sort | uniq -c
+      1 <status plugin>: its classic.Elicitation hook was skipped. "cc-plugin-sec-default" runs first and sent the event on past it.
+      1 <status plugin>: its classic.ElicitationResult hook was skipped. "cc-plugin-sec-default" runs first and sent the event on past it.
+      5 <status plugin>: its classic.Notification hook was skipped. "cc-plugin-sec-default" runs first and sent the event on past it.
+```
+
+The module's own logs hold no line for a classic event in any probe:
 
 ```
 $ cd ~/projects/scratch/sdd-probe-2/logs && ls *.probe.log | wc -l && cat *.probe.log | jq -r .ev | sort | uniq -c
@@ -1071,13 +1084,24 @@ by that rule. Every hook the transcripts name as passed over is a
 `classic.*` one; `tool.call` and `session.start` are neither kind, and
 those hooks ran.
 
-The machine has no managed settings (`ls /etc/claude-code` reports no
-such directory), so the seat comes from the organization; every
-session's header reads "Claude Team". No probe ran on an account of
-another plan, so whether a module's classic hooks run there is not
-observed here. Hooks that are not a module's ran: the probe plugin's
-SessionStart command hook wrote `start.log` on every source, and settings
-hooks ran (the owner's, and probe E's control below).
+The machine has no managed settings: `/etc/claude-code`, the directory of
+file-based managed settings, is absent, and the configuration directory's
+signed cache of the remote settings delivered for the account,
+`remote-settings.json`, holds an empty object (read on 2026-11-16, the day
+after the probes):
+
+```
+$ ls /etc/claude-code; cat ~/<second config dir>/remote-settings.json; echo
+ls: cannot access '/etc/claude-code': No such file or directory
+{}
+```
+
+So the seat comes from the organization; every session's header reads
+"Claude Team". No probe ran on an account of another plan, so whether a
+module's classic hooks run there is not observed here. Hooks that are not
+a module's ran: the probe plugin's SessionStart command hook wrote
+`start.log` on every source, and settings hooks ran (the owner's, and
+probe E's control below).
 
 ### Probe F, the name (P1)
 
@@ -1170,7 +1194,10 @@ answers `pineapple`, and the second Stop's input reads
 `stop_hook_active: true`. The difference between the two transcripts is
 exactly that: the control's has the block's feedback message and a second
 assistant message, the probe's has neither. Both Stop inputs of the
-control carry `background_tasks` and `session_crons`, empty.
+control carry `background_tasks` and `session_crons`, empty. Neither
+carries an `agent_id` key: the `null` above is how jq prints a missing
+key (`jq -c 'has("agent_id")' step3c.stop-control.log` prints `false`
+twice).
 
 ### Probe A, background work in the Stop input (P3)
 
@@ -1204,10 +1231,11 @@ $ cd ~/<second config dir>/projects/-home-<user>-projects-scratch-sdd-probe-2 &&
 The three informational records are the probe plugin's SessionStart,
 PostToolUse and Stop notices. Three stops ran (the turn of prompt 1, the
 turn after the subagent's notification, the turn of prompt 2), each with
-one settings hook, the owner's sound, and the module's Stop hook was
-passed over at each, so there are no Stop lines to record. The subagent
-never slept: this build refuses a standalone foreground `sleep` in a
-subagent's shell as well, and the screen reported
+one settings hook, the owner's sound. The module's Stop hook ran at none
+of them: its skip notice shows at the first stop only, and the module's
+log (`step4.probe.log`) holds no Stop line, so there are no Stop lines to
+record. The subagent never slept: this build refuses a standalone
+foreground `sleep` in a subagent's shell as well, and the screen reported
 `Agent "Sleep 45 then report" finished · 8s`. The wakeup was set for
 02:33 local time (22:33 UTC); the session was killed at 22:28:10 UTC,
 before it could fire.
@@ -1548,7 +1576,7 @@ Result: the tool is absent from these sessions.
 | P3 | not measured: no Stop input reaches the module, so the type, the live status, the finished form and `recurring` were not observed; the arrays do appear, empty, in a settings Stop hook's input (probe E's control) | no branch taken: not measured. The table's other branches need the observed strings, and its "the arrays never appear" branch does not fit, since the control shows them; the value is left for the owner, and a new measurement, if the owner wants one, follows the ruling on P2. Task 8, which reads it, waits on P2's stop |
 | P4 | message on startup, clear and compact, not on resume or fork; context not read on resume or fork; the module's `classic.SessionStart` fires on no source | stop for the owner, by the table's last clause: the module's event does not fire and two sources are silent, so nothing then shows the morning line. Short of that clause, `SILENT_SOURCES` would take resume and fork, and `CONTEXT_SOURCES` all five. Tasks 3, 4 and 5 read P4 |
 | P5 | not measured: the module's PermissionRequest hook is passed over and denies nothing; the first `touch` opened the dialog | neither of the table's readings (no, yes); no branch taken; Task 7, which reads it, waits on P6's stop |
-| P6 | dialog shown; the server received the cancel typed at the dialog | stop for the owner: the spec provides no downgrade for an MCP server's question; Task 7 waits |
+| P6 | dialog shown, because the module's `classic.Elicitation` hook is passed over and blocked nothing; the server received the cancel typed at the dialog | stop for the owner: the spec provides no downgrade for an MCP server's question; Task 7 waits |
 | P7 | both refusals read, no dialog; `agentId` present | expected |
 | P8 | every call answered | expected |
 | P9 | `CLAUDE_CODE_SESSION_ID`; the three agree; same id after compact and continue, new after clear and fork; a subagent's shell and module carry the main session's id, its hook input not observed | expected for every observed part; whether a subagent's hook input carries the main session's id is open, because the module's `classic.PostToolUse` is passed over |
@@ -1578,10 +1606,10 @@ its `logs/` and `settings/`, and the probe plugin.
 - P3 background tasks: not measured (the module's `classic.Stop` hook is passed over and received no Stop input at any of the three stops, so the type, the live status, the finished form and the one-shot cron's `recurring` were not observed; the arrays do appear, empty, in a settings Stop hook's input, probe E's control); stop in a subagent: not observable (the module receives no Stop input); no branch of the plan's table taken, the value is left for the owner
 - P4 systemMessage shown: startup yes, clear yes, compact yes, resume no, fork no; context read: no, on resume, fork; module SessionStart: fires on no source (passed over), source not observed
 - P5 denials trip the pause: not measured (the module's `classic.PermissionRequest` hook is passed over and denies nothing; the first `touch` opened the permission dialog, screen quoted)
-- P6 elicitation: dialog shown; server received `{"result":{"action":"cancel"},"jsonrpc":"2.0","id":"probe-elicit"}` (the cancel of an Escape typed at the dialog)
+- P6 elicitation: dialog shown (the module's `classic.Elicitation` hook is passed over and blocked nothing); server received `{"result":{"action":"cancel"},"jsonrpc":"2.0","id":"probe-elicit"}` (the cancel of an Escape typed at the dialog)
 - P7 tool.call deny: question text read, no dialog, plan approval text read, no dialog, agentId in a subagent present
 - P8 module reach: exists, read and list outside the working directory ok, process.run under the plugin root with stdin ok
-- P9 session id: variable CLAUDE_CODE_SESSION_ID; shell, hook input and module agree yes; a subagent's shell, hook input and module carry the main session's (shell and module; hook input not observed); after compact same, after clear new, after continue same, after fork new
+- P9 session id: variable CLAUDE_CODE_SESSION_ID; shell, hook input and module agree yes; a subagent's shell and module carry the main session's (its hook input not observed); after compact same, after clear new, after continue same, after fork new
 - P10 hook stdin: `{"session_id":"s-1","transcript_path":"/home/u/<second config dir>/projects/-home-u-projects-scratch-sdd-probe-2/s-1.jsonl","cwd":"/home/u/projects/scratch/sdd-probe-2","scratchpad_dir":"/tmp/claude-1000/-home-u-projects-scratch-sdd-probe-2/s-1/scratchpad","hook_event_name":"SessionStart","source":"startup","model":"claude-opus-5-5"}`
 - P11 goal proposal: tool absent
 
