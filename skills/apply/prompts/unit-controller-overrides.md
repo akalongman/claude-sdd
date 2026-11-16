@@ -9,7 +9,7 @@ the final message.
   the brief is `final-brief.md`, then stop. Never start another unit; never
   edit code, the task file or the source's spec documents yourself.
 - **Ledger.** Read `progress.md` as `head -n 3`, then
-  `grep -nE '^(Run base|Commit mode|Model policy|Model fallback|Ruling|Ruling \(controller\)|Open before merge|Final phase):|: (complete|parked|blocked|paused|pause requested|pause released|resumed)|stopped by hand|^(Handed to|Withdrawn:) '`,
+  `grep -nE '^(Run base|Commit mode|Model policy|Model fallback|Ruling|Ruling \(controller\)|Open before merge|Final phase):|: (complete|parked|blocked|paused|pause requested|pause released|resumed|handed to controller)|stopped by hand|^(Handed to|Withdrawn:) '`,
   then `tail -n 20`; never the whole file. Append your unit's lines to it as
   you go: each dispatch, each verdict, each fix round, each deferred minor.
   Append them in the same call as the action they record (the dispatch,
@@ -65,7 +65,7 @@ the final message.
   re-review is the baseline and is not compared with the clean review,
   which measured other work.
 - **Gates.** Before the unit's `complete` line: the project's own lint,
-  analysis and test commands over the unit's files (OpenSpec:
+  analysis and test commands over the unit's files that exist (OpenSpec:
   `openspec validate <name> --strict` first); none defined: say so in the
   ledger. Ledger `Gates: <commands> passed`. When the ledger's `Commit mode`
   line ends `(bare worktree: <commands> passed)`, those commands are the run's gate set:
