@@ -22,7 +22,9 @@ need() { /bin/grep -qF -- "$2" <<< "$joined" || { echo "missing: $1"; fail=1; };
 need 'waiting line' 'noask: waiting: <the ledger line'
 need 'seen on line' 'Noask: seen on at <time>'
 need 'unreadable line' 'Noask: status unreadable (<error>)'
-need 'dispatch mode' 'Mode: handsoff'
+# The bare line in its backticks, so the defect path's longer line, which
+# holds it as a prefix, cannot satisfy this need.
+need 'dispatch mode' '`Mode: handsoff`'
 need 'defect path resume' 'Mode: handsoff: rule and continue'
 need 'step prompt line' 'Noask: step prompt skipped'
 need 'no source named' 'noask: blocked: no source named'
