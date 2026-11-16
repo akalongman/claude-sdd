@@ -105,6 +105,42 @@ rule text and the apply skill's rules under noask. Two rulings of the
 owner frame the rest (2026-11-16): nothing of `main` is pushed before
 the guard on the switch has landed, so the guard is built first, and
 the machine's move to the plugin waits until noask has shipped.
+Revision 17, 2026-11-16, writes in what the probes of revision 16
+found the same day (`docs/decisions.md`, entry 6), run before the plans
+were written so that no task is written on a guess again. A plugin's
+command hook runs at Stop, at PermissionRequest and at Elicitation on
+the owner's account, so the entries stay in the plugin's `hooks.json`
+and the fallback into the owner's settings is dropped. What the probes
+changed: a continued stop is delivered as feedback, not as a hook
+error; a declined MCP question carries no text to anyone; where another
+hook answers the same permission prompt, the first to answer wins, so
+a faster hook that allows overrules the denial; a hook's agent id and
+the module's are one id, so a subagent has one record; a cleared
+session's transcript is not empty, so the wake-up turn goes to every
+idle session that holds a message; the module's line at a resume is
+said once for a session, since a reload of the plugin starts the
+module again; and a plugin's option is absent from a hook's process
+while it holds its default.
+Revision 18, 2026-11-16, follows a review of the first step's plan by
+Codex, checked against the command, the declarations and this text
+before anything was taken. The guard's reading of a shell command
+closes three plain doors: an option of `env` or `exec` that takes the
+next word as its value no longer hides the command behind it, a
+redirection written `>|` or `&>` is read as one, and the removal or
+the move of a folder above the state directory is refused with the
+removal of a marker. What the guard does not name stays named as a
+limit: a writer outside its list (`sed -i`, an interpreter's one-line
+program) passes as a wrapped command does, and the README lists the
+commands instead of promising every write. The sweep of the records
+holds the records' lock, and removes no record while a marker is
+unreadable. The two readers refuse the same texts: a marker without
+its final newline, a time that is no calendar time, an offset past 14
+hours or with 60 minutes. A session without an id is held by an
+unreadable session marker as by one that is on. A home that cannot be
+listed leaves every `.claude` entry guarded by its spelling. Every
+file call a hook waits on is bounded as a marker's read is. And the
+first step's budgets are stated for what they are: with no Stop entry
+to reset them, they bound an activation.
 
 ## Intent
 
@@ -318,10 +354,11 @@ machine on 2026-10-30.
   subagent too. Hooks that are not a module's ran: the probe plugin's
   SessionStart command hook from its `hooks.json`, and a Stop command
   hook from the settings, whose block continued the session and whose
-  second input read `stop_hook_active: true`. Whether a plugin's command
-  hook runs at Stop, PermissionRequest and Elicitation as its
-  SessionStart one does was not observed; the revision's first task
-  pins it. No probe ran on an account of another plan.
+  second input read `stop_hook_active: true`. On 2026-11-16 a second
+  probe plugin's command hooks ran there at Stop, SubagentStop,
+  PermissionRequest and Elicitation too, each time, with no notice of a
+  hook passed over (`docs/decisions.md`, entry 6). No probe ran on an
+  account of another plan.
 - The same probes on the session's start. A SessionStart command hook
   runs on all five sources (`startup`, `clear`, `compact`, `resume`,
   `fork`), with the source and the session's id in its input, but its
@@ -336,8 +373,14 @@ machine on 2026-10-30.
   (`$.ui.log`). The session's id is `CLAUDE_CODE_SESSION_ID` in its
   shell; the shell, a hook's input and the module agree on it; a
   compaction and a resume keep it, a clear and a fork give a new one; a
-  subagent's shell and its `tool.call` carry the main session's.
-  Whether a subagent's command-hook input does was not observed.
+  subagent's shell, its `tool.call` and a command hook's input inside
+  it carry the main session's, and the hook's `agent_id` there is the
+  module's `agentId`, letter for letter. Observed on 2026-11-16: at a
+  new start the transcript calls read no message; after a clear they
+  read one, the clear's own record; at a resume and at a fork they read
+  the kept history, and a line appended there shows on the screen under
+  the plugin's name; and `session.start` runs again when the plugin is
+  reloaded in a running session.
 - A plugin's `bin/` directory is on the Bash tool's PATH while the plugin
   is enabled, so its files run as bare commands (plugin manifest reference,
   read 2026-11-08). Whether that PATH reaches a subagent's shell is tested
@@ -412,16 +455,31 @@ machine on 2026-10-30.
   data directory is one per machine. A SessionStart hook's stdout is
   context for the agent; the owner-visible channel is the hook output's
   `systemMessage`, which laterbox uses (on three of the five sources,
-  as observed above). A command hook's answers, by the documented
-  shapes: at Stop `{"decision": "block", "reason": ...}`; at
-  PermissionRequest a decision with `behavior: "deny"` and a message; at
-  Elicitation an answer in the person's place (the input's type says a
-  hook "can auto-respond (accept/decline) instead of showing the
-  dialog"). A command hook that exits with an error other than the
-  blocking exit code lets the event through, so a hook that must not
-  fail open has to answer before it can fail. Hooks on one event run
-  side by side, each on the same input: none sees what another
-  answered.
+  as observed above). A command hook's answers, by the hooks reference
+  read on 2026-11-16 and as probed that day. At Stop, `{"decision":
+  "block", "reason": ...}` continues the turn and the screen calls it a
+  Stop hook error; `hookSpecificOutput.additionalContext` continues it
+  the same way, under the same cap and with `stop_hook_active` true at
+  the next stop, and the screen calls it Stop hook feedback; exit code
+  2 blocks with the text on standard error. At PermissionRequest only
+  the decision object decides (`behavior: "deny"` with a message, which
+  the agent reads as the tool's error); exit code 2 is not honoured
+  there and the prompt goes on. At Elicitation `action: "decline"`, or
+  exit code 2, declines with no dialog, the server receives a decline,
+  and neither the person nor the server nor the agent is shown a
+  reason. Any other failing exit lets the event through, so a hook
+  that must not fail open has to answer before it can fail. A command
+  hook has 600 seconds unless its entry names a timeout. Hooks on one
+  event run side by side, each on the same input, and none sees what
+  another answered. How their answers combine differs by event: at
+  Stop any block continues; at Elicitation a decline overrules an
+  accept (the reference); at PermissionRequest the first hook to answer
+  decides (probed: beside a settings hook that allowed, the allow was
+  applied twice of two, and with that hook made two seconds slower the
+  plugin's denial was applied twice of two). Four denials in a row from
+  a PermissionRequest hook did not trip auto mode's pause. A plugin's
+  option variable is absent from a hook's process while the option
+  holds its default.
 - A plugin declares dependencies in `plugin.json` (`dependencies`, with
   `name@marketplace` and a version range); a cross-marketplace dependency
   needs `allowCrossMarketplaceDependenciesOn` in the marketplace manifest.
@@ -526,10 +584,9 @@ end in a visible `blocked:` line. Since revision 16 also: a machine
 without `jq`, where the command's hook entries cannot read their input
 (the session-start line says so; a prompt is still denied, by the rule
 for a session whose id cannot be read, but a stop is continued once
-and then allowed, whatever its last line says); and, should
-the revision's first task show that a plugin's command hook does not
-run at one of the three events on the owner's account, that event until
-its entry stands in the owner's settings (Intervention 2).
+and then allowed, whatever its last line says); and a permission
+prompt that another hook allows before the plugin's entry has answered
+(Intervention 2).
 
 ## Approaches considered
 
@@ -879,6 +936,10 @@ build 2.1.322 and pinned on 2.1.325). Each marker holds
 four lines: `generation=<ISO-8601 time with nanoseconds plus a random
 suffix>`, `since=<ISO-8601 time>`, `until=<ISO-8601 time, or empty>` and
 `level=<noask or handsoff>`; the global marker's level is always `noask`.
+The offset of a time is `[+-]HH:MM`, at most 14 hours, and a time that
+is no calendar time (30 February, 24:00) is unreadable to both readers,
+as is a marker without its final newline (revision 18: each reader took
+some of these and refused the others).
 A session's marker always carries an `until`, and one whose `until` is
 empty is unreadable to the command and to the module alike: read as on
 without an expiry by one of them, it would never end for that reader
@@ -914,12 +975,15 @@ the session a hook fires in. Every hook treats unreadable as on, with the
 error in its reason text, so a corrupt marker shows up loudly in the
 first turn that meets it instead of costing a night; the apply driver
 keeps its own rule for an unreadable status (below). A read that does
-not answer within two seconds is unreadable too. Two cases have no
+not answer within two seconds is unreadable too, and every other file
+call a hook waits on before it answers has the same bound and takes the
+side of a failed call (revision 18). Two cases have no
 marker to find, and each takes the side that cannot leave a machine
 armed with nothing to switch off. With no home directory in the
 environment both readers read off, and a switching command fails with
 that reason. A session whose id the host does not give reads the global
-marker alone, unless some session's own marker is on at that moment:
+marker alone, unless some session's own marker is on at that moment, or
+unreadable (revision 18):
 then its reading is unreadable, with that reason, because the marker may
 be its own and a question let through would cost the run its night. The
 same holds when the directory of session markers exists and cannot be
@@ -930,10 +994,8 @@ global marker alone.
 
 A session's switch follows its id. What the host keeps under the same id
 stays under it: a compaction, a resume and the session's subagents,
-whose shells and tool calls carry the main session's id (all observed
-on 2.1.325; a subagent's command-hook input is the one part revision
-16's first task still pins, and a subagent whose input carried another
-id would read the global marker and that id's own, which is off). What
+whose shells, tool calls and hook inputs carry the main session's id
+(all observed on 2.1.325). What
 starts under another id starts off: a session the owner clears or
 forks, and a session that a run starts as a process of its own. A
 resumed session keeps its switch, and the line it shows at its start
@@ -1001,13 +1063,15 @@ write nothing). The global switch keeps its optional expiry (decision
   completed is in flight) and from the session's history, read when the
   command is typed: a session with no turn in flight and at least one
   message in its transcript is idle, since its history may end on a
-  question, which covers a resumed and a forked session without knowing
-  how the session started (through revision 15 that came from the
-  classic session-start event, which the module does not receive on the
-  owner's account); a session with an empty transcript, a new or a
-  cleared one, has nothing to answer and gets no turn. What the
-  transcript calls read after a compaction is pinned by the revision's
-  first task, and a compacted session counts as one with a history. On
+  question, which covers a resumed, a forked and a compacted session
+  without knowing how the session started (through revision 15 that
+  came from the classic session-start event, which the module does not
+  receive on the owner's account); a new session, whose transcript is
+  empty, has nothing to answer and gets no turn. A cleared session gets
+  the turn, since revision 17: its transcript holds the clear's own
+  record, the module cannot tell that record from a prompt without
+  reading into the host's formats, and the turn costs one short answer
+  that ends on `noask: done` and leaves the session with the rule. On
   a busy session it submits nothing,
   because the prompt would queue and run as a spurious turn later, and
   the busy session meets the marker at its next hook event anyway. A
@@ -1060,7 +1124,11 @@ write nothing). The global switch keeps its optional expiry (decision
   message, appends it to the transcript as a notice the owner sees and
   the model does not. At a new start the transcript is empty and the
   command hook has spoken, so the module adds nothing and no source
-  shows the line twice. The agent of a resumed or forked session gets
+  shows the line twice. The module says its line once for a session and
+  keeps that in its state, because the host runs `session.start` again
+  whenever the plugin is reloaded in a running session; and the host
+  heads the line with the plugin's name, so the text does not repeat
+  it. The agent of a resumed or forked session gets
   no context at its start: it meets the rule at its first refused
   question, denied prompt or continued stop, each of which carries it,
   as a session switched from a terminal does, and an apply driver reads
@@ -1211,12 +1279,18 @@ the count and whether a budget is spent and which. The module runs it
 as it runs the command for `/noask`; a hook entry calls it in its own
 process. The caller hands over the budget it counts against, the module
 from its options and a hook entry from the plugin's option variables,
-so the command reads no settings. A count that cannot take the lock
+taking the built-in default where a variable is absent, which it is
+while the option holds its default; so the command reads no settings. A count that cannot take the lock
 within two seconds, or cannot write, fails, and its caller answers the
 noask side without it, as for any other failure. The record lives under
 the state directory, so the guard on the switch covers it: no agent's
 plain call counts, resets or writes it. A switching command's sweep
-also removes the records whose generation no marker carries any more. A
+also removes the records whose generation no marker carries any more.
+It does so while it holds the records' lock, taken without waiting, so
+a count in flight leaves the records for the next switching command;
+and while any marker reads unreadable it removes no record, since a
+record made under such a marker carries no generation a later reading
+could match (revision 18). A
 resumed session finds its record again, where the module's state began
 at zero; within one generation that keeps a spent budget spent, which
 is the rule already (only a new generation clears the flag), and across
@@ -1241,11 +1315,9 @@ inside a subagent, count against a record of that agent's own
 (`budgets.d/<session id>.<agent id>`) with the same budgets, so a
 looping subagent is bounded too; a subagent cannot end the main
 session, so its exhaustion changes only the text its denials carry.
-The module reads the id as `agentId` and a hook entry as `agent_id`;
-whether the two name one subagent alike is pinned by the revision's
-first task, and if they do not, a subagent has two records, each
-bounded, and a fence denial and a denied prompt of one subagent no
-longer share a count. The budgets, each a `userConfig`
+The module reads the id as `agentId` and a hook entry as `agent_id`,
+and the two are one id (observed), so a subagent's fence denials and
+its denied prompts share a count as the main session's do. The budgets, each a `userConfig`
 number with this default: 6 question refusals, 10 permission denials
 (the fence's denials included) and 20 Stop continuations. The numbers
 differ because the interventions differ: a refusal is the same question
@@ -1308,39 +1380,42 @@ denial, the message "noask is on: this action
 needs the owner; print `blocked: <the action>` and continue with the next
 independent item", and the denial counter is incremented, with the same
 ending at the budget. An MCP server's own question is declined in the
-person's place with the same text; the answer's exact shape and what
-the server receives are pinned by the revision's first task.
+person's place and counted as a denial; the server receives a decline
+and the agent reads whatever the server makes of one, because the host
+shows a hook's reason to nobody at this event. The rule reaches such a
+session by its other interventions.
 Nothing is decided at `tool.check`: an `ask` verdict there may still be
 settled by the classifier without any prompt, and the verdict carries no
 field that tells the two apart, so a filter there (revision 6) was a guess
 where PermissionRequest is a fact. One property of revision 15 is lost:
 the module ran the owner's own PermissionRequest hooks first and kept
-their answer, and a command hook sees no other hook's answer. The owner
-has no such hook today; how the host combines this denial with another
-hook's allow is pinned by the first task and stated in the README. It
+their answer, and a command hook sees no other hook's answer. What
+stands in its place is a race: of the hooks that answer one prompt the
+first decides, so an owner's hook that allows and answers sooner
+overrules this denial, and one that answers later does not. The owner
+has no such hook today, the README states the rule, and the entry
+answers before it counts, so that its own lock never costs it the
+race. It
 ships on while noask is on, with a `userConfig` boolean to turn it
-off, read by the entry from the plugin's option variable. The first
-task pins whether three denials in a row count toward
-auto mode's pause (they should not, since the classifier never ran); if
-they do, the hook ships off by default and every prompt joins the residual
-waits. An entry must not fail open, and a command hook that dies lets
+off, read by the entry from the plugin's option variable. Four denials
+in a row did not trip
+auto mode's pause (the classifier never ran), so the hook ships on. An
+entry must not fail open, and a command hook that dies lets
 the prompt through, so the entry is built to answer first: once the
 reading is on (or unreadable), its failure path, a trap set before
-anything else can fail, prints the denial with the error. Without `jq`
+anything else can fail, prints the denial with the error, as a
+decision object with a clean exit at a permission prompt, where the
+blocking exit code is not honoured. Without `jq`
 the entry cannot read its input, the session's id included, so the rule
 for a session with no id applies (the switch, above): it denies while
 the global switch or any session's own is on, a session beside the one
 under noask included, and the session's start says that `jq` is
 missing.
 
-Should the first task show that a plugin's command hook does not run at
-PermissionRequest, Elicitation or Stop under the security default, the
-entries do not change, only where they are registered: the command
-prints the three hook entries for the owner's settings (`noask hooks`,
-typed by the owner), the owner adds them as an owner step, and the plugin's
-own `hooks.json` keeps SessionStart alone. A settings Stop hook was
-observed to run and to continue a session on that account, so this
-branch stands on evidence; the plugin never edits the settings itself.
+Revision 16 kept a second home for the three entries, the owner's
+settings, in case a plugin's command hook did not run under the
+security default. It does, at all three events, so that branch is
+dropped and with it the command's form that printed the entries.
 
 **Intervention 3, the Stop hook** (a command hook in `hooks.json` on
 Stop, running an entry of `bin/noask`; through revision 15 the module's
@@ -1373,24 +1448,29 @@ output, when any of these holds:
    one turn at most and catches a session that parks a question for the
    owner under the waiting line (owner, 2026-11-13).
 2. `background_tasks` is present and contains a task of type `subagent`
-   that is in flight: the session's own work will wake it. By the types
-   the array lists only work in flight, so any `subagent` entry counts;
-   should the first task find a finished subagent listed, the entry
-   tests the `status` values that task observed for a live one. A `shell`,
+   that is in flight: the session's own work will wake it. The array
+   lists only work in flight, so any `subagent` entry counts: a live
+   subagent read `running` there, and after it had reported the array
+   was empty (observed). A subagent's own stop is another event and
+   never reaches this hook. A `shell`,
    `monitor`, `workflow` or `teammate` task, a finished task, a scheduled
    entry of either kind and an absent array (registry unreachable) are
    not reasons; the token covers the driver in every one of those cases.
    A one-shot wakeup was a reason through revision 9 and is not one now
-   (owner, 2026-11-13): the input carries no fire time, so a reminder
-   due tomorrow would let tonight's question wait, and a session that
+   (owner, 2026-11-13): the input carries the wakeup's minute and hour
+   and no day, so a reminder due tomorrow would let tonight's question
+   wait, and a session that
    does wait on a wakeup says so with the waiting line.
 3. The record's `exhausted` flag is set: a budget ended this session's
    night, and this stop is its ending, whatever the last line says.
 
 Conditions 1 and 2 reset the three counters; condition 3 resets nothing,
 since only a new generation clears the record. Otherwise the entry
-increments the continuation counter and prints `{"decision": "block",
-"reason": "<the rule text>"}`.
+increments the continuation counter and continues the turn with the
+rule text as the hook's additional context, which the session reads as
+Stop hook feedback. A block does the same and is shown as a hook
+error; that form is kept for the failure path, where an error is what
+happened.
 When one of the three tokens stands on an earlier line, with text after
 it, the reason opens with "Your end-of-turn line must be the last line of
 the message; nothing follows it.", so a session that adds a closing line
@@ -1430,7 +1510,10 @@ item", counted as permission denials. A push: a shell command whose git
 subcommand is `push`, with options between `git` and `push` in either
 spelling of an option's value, behind `if`, `while`, `until`, `!`,
 `env`, `command`, `exec`, `nohup`, `time` or `sudo`, inside `$(...)` or
-backticks, or across a backslash line break. A pull or merge request: a
+backticks, or across a backslash line break. An option of `env` (`-u`,
+`-C`) or of `exec` (`-a`) that takes the next word as its value takes
+it along, so the command behind it is still read (revision 18). A pull
+or merge request: a
 shell command that creates one (`gh pr create`, `glab mr create`, and
 `new`, the alias of each). An edit under the configuration directory: an
 edit or write through the file-editing tools to a path under one of the
@@ -1438,7 +1521,9 @@ owner's configuration directories, where the settings auto-allow edits;
 they are every entry of the home directory whose name starts with
 `.claude` and the directory `CLAUDE_CONFIG_DIR` names, each also by
 where it resolves, since such a directory may be a link into a dotfiles
-checkout. The path is judged as spelled and as resolved, so a file that
+checkout. When the home cannot be listed, every path whose first part
+below the home is spelled so counts as one (revision 18). The path is
+judged as spelled and as resolved, so a file that
 is a link out of the directory is caught by its spelling and a link
 elsewhere that points into it by where it lands; a file that does not
 exist yet is placed by its nearest existing folder, so a new file in a
@@ -1456,8 +1541,12 @@ records alike, judged as spelled and by where that
 directory resolves; and a shell command that removes,
 moves, copies over, links, truncates or redirects into a path spelled
 under that directory (`rm`, `rmdir`, `unlink`, `shred`, `mv`, `cp`,
-`ln`, `install`, `truncate`, `tee`, `dd`, `touch`, `chmod`, and a `>`
-redirection). The switch is fenced from both sides because one `noask
+`ln`, `install`, `truncate`, `tee`, `dd`, `touch`, `chmod`, and a
+redirection in any of its spellings, `>`, `>>`, `>|` and `&>`), or
+that removes or moves a folder above it (`rm`, `rmdir` or `mv` of
+`~/.local/state`, `~/.local` or the home, since revision 18). A writer
+outside this list (`sed -i`, an interpreter's one-line program) passes
+as a wrapped command does. The switch is fenced from both sides because one `noask
 global off`, or one `rm` of the marker, typed by a session at the end
 of its budget would make every hook on the machine inert, and three
 written lines would put every session under noask. The fence has one
@@ -1501,7 +1590,9 @@ directory and its edit of one are refused, with the text "the noask
 switch is the owner's: it is typed as /noask in a session or as noask
 global in a terminal; do not switch it or write its files; `noask` and
 `noask status` read it", and
-counted only while noask is on. A script that runs the command passes,
+counted only while noask is on. While noask is on the refusal carries
+the fence's text for switching noask instead, which tells the session
+how to go on (revision 18). A script that runs the command passes,
 as every wrapped call does, which is also how the plugin's own tests
 run in an agent's session. The guard is the first thing of noask
 to be built and released: the command has been on `main` since the
@@ -1695,8 +1786,10 @@ of 2026-11-15 saw run: the command's count entry and the record, the
 module with its reader, `/noask`, the question refusal, the fence and
 the guard on the switch. That step lifts the hold on pushing `main`,
 and what it ships is a noask that refuses and fences but does not yet
-continue a stop or answer a prompt, which its README says. Then the
-parts that wait on a new probe: the probes of item 1 below, the
+continue a stop or answer a prompt, and whose budgets bound a whole
+activation until the second step's Stop entry resets them (revision
+18), which its README says. Then the
+parts that waited on the probes of 2026-11-16 (item 1 below): the
 session-start line, the three hook entries, and the acceptance
 afternoon and night. The machine's move to the plugin follows that
 second step (owner, 2026-11-16), since the private copy it removes is
@@ -1707,9 +1800,13 @@ Acceptance for phase 2:
 1. The throwaway tests pass before the hooks ship. Those of 2026-11-15
    are recorded in `docs/decisions.md`, entry 4, and settled the name,
    the `tool.call` refusals, the module's reach, the session's id and
-   the session-start hook's input. Revision 16's first task, on the
-   owner's account and with a throwaway plugin whose `hooks.json` holds
-   command hooks, pins: that a plugin's command hook runs at Stop, at
+   the session-start hook's input. The probes of 2026-11-16, run before
+   the plans were written and recorded in entry 6, on the owner's
+   account and with a throwaway plugin whose `hooks.json` holds command
+   hooks, pinned this list but for two things no probe reached, which
+   the second step's tests carry (a configured option's value in a
+   hook's process, and the transcript calls just after a compaction,
+   before any prompt): that a plugin's command hook runs at Stop, at
    PermissionRequest and at Elicitation under the security default, and
    for each the input it receives, kept verbatim for the command's
    tests; that its Stop block continues the session; what
@@ -1724,10 +1821,7 @@ Acceptance for phase 2:
    event; that the plugin's option variables reach a hook's process;
    what the module's transcript calls read at a start, after a clear, a
    compaction, a resume and a fork; and that a line the module appends
-   at a resume and at a fork shows on the screen. For each of the three
-   events on which the plugin's command hook does not run, the entries
-   move to the owner's settings (Intervention 2) and the task repeats
-   the event's probes there. The original list of this item, kept for
+   at a resume and at a fork shows on the screen. The original list of this item, kept for
    the record: the `status` strings of
    a running and a finished subagent in `background_tasks`; whether
    SessionStart shows `systemMessage`; whether three PermissionRequest
@@ -1988,10 +2082,9 @@ undesigned.
     command hooks, because on an account under the security default a
     person's module is passed over at every classic event. One design
     serves every account: the command hooks run with or without that
-    default, so nothing branches on the account's plan. Should a
-    plugin's command hook not run at one of the three events, its entry
-    is registered in the owner's settings by the owner, where a hook
-    was seen to run; the plugin never writes settings.
+    default, so nothing branches on the account's plan. They were
+    seen to run at all three events on the owner's account
+    (2026-11-16), and the plugin never writes settings.
 36. One record per session, a file under the state directory, written
     by the command alone; the module and the hook entries count by
     calling it. The record of revision 15 lived in the module, which
@@ -2000,9 +2093,17 @@ undesigned.
     reading forms, and refuses every other form, the test variables
     included; it is built and released before anything else of noask,
     and `main` is not pushed before it (owner, 2026-11-16).
-38. A resumed or forked session gets the owner's line from the module
-    and no context for the agent; the rule reaches it with its first
-    intervention.
+38. A resumed or forked session gets the owner's line from the module,
+    once for a session, and no context for the agent; the rule reaches
+    it with its first intervention.
+41. A continued stop is delivered as the hook's additional context, so
+    the session and the screen read it as feedback and not as a hook's
+    error; the block form is the failure path's.
+42. At a permission prompt the first hook to answer decides. noask's
+    entry answers before it counts; a hook of the owner's that allows
+    sooner overrules it, which the README states.
+43. `/noask on` wakes every idle session whose transcript holds a
+    message, a cleared one included.
 39. The state directory is the owner's alone; a session's marker
     without an expiry is unreadable; a session's `on` names a global
     marker that is broken; publication is keyed on the status line's
@@ -2018,7 +2119,7 @@ undesigned.
   like `later.sh`) and the module's TypeScript (strict config per the
   owner's JavaScript rules); the marker format and the record's are
   what they share, and the module's `$.state` contract (whether a
-  main-loop turn is in flight) is declared in `types/index.d.ts`. The
+  main-loop turn is in flight, and that the start line was said) is declared in `types/index.d.ts`. The
   record's format, the count entry's arguments and output, and how an
   entry answers before it can fail are the builder's, within the
   budgets rule and the failure rule above.

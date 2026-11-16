@@ -2072,3 +2072,227 @@ four commits, with `skills/apply/SKILL.md` unchanged:
 
 After them `tests/run.sh` reads `15 ok, 0 skipped, 0 failed` and the
 size check `ok 19336/19500 (substituted)`. Nothing was pushed.
+
+## 6. Settle the command hooks' unknowns (2026-11-16)
+
+```
+$ claude --version
+2.1.325 (Claude Code)
+```
+
+Entry 4 found that on an account of a Team organization the built-in
+security default passes over a person's module at every classic event,
+and revision 16 of the design moved the three hooks that stood there
+(the continued stop, the denied permission prompt, the declined MCP
+question) into command hooks of the plugin's `hooks.json`. Whether such
+hooks run on that account was not observed in entry 4. These probes ran
+on 2026-11-16, before any plan was written on the answer, on the same
+build and the same account, in the scratch repository of entry 4, with
+a second throwaway plugin, `noaskprobe2`. Every transcript of these
+sessions names build 2.1.325, and none holds a notice that a hook of
+the probe plugin was passed over.
+
+The main finding: a plugin's command hook runs at Stop, SubagentStop,
+PermissionRequest and Elicitation under the security default, and each
+answer it gave was applied.
+
+### Setup
+
+`~/projects/scratch/sdd-probe-plugin-2`, never committed. Its
+`hooks/hooks.json` registers one script, `scripts/hook.sh <event>`, as a
+command hook at SessionStart (all five sources), Stop, SubagentStop,
+PermissionRequest and Elicitation, and the module `./register.ts`. The
+script appends its standard input as one line to `r16/<event>.log`
+under the project directory, appends to `r16/env.log` the names of its
+exported variables that start with `CLAUDE_PLUGIN` and the value of the
+plugin's one option (`budget`, default `7`), and answers by the word in
+the file `probe-mode`: `stop-block` (`{"decision":"block"}` on a first
+stop), `stop-context` (`hookSpecificOutput.additionalContext` on a first
+stop), `deny-permission` (a decision object with `behavior: "deny"`),
+`decline-elicitation` (`action: "decline"`), `log` (no answer). At
+SessionStart it always prints a `systemMessage` naming the source. The
+module logs to `r16/module.log` what `$.session.turns()` and
+`$.session.messages()` read at `session.start` and at each main-loop
+`turn.start`, and each tool call's `agentId`; at a `session.start` that
+finds a history it appends one line to the transcript with `$.ui.log`.
+
+Each session was started in `tmux` as in entry 4, with
+`--plugin-dir ~/projects/scratch/sdd-probe-plugin-2 --permission-mode auto`
+and the flags below, and its logs were moved to `r16/<session>/` when it
+ended. The MCP server and its configuration are entry 4's.
+
+| Session | Mode | Extra flags |
+|---|---|---|
+| s1 | `stop-block`, then `stop-context`, then `log` | none |
+| s3 | `deny-permission` | `--settings '{"permissions":{"ask":["Bash(touch:*)"]}}'` |
+| s4 | `decline-elicitation` | `--mcp-config <entry 4's mcp.json> --allowedTools mcp__probe__ask` |
+| s6 | `deny-permission` | `--settings <a file with the same ask rule and a PermissionRequest command hook that allows every prompt>` |
+| s5a, s5b, s5c | `log` | none; then `--continue`; then `--resume <s5a's second id> --fork-session` |
+
+### The Stop hook (s1)
+
+Prompts, in order: `Reply with the single word apple.` under
+`stop-block`; `Reply with the single word cherry.` under `stop-context`;
+then under `log` a background subagent that runs
+`timeout 40 tail -f /dev/null; echo finished`, and a one-shot wakeup ten
+minutes ahead. The screen after the first two:
+
+```
+❯ Reply with the single word apple.
+● apple
+● Ran 2 stop hooks
+  ⎿  Stop hook error: probe: reply with the single word pineapple, then stop
+● pineapple
+❯ Reply with the single word cherry.
+● cherry
+● Ran 2 stop hooks
+  ⎿  Stop hook feedback: probe: reply with the single word pineapple, then stop
+● pineapple
+```
+
+The second hook of the two is a sound hook of the user's settings. Every
+Stop input of the session:
+
+```
+$ cd ~/projects/scratch/sdd-probe-2/r16 && jq -c '{stop_hook_active, last: (.last_assistant_message | .[0:24]), background_tasks, session_crons}' s1/Stop.log
+{"stop_hook_active":false,"last":"apple","background_tasks":[],"session_crons":[]}
+{"stop_hook_active":true,"last":"pineapple","background_tasks":[],"session_crons":[]}
+{"stop_hook_active":false,"last":"cherry","background_tasks":[],"session_crons":[]}
+{"stop_hook_active":true,"last":"pineapple","background_tasks":[],"session_crons":[]}
+{"stop_hook_active":false,"last":"started","background_tasks":[{"id":"afb3d29d6abd3644d","type":"subagent","status":"running","description":"Run timed tail command","agent_type":"general-purpose"}],"session_crons":[]}
+{"stop_hook_active":false,"last":"The background subagent ","background_tasks":[],"session_crons":[]}
+{"stop_hook_active":false,"last":"scheduled","background_tasks":[],"session_crons":[{"id":"b6b4ff86","schedule":"15 20 * * *","recurring":false,"prompt":"probe wakeup"}]}
+```
+
+No Stop input carries an agent id. The subagent's own stop went to
+SubagentStop, with `agent_type` `general-purpose` and an `agent_id`
+equal to the task's `id` above; five more SubagentStop inputs carry an
+empty `agent_type` and are the host's own helpers.
+
+### The permission prompt (s3, s6)
+
+s3, prompt: `Run these four commands one at a time, each as its own shell call, and go on to the next when one is denied: touch a1; touch a2; touch a3; touch a4. Then reply done.`
+Then: a subagent that runs `touch b1` once. The screen showed
+`4 actions not run · permission denied` and
+`Denied by PermissionRequest hook`, no dialog opened, no pause of auto
+mode followed the four denials, and every call's result read
+`probe: denied, go on to the next command` as a tool error, the
+subagent's too. No file was created.
+
+```
+$ cd ~/projects/scratch/sdd-probe-2/r16 && jq -c '[.tool_input.command, (.agent_id // null), (.agent_type // null)]' s3/PermissionRequest.log && jq -c 'select(.ev=="tool.call") | [.tool, .agentId]' s3/module.log
+["touch a1",null,null]
+["touch a2",null,null]
+["touch a3",null,null]
+["touch a4",null,null]
+["touch b1","aa4a2a3b9bc6cf8e1","general-purpose"]
+["Bash",null]
+["Bash",null]
+["Bash",null]
+["Bash",null]
+["Agent",null]
+["Bash","aa4a2a3b9bc6cf8e1"]
+```
+
+All five hook inputs carry one `session_id`, the main session's, the
+one the module's `$.session.id()` read (compared whole).
+
+s6 put a settings hook that allows beside the plugin's hook that
+denies. `touch c1` and `touch c2` ran, each marked
+`Allowed by PermissionRequest hook`, although the plugin's hook had
+received both and answered deny. With `sleep 2` added to the allowing
+hook, `touch c3` and `touch c4` were refused,
+`Denied by PermissionRequest hook`. Two calls each way: the first hook
+to answer decided.
+
+### The MCP server's question (s4)
+
+Prompt: `Call the tool mcp__probe__ask once and reply with its result text verbatim.`
+No dialog opened; the reply was `elicitation answered: decline`.
+
+```
+$ cd ~/projects/scratch/sdd-probe-2/r16 && cat s4/elicit.log && jq -c '[.mcp_server_name, .mode, .message]' s4/Elicitation.log
+{"result":{"action":"decline"},"jsonrpc":"2.0","id":"probe-elicit"}
+["probe","form","probe question"]
+```
+
+### The session's history and the module's line (s5a, s5b, s5c)
+
+s5a: two prompts, `/clear`, a prompt, `/compact`, a prompt. s5b:
+`--continue`. s5c: the fork, then `/clear` and a prompt. The hook's
+sources, then the module's lines as event, session (first four
+characters), `turns()`, `messages()` count and, from s5b on, the last
+messages as role and text length:
+
+```
+$ cd ~/projects/scratch/sdd-probe-2/r16 && for s in s5a s5b s5c; do jq -c '[.source, .session_id[0:4]]' $s/SessionStart.log; jq -c 'select(.ev!="tool.call") | [.ev, .sessionId.value[0:4], .turns.value, .messages.value, (.roles.value // null)]' $s/module.log; done
+["startup","d58b"]
+["clear","e855"]
+["compact","e855"]
+["session.start","d58b",0,0,null]
+["turn.start","d58b",1,1,null]
+["turn.start","d58b",2,4,null]
+["turn.start","e855",2,2,null]
+["turn.start","e855",6,8,null]
+["session.start","e855",6,9,"u130 u33 a0 a5 u3823 u134 u92 u32 a4"]
+["resume","e855"]
+["session.start","e855",4,5,"u3823 u134 u92 u32 a4"]
+["fork","b529"]
+["clear","26ff"]
+["session.start","b529",4,5,"u3823 u134 u92 u32 a4"]
+["turn.start","26ff",2,2,"u130 u32"]
+```
+
+The third `session.start` of s5a is not a process start: the module's
+file was edited while that session was open, the host reloaded the
+plugin and ran `session.start` again. At the resume and at the fork the
+screen showed the module's line, headed by the plugin's name, and no
+line from the SessionStart command hook, as in entry 4. After a clear
+the first turn finds two messages, the clear's own record and the
+prompt.
+
+### The hook's process
+
+```
+$ cd ~/projects/scratch/sdd-probe-2/r16 && cat s*/env.log | jq -r '[.event, .names, .budget] | join(" | ")' | sort | uniq -c
+      1 Elicitation | CLAUDE_PLUGIN_DATA CLAUDE_PLUGIN_ROOT  | unset
+      9 PermissionRequest | CLAUDE_PLUGIN_DATA CLAUDE_PLUGIN_ROOT  | unset
+     10 SessionStart | CLAUDE_PLUGIN_DATA CLAUDE_PLUGIN_ROOT  | unset
+     17 Stop | CLAUDE_PLUGIN_DATA CLAUDE_PLUGIN_ROOT  | unset
+     13 SubagentStop | CLAUDE_PLUGIN_DATA CLAUDE_PLUGIN_ROOT  | unset
+```
+
+The option was never configured, only declared with a default, and no
+`CLAUDE_PLUGIN_OPTION_BUDGET` reached any hook.
+
+### Not covered
+
+- A configured option's value in a hook's process.
+- What the transcript calls read just after a compaction, before any
+  prompt.
+- An account of another plan, and a machine with managed settings.
+- More than four denials in a row, and auto mode's total of twenty.
+
+### Leftovers
+
+Every `tmux` session of the probes was killed when its probe ended, and
+the wakeup with it. No file `a1` to `a4`, `b1`, or `c1` to `c4` is left.
+The probe plugin, the scratch repository's `r16/` and its two new files
+under `settings/` stay for the owner, with the folder's trust flag of
+entry 4.
+
+### Pinned values
+
+- A plugin's command hook under the security default: runs at Stop, SubagentStop, PermissionRequest, Elicitation and SessionStart
+- Stop, `decision: "block"`: continues, shown as `Stop hook error`, next input `stop_hook_active: true`
+- Stop, `hookSpecificOutput.additionalContext`: continues, shown as `Stop hook feedback`, next input `stop_hook_active: true`
+- `background_tasks` beside a live subagent: one entry, `type` `subagent`, `status` `running`, `agent_type` set; after it reported: empty
+- `session_crons` beside a one-shot wakeup: one entry, `recurring: false`, `schedule` with minute and hour and no day
+- A subagent's stop: SubagentStop with its `agent_id`, never Stop
+- PermissionRequest deny: no dialog; the message is the tool's error; four in a row, no pause of auto mode
+- In a subagent: the hook input's `session_id` is the main session's, and its `agent_id` equals the module's `agentId`
+- Two PermissionRequest hooks with different answers: the first to answer decides
+- Elicitation `action: "decline"`: no dialog; the server received `{"result":{"action":"decline"},"jsonrpc":"2.0","id":"probe-elicit"}`
+- Transcript calls: new start 0 messages; after a clear 2 at the first turn's start, the clear's record and the prompt (so 1 before it, inferred); at a resume and a fork the kept history, last message the assistant's
+- `$.ui.log` at a resume and at a fork: shown, headed by the plugin's name; `session.start` runs again at a plugin reload
+- A plugin option at its default: no `CLAUDE_PLUGIN_OPTION_<KEY>` in a hook's process
