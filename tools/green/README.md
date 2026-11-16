@@ -2,7 +2,12 @@
 
 The results in this directory were recorded before the launch word
 `hands-off` was renamed `handsoff`, and keep `hands-off`, in the files and
-in the scenario keys.
+in the scenario keys. Since 0.2.0, scenario D8b and the file-list wording
+of S9, S10, S11 and S9f in `2026-09-25-unit-controller-workflow.js`
+describe the earlier rules: D8b expects `isolated` to stop where no
+worktree bootstrap exists, and the others run the checkpoint on the
+brief's file list (in S9f the briefs' union) where a controller now reads
+the unit's list file.
 
 Decision numbers in this file are those of `docs/decisions.md` in the
 record repository (`akalongman/claude-subagent-apply`, private), not of
