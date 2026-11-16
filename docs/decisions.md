@@ -1592,11 +1592,15 @@ design `docs/superpowers/specs/2026-11-13-sdd-acceptance-fixes-design.md`,
 cited at `f964095` and unchanged since. The build followed the plan
 `docs/superpowers/plans/2026-11-14-sdd-acceptance-fixes.md`, a local
 working document that is not committed, in eight commits on the base
-`47e9f77`, `4c96a62` to `43ad2f7`, and this entry's commit. It answers
-the two findings of entry 3's acceptance: an OpenSpec brief carried no
-file list, so a pausing controller had no paths to checkpoint, and
-`isolated` stopped in every project without a worktree bootstrap, where
-entry 3 ruled that it should go on in a bare worktree.
+`47e9f77`, `4c96a62` to `43ad2f7` and this entry's first commit,
+`4e0bc45`, then two from the final review's fix wave: `c984d92` (the
+undo refuses a TO that is not a linked worktree's top level, exit 2,
+nothing written) and `34b25d8` (the Known limits paragraph on a run
+begun before 0.2.0). It answers the two findings of entry 3's
+acceptance: an OpenSpec brief carried no file list, so a pausing
+controller had no paths to checkpoint, and `isolated` stopped in every
+project without a worktree bootstrap, where entry 3 ruled that it should
+go on in a bare worktree.
 
 ### What was built
 
@@ -1622,7 +1626,12 @@ entry 3 ruled that it should go on in a bare worktree.
   as a path, not read as the option.
 - `ed61edd`: `skills/apply/scripts/source-copy` copies the source's
   files from the launch checkout into the worktree as they stand, and
-  its `--undo` puts the worktree back as HEAD holds those paths.
+  its `--undo` puts the worktree back as HEAD holds those paths. Since
+  `c984d92` the undo runs only when TO is the top level of a linked
+  worktree and exits 2 with nothing written for any other TO (a main
+  checkout, a folder inside a worktree, a folder in no repository),
+  because in the launch checkout the same removal would delete the
+  source's uncommitted files.
 - `e5e7a7e`: `skills/apply/references/isolated.md` holds the `isolated`
   rules, and `skills/apply/SKILL.md` keeps one pointer to it. A launch
   whose `.worktrees/<name>` holds the run's ledger goes on there and
@@ -1639,10 +1648,11 @@ entry 3 ruled that it should go on in a bare worktree.
   `Files: none`, and the controller adds those paths to the list with
   `sdd-files-add`.
 - `43ad2f7`: `tests/run.sh` runs the four new tests.
-- This entry's commit names the three new scripts on README's and CI's
-  shellcheck lines, raises the version to 0.2.0, and describes the four
-  new tests in `tools/README.md`, where `test-sdd-checkpoint.sh` now has
-  thirteen cases.
+- `4e0bc45`, this entry's first commit, names the three new scripts on
+  README's and CI's shellcheck lines, raises the version to 0.2.0, and
+  describes the four new tests in `tools/README.md`, where
+  `test-sdd-checkpoint.sh` then had thirteen cases (fourteen since the
+  follow-up below).
 
 ### The owner's rulings
 
@@ -1801,12 +1811,12 @@ untracked custom plan outside it.
 
 ### Gates
 
-At the repository root, in the working tree before this entry's
-commit and with this entry's text in place, the plan's gate chain for
-the release. Its last command, the dash `grep` over `README.md` and this
-file, finds nothing and so exits 1, which makes 1 the chain's exit
-status when every gate passes. The output is whole; only the home
-directory is written as `~`:
+At the repository root, in the working tree before this entry's first
+commit, `4e0bc45`, and with this entry's text in place, the plan's gate
+chain for the release. Its last command, the dash `grep` over
+`README.md` and this file, finds nothing and so exits 1, which makes 1
+the chain's exit status when every gate passes. The output is whole;
+only the home directory is written as `~`:
 
 ```
 $ bash tests/run.sh && bash tests/check-skill-size.sh && claude plugin validate . --strict && /bin/grep -nP '[\x{2014}\x{2013}]' README.md docs/decisions.md
@@ -1983,7 +1993,54 @@ The suite's totals line reads `15 ok, 0 skipped, 0 failed`, the size
 check `ok 19336/19500 (substituted)`, and the validation passed. Its
 one warning, the missing icon, is not this release's: a validation of
 `43ad2f7`, exported with `git archive`, gives the same warning. The same
-chain, run again on this entry's final text, printed the same output
-and exited 1 again.
+chain, run again on the entry's text as `4e0bc45` commits it, printed
+the same output and exited 1 again.
 
 Result: pass. Nothing was pushed.
+
+### Follow-up (2026-11-16)
+
+On 2026-11-16 the owner answered the questions the run left open. The
+push of `main` is held until phase 2's guard on the noask switch lands,
+which answers R4: 0.2.0 at `4e0bc45` and every commit after it stay
+local until then. The named-path rule keeps a span with a `..` segment,
+as the spec's Part 1, item 3 words it. A run begun before 0.2.0 stays a
+stated limit (Known limits above), with no code change for it. The
+owner also approved eight small fixes from the final review, made in
+four commits, with `skills/apply/SKILL.md` unchanged:
+
+- `1f68e41`, in `skills/apply/references/isolated.md` (the final
+  review's I2, M6 and M3, and the way back after a failed bootstrap).
+  A relaunch names its ledger,
+  `.worktrees/<name>/.superpowers/sdd/<name>/progress.md`, and its
+  check tests for that file and runs no script, since `sdd-workspace`
+  creates the folder it prints. A source loaded before the reference
+  came from the launch checkout, so the driver loads it again from
+  inside the worktree (`openspec instructions apply`, or the worktree's
+  plan file) and uses only that answer, and a finished run reaches the
+  `all_done` path the run's end relies on. A bootstrap that fails still
+  leaves the worktree and the branch, and its stop now names the
+  failing command and its exit status and gives the way back:
+  `source-copy --undo` with the source's paths, then the unforced
+  `git worktree remove` and `git branch -d`, which the driver names and
+  does not run. The paths the source's copy brought never stop the
+  launch check.
+- `7bbad05`, in `skills/apply/prompts/unit-controller-overrides.md`
+  (the final review's M4, and the Ledger grep): the gates run over the
+  unit's files that exist, since the list also holds deleted paths and
+  files not made yet; and the Ledger bullet's grep matches
+  `handed to controller`, the lines by which the final phase orders its
+  `--list` options.
+- `25003b5`: `bin/sdd-checkpoint` ends `sha256sum`'s options at `--`,
+  so an untracked file at a repository's top level whose name starts
+  with `-` is hashed instead of failing the run. The line for every
+  other name is unchanged. `tests/test-sdd-checkpoint.sh` gains case 14
+  for it, which fails on the old script, and `tools/README.md` counts
+  fourteen cases.
+- `c1711b9`, in `tools/green/README.md` (the final review's M7): since
+  0.2.0, scenario D8b and the file-list wording of S9, S10, S11 and S9f
+  in `2026-09-25-unit-controller-workflow.js` describe the earlier
+  rules. The scenario file is unchanged.
+
+After them `tests/run.sh` reads `15 ok, 0 skipped, 0 failed` and the
+size check `ok 19336/19500 (substituted)`. Nothing was pushed.
