@@ -12,21 +12,28 @@ it too. `<worktree root>` is that folder's absolute path;
 `<launch checkout root>` is the root of the checkout you were launched in.
 "Item N" below is this file's item; This machine's items are the skill's.
 
-1. **A relaunch.** When `.worktrees/<name>` holds the run's ledger
-   (`<ws>/progress.md` inside that worktree, `<ws>` being the source's
-   workspace) and its `Commit mode` line names that worktree, run from
-   that worktree: This machine's item 1 resumes from that ledger, and
-   nothing is made, copied or run again: no worktree, no branch, no copy,
-   no bootstrap, no gate run. The run goes on reading the worktree's copy
-   of the source, not the launch checkout's. This holds for a bootstrap
-   worktree and a bare one, for a relaunch from the worktree or from the
-   main checkout, and for one that leaves out the word `isolated`, since
-   the ledger, not the word, says where the run lives. A
-   `.worktrees/<name>` folder or a `<name>` branch that exists without
-   such a ledger stops the launch: name what exists and touch nothing. A
-   bootstrap that failed on a first launch leaves exactly that. Items 2 to
-   10 are for a first launch, and item 11 for the end of every run,
-   relaunched or not.
+1. **A relaunch.** When `.worktrees/<name>` holds the run's ledger,
+   `.worktrees/<name>/.superpowers/sdd/<name>/progress.md` (the source's
+   workspace inside that worktree, for an OpenSpec change and a plan
+   alike), and its `Commit mode` line names that worktree, run from that
+   worktree: This machine's item 1 resumes from that ledger, and nothing
+   is made, copied or run again: no worktree, no branch, no copy, no
+   bootstrap, no gate run. The relaunch check tests for that file and
+   runs no script, so it creates nothing there (`sdd-workspace` creates
+   the folder it prints). The run goes on reading the worktree's copy of
+   the source, not the launch checkout's. A source loaded before this
+   point came from the launch checkout, so load it again from inside the
+   worktree (for OpenSpec the same `openspec instructions apply` call,
+   for a plan the worktree's plan file) and use only that answer; a
+   finished run then reaches the `all_done` path item 11 relies on. This
+   holds for a bootstrap worktree and a bare one, for a relaunch from the
+   worktree or from the main checkout, and for one that leaves out the
+   word `isolated`, since the ledger, not the word, says where the run
+   lives. A `.worktrees/<name>` folder or a `<name>` branch that exists
+   without such a ledger stops the launch: name what exists and touch
+   nothing. A bootstrap that failed on a first launch leaves exactly
+   that. Items 2 to 10 are for a first launch, and item 11 for the end of
+   every run, relaunched or not.
 2. **The source is copied as it stands.** The worktree is made from HEAD
    and holds only what is committed there: an uncommitted change is
    missing, a plan in an ignored plans folder is never there, and an older
@@ -70,9 +77,15 @@ it too. `<worktree root>` is that folder's absolute path;
    `git worktree add .worktrees/<name> -b <name>` from HEAD, the source's
    copy (item 2), the bootstrap and the ledger line
    `Commit mode: commit on <name> in .worktrees/<name>`, in that order,
-   then run from the worktree; items 4 to 8 do not apply. A bootstrap that
-   fails stops the launch and leaves the worktree and the branch in place.
-   The worktree stays until the owner runs the project's teardown.
+   then run from the worktree; items 4 to 8 do not apply. The worktree
+   stays until the owner runs the project's teardown. A bootstrap that
+   fails stops the launch and leaves the worktree and the branch in
+   place. The stop names the failing command and its exit status, and
+   gives the owner the way back, written out in full:
+   `scripts/source-copy --undo <worktree root> <path>...` with item 2's
+   paths, then `git worktree remove .worktrees/<name>`, then
+   `git branch -d <name>`, neither forced. The driver names these
+   commands and runs none of them.
 4. **Without one, check the folder.** `git check-ignore -q
    .worktrees/<name>` must succeed. If `.worktrees/` is not ignored, stop
    before creating anything and say so, editing no ignore file: a worktree
@@ -148,6 +161,7 @@ Since these rules apply before This machine's item 1, This machine's item
 worktree, where a first launch has only the source's copy and a relaunch
 also an incomplete attempt's edits. Edits in the launch checkout cannot
 collide with a run in a worktree, so they do not stop an `isolated`
-launch; the source's own edits travel in the copy. This holds for a
-bootstrap project's launch too: the check reads the worktree, never the
-launch checkout, whose edits the run would never see.
+launch; the source's own edits travel in the copy, and the paths item
+2's copy brought never stop the launch. This holds for a bootstrap
+project's launch too: the check reads the worktree, never the launch
+checkout, whose edits the run would never see.
