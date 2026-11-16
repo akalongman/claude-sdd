@@ -173,7 +173,7 @@ state() {
       scan "$vcs" status --short --untracked-files=all -- "${specs[@]}"
       echo --
       scan "$vcs" ls-files --others --exclude-standard -z -- "${specs[@]}" |
-        xargs -0r sha256sum
+        xargs -0r sha256sum --
       echo --
     )
   done

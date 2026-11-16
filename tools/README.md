@@ -331,7 +331,7 @@ word `hands-off` and a commit of the source must not be; it prints
 `missing: <string>` or `present: <string>` for each miss and exits 1 on any.
 `test-sdd-checkpoint.sh` tests the checkpoint script, `bin/sdd-checkpoint`,
 in two temporary git repositories and prints `ok <n>` or `FAIL <n>` for each
-of thirteen cases (decision 22). `test-named-paths.sh` tests the
+of fourteen cases (decision 22). `test-named-paths.sh` tests the
 named-path rule, `skills/apply/scripts/named-paths`, in a temporary git
 repository with committed `bin/report`, `src/app.php`, `README.md`,
 `tests/unit/a.txt` and `Makefile`, and prints `ok <name>` or

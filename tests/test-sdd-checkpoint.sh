@@ -225,4 +225,12 @@ if [ "$rc1" -eq 0 ] && [ "$rc2" -eq 0 ] && [[ $first =~ $both ]] &&
    [ "$second" = "$first" ] && [ "$rc3" -eq 0 ] && [ "$rc" -eq 0 ] &&
    [ "$out" = "$spaced" ] && [[ $out =~ $form ]]; then pass 13; else miss 13; fi
 
+# 14. An untracked file at a repository's top level whose name starts with
+#     `-`: its hash reads it as a file name, not an option, so the run exits
+#     0 with nothing on stderr and prints a line of the documented form.
+printf 'dash\n' > "$a/-x.txt"
+run "$a/file.txt" "$a/-x.txt"
+rm -- "$a/-x.txt"
+if quiet && [[ $out =~ $form ]]; then pass 14; else miss 14; fi
+
 exit "$fail"
