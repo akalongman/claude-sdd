@@ -144,11 +144,11 @@ sq() { local q="'\\''"; printf "'%s'" "${1//\'/$q}"; }
 # root equal to the home directory (a dotfiles repository) is discarded
 # unless the working directory is the home directory itself, an exception
 # pinned by case 16 of tests/test-run-archive.sh. A discarded root, a failed
-# call (outside a work tree, a bare
-# repository, a git before 2.31 without --path-format) or a fourth line (a
-# path holding a newline) gives the working directory as cd -P spells it.
-# Untested here: the cd -P normalisation (git prints physical paths on this
-# machine) and the fallback for a git without --path-format.
+# call (outside a work tree, a bare repository, a git before 2.31 without
+# --path-format) or a fourth line (a path holding a newline) gives the
+# working directory as cd -P spells it. Untested here: the cd -P
+# normalisation (git prints physical paths on this machine) and the fallback
+# for a git without --path-format.
 queue_dir() {
   local out dir p home='' root=''
   local -a l
@@ -159,7 +159,7 @@ queue_dir() {
     root=${l[0]}
     if [ "${l[1]}" != "${l[2]}" ]; then root=${l[2]%/*}; root=${root:-/}; fi
     if p=$(cd -P "$root" 2>/dev/null && pwd); then root=$p; fi
-    if [ -n "$home" ] && [ "$root" = "$home" ] && [ "$dir" != "$home" ]; then root=''; fi
+    if [ -n "$home" ] && [ "$root" = "$home" ]; then root=''; fi
   fi
   printf '%s\n' "${root:-$dir}"
 }
