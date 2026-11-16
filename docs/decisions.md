@@ -1760,6 +1760,36 @@ From the spec's Part 1, item 7:
   `needs-ruling`) can add paths, and the resume may then report drift
   that is only the longer list; the owner answers the drift question.
 
+The build adds one limit of its own, found by the final review. A run
+begun before 0.2.0 has no list files, since its briefs were written
+without them, and a relaunch on 0.2.0 meets three rules that read one.
+The final phase's
+`sdd-files-add final-files.txt --list <a unit's list file>` exits 2
+for a unit with no list file and writes nothing. A pause's
+`sdd-checkpoint --list` on a missing list exits 2, which is ledgered as
+`checkpoint failed (exit 2)` and read on the resume as drift. And the
+launch check's exception for an incomplete attempt, the paths its
+`*-files.txt` lists, names none, so the attempt's own edits stop the
+launch.
+
+The way through, once the plugin is at 0.2.0 and before the relaunch:
+from the run's checkout (the worktree under `isolated`), run the
+source's brief script in `skills/apply/scripts/` again for every unit
+with a `handed to controller` line, at the brief's own path
+(`openspec-section-brief <name> <N> <workspace>/section-<N>-brief.md`
+or `task-brief <plan> <N> <workspace>/task-<N>-brief.md`). The script
+overwrites the brief with the source as it stands now and creates the
+list file beside it, seeded with the section's named paths or the
+task's `**Files:**` block. The seeded list lacks the paths that only an
+implementer's report named, since those reports had no `Files:` line;
+add them from the reports with
+`sdd-files-add <the list file> -- <path>...`, or `final-files.txt` and
+the launch check's exception do not cover them. A unit paused before
+0.2.0 may still meet the drift question on its resume, as in the second
+limit above: its checkpoint covered the paths its controller took from
+the brief (an OpenSpec brief carried none), and the seeded list need not
+hold the same distinct paths.
+
 ### Not covered
 
 `isolated.md` is prose a driver follows, so no script test runs it. The
