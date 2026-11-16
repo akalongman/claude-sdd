@@ -111,7 +111,9 @@ then pass 4; else miss 4; fi
 #    refuse it. The copy from R into R itself would delete the source's
 #    uncommitted files, so it is refused and leaves R's status as it was.
 #    The undo in a folder where git finds no HEAD fails before it removes
-#    anything.
+#    anything. The undo runs only at the top level of a linked worktree, so
+#    the launch checkout R is refused and keeps its status, and so is a
+#    folder inside W2.
 git -C "$R" worktree add -q "$W2" -b t2
 printf 'x\n' > "$tmp/x"
 mkdir -p "$R/a" "$R/etc"
@@ -142,6 +144,10 @@ GIT_CEILING_DIRECTORIES=$tmp run --undo "$tmp/plain" 'notes/My plan.md'
 if [ "$rc" -eq 0 ] || [ ! -e "$tmp/plain/notes/My plan.md" ]; then
   broken+=" undo-outside-git"
 fi
+run --undo "$R" "${P[@]}"
+if [ "$rc" -ne 2 ] || [ "$(st "$R")" != "$st_r" ]; then broken+=" undo-in-R"; fi
+run --undo "$W2/$change" proposal.md
+if [ "$rc" -ne 2 ]; then broken+=" undo-in-subfolder"; fi
 if [ -n "$(git -C "$W2" status --porcelain --ignored --untracked-files=all)" ]; then
   broken+=" written"
 fi

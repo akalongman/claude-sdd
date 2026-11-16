@@ -17,7 +17,11 @@
 # The undo exists because the bare worktree's removal is never forced, and
 # an unforced `git worktree remove` refuses a worktree with untracked or
 # edited files. It removes each PATH in TO and restores HEAD's version of
-# the ones HEAD holds, so the worktree is clean again.
+# the ones HEAD holds, so the worktree is clean again. It runs only when TO
+# is the top level of a linked worktree, because in the launch checkout the
+# same removal would delete the source's uncommitted files, which nothing
+# restores; a main checkout, a folder inside a worktree and a folder in no
+# repository are refused.
 #
 # Usage: source-copy FROM TO PATH...
 #        source-copy --undo TO PATH...
@@ -30,9 +34,10 @@
 # absolute, no .. component and, for the copy only, present in FROM (a
 # symlink counts even when its target is missing).
 # Exit codes: 0, printing nothing; 2 usage (too few arguments, FROM or TO
-# not a folder, FROM and TO the same folder, a PATH that fails its check),
-# with a message on stderr and nothing written. A failing git, rm, mkdir or
-# cp stops the script with that command's status and message.
+# not a folder, FROM and TO the same folder, a PATH that fails its check,
+# an undo whose TO is not the top level of a linked worktree), with a
+# message on stderr and nothing written. A failing git, rm, mkdir or cp
+# stops the script with that command's status and message.
 set -euo pipefail
 
 usage() {
@@ -75,8 +80,24 @@ for p in "$@"; do
 done
 
 if [ "$undo" -eq 1 ]; then
-  # HEAD is read before the removal, so a TO where git finds no HEAD fails
-  # on the first PATH with nothing removed.
+  # Only the top level of a linked worktree passes: it has a git folder of
+  # its own beside the common one, where a main checkout's two are the
+  # same. Each of git's answers is resolved from inside TO, since git may
+  # print it relative, and a missing answer (no repository) refuses.
+  resolved() {
+    [ -n "$1" ] &&
+      (CDPATH='' cd -- "$to" && CDPATH='' cd -- "$1" && pwd -P) 2>/dev/null
+  }
+  ask() { resolved "$(git -C "$to" rev-parse "$1" 2>/dev/null)"; }
+  top=$(ask --show-toplevel) || top=
+  own=$(ask --git-dir) || own=
+  common=$(ask --git-common-dir) || common=
+  if [ -z "$top" ] || [ "$top" != "$(resolved .)" ] || [ -z "$own" ] ||
+     [ -z "$common" ] || [ "$own" = "$common" ]; then
+    refuse "TO is not the top level of a linked worktree: $to"
+  fi
+  # HEAD is read before the removal, so a worktree with no HEAD commit
+  # fails on the first PATH with nothing removed.
   for p in "$@"; do
     tree=$(git -C "$to" ls-tree HEAD -- "$p")
     rm -rf -- "${to:?}/${p:?}"
