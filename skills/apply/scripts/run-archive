@@ -141,12 +141,12 @@ sq() { local q="'\\''"; printf "'%s'" "${1//\'/$q}"; }
 # directory and the common git directory; the root is the top level, or for
 # a linked worktree the common directory's parent (the main checkout),
 # spelled as cd -P spells it (as git printed it when cd cannot enter it). A
-# root equal to the home directory (a dotfiles repository) is discarded
-# unless the working directory is the home directory itself, an exception
-# pinned by case 16 of tests/test-run-archive.sh. A discarded root, a failed
-# call (outside a work tree, a bare repository, a git before 2.31 without
-# --path-format) or a fourth line (a path holding a newline) gives the
-# working directory as cd -P spells it. Untested here: the cd -P
+# root equal to the home directory (a dotfiles repository) is discarded. A
+# discarded root, a failed call (outside a work tree, a bare repository, a
+# git before 2.31 without --path-format) or a fourth line (a path holding a
+# newline) gives the working directory as cd -P spells it, so the home
+# directory itself still gives the home directory, as case 16 of
+# tests/test-run-archive.sh pins. Untested here: the cd -P
 # normalisation (git prints physical paths on this machine) and the fallback
 # for a git without --path-format.
 queue_dir() {
