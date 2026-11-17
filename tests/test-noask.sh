@@ -10,15 +10,17 @@
 # under `timeout 10` (case 27's under `timeout 120`), so a hang fails its case
 # instead of the run. Prints "ok <n>" or "FAIL <n> (<broken parts>)" per case
 # and "skip <n> (<reason>)" for a case that cannot run; exits 1 when any case
-# fails. The cases are those of the phase 2 plan (a local working document),
-# Task 2.
+# fails. Cases 1 to 30 are those of the phase 2 plan (a local working
+# document), Task 2; cases 31 to 36 those of the plan of noask's first step,
+# a local working document, Task 1.
 #
 # Usage: bash tests/test-noask.sh [SCRIPT]
 #   Default SCRIPT: bin/noask in the plugin root, the parent of this script's
 #   directory. The rule text is read from scripts/ beside SCRIPT's bin/, and
 #   case 14 copies those two directories.
 # Case 29 and case 10's mode-000 sub-case need a user that file modes bind,
-# so they are skipped when the tests run as root.
+# so they are skipped when the tests run as root: case 29 prints a skip line,
+# case 10 a note line after its verdict.
 set -uo pipefail
 
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -108,9 +110,12 @@ refused() {
     [ "$err" = "$want" ] || broken+=" $part-stderr"
   fi
 }
+# own_dir DIR...: make each DIR and its parents under umask 077, as the
+# command makes its directories, so no switch that follows narrows them.
+own_dir() { (umask 077 && mkdir -p -- "$@"); }
 # two_lines FILE: an unreadable marker, its first two lines only.
 two_lines() {
-  mkdir -p -- "${1%/*}"
+  own_dir "${1%/*}"
   printf '%s\n' "$gl" "$sl" > "$1"
 }
 # Ends a case: ok when no part broke, else FAIL with the broken parts and the
@@ -123,8 +128,8 @@ verdict() {
   broken='' rc=0 out='' err=''
 }
 
-# 1. No marker: off in every form; with HOME unset both readers read off and
-#    a switching command fails.
+# 1. No marker: off in every form; with HOME unset, or set and empty, both
+#    readers read off and a switching command fails.
 fresh 1
 noask; is plain 0 'noask: off'
 noask status; is status 0 off
@@ -138,6 +143,11 @@ noask status; is nohome-status 0 off
 noask; is nohome-plain 0 'noask: off'
 noask global on
 { [ "$rc" -eq 1 ] && [ "$err" = 'noask: HOME is not set' ] && [ -z "$out" ]; } || broken+=" nohome-on"
+envs=(HOME=) nohome=
+noask status; is emptyhome-status 0 off
+noask; is emptyhome-plain 0 'noask: off'
+noask global on
+{ [ "$rc" -eq 1 ] && [ "$err" = 'noask: HOME is not set' ] && [ -z "$out" ]; } || broken+=" emptyhome-on"
 verdict 1
 
 # 2. global on: the four lines of the marker, the four printed lines and the
@@ -256,11 +266,13 @@ verdict 9
 
 # 10. An unreadable global marker, one sub-case each: read by status and the
 #     bare command, then replaced by on and removed by off, each on a fresh
-#     copy. The FIFO is a marker whose read never answers. No status line
-#     ends in handsoff, the word that lets a session publish.
+#     copy. The FIFO is a marker whose read never answers, and its status
+#     line names the timeout. No status line ends in handsoff, the word that
+#     lets a session publish. Run as root, the mode-000 sub-case is left out
+#     and a note line follows the verdict.
 # bad_global KIND: the global marker of sub-case KIND.
 bad_global() {
-  mkdir -p -- "$st"
+  own_dir "$st"
   case $1 in
     two-lines) printf '%s\n' "$gl" "$sl" ;;
     no-level) printf '%s\n' "$gl" "$sl" until= ;;
@@ -288,6 +300,7 @@ for kind in two-lines no-level level-push level-handsoff empty-generation genera
   bad_global "$kind"
   noask status; like "$kind-status" 3 '^unreadable .+$'
   [[ $out != *handsoff ]] || broken+=" $kind-status-ends-handsoff"
+  [ "$kind" != fifo ] || [ "$out" = 'unreadable marker read timed out' ] || broken+=" fifo-reason"
   noask; like "$kind-plain" 3 '^noask: unreadable \(.+\); sessions treat it as on; noask global off removes it$'
   fresh "10-$kind-on"
   bad_global "$kind"
@@ -301,6 +314,7 @@ for kind in two-lines no-level level-push level-handsoff empty-generation genera
   [ ! -e "$G" ] || broken+=" $kind-removed"
 done
 verdict 10
+[ -z "$as_root" ] || echo 'note 10 (the mode-000 sub-case needs a user that file modes bind)'
 
 # 11. Wrong arguments: exit 2 before anything is touched; 99999h is taken.
 fresh 11
@@ -609,7 +623,7 @@ verdict 25
 #     up and writes nothing; the readers answer at once; after the holder
 #     ends, the switch is made.
 fresh 26
-mkdir -p -- "$st"
+own_dir "$st"
 : > "$st/lock"
 mkfifo -- "$tmp/c26"
 exec {pipe}<>"$tmp/c26"
@@ -673,7 +687,9 @@ noask --session s-2 on
   broken+=" line"
 verdict 28
 
-# 29. A sweep that cannot remove changes neither the output nor the exit.
+# 29. A sweep that cannot remove changes neither the output nor the exit;
+#     noask.d at 500 grants its group and others nothing, so it is not
+#     narrowed either.
 if [ -n "$as_root" ]; then
   echo 'skip 29 (run as root, which removes through any mode)'
 else
@@ -681,10 +697,10 @@ else
   step s-1 --session s-1 on 30m
   step global global on
   now=1794425460
-  chmod 555 -- "$D" 2>/dev/null
+  chmod 500 -- "$D" 2>/dev/null
   noask global off; is off 0 'noask: off for every session'
   { [ ! -e "$G" ] && [ -e "$D/s-1" ]; } || broken+=" files"
-  chmod 755 -- "$D" 2>/dev/null
+  chmod 700 -- "$D" 2>/dev/null
   verdict 29
 fi
 
@@ -706,5 +722,146 @@ like own 0 "^noask: off for every session; this session's marker is unreadable \
 noask global off
 is count 0 'noask: already off for every session; sessions still on by their own switch: 1 (noask lists them)'
 verdict 30
+
+# 31. A session id that is one of the command's own words is a wrong
+#     argument, whatever follows; nothing is touched. CLAUDE_CODE_SESSION_ID
+#     holding one names no session, so a marker under that name is not read.
+fresh 31
+refused off usage --session off
+refused global-on usage --session global on
+refused status usage --session status
+refused on-on usage --session on on
+refused count-on usage --session count on
+[ ! -e "$home/.local/state" ] || broken+=" state"
+own_dir "$D"
+printf '%s\n' "$gl" "$sl" until=2026-11-12T07:00:12+04:00 level=noask > "$D/on"
+envs=(CLAUDE_CODE_SESSION_ID=on)
+noask status; is env-word 0 off
+verdict 31
+
+# 32. until HH:MM in the hour a clock change repeats (Europe/Berlin,
+#     2026-10-25, 03:00 back to 02:00): the next such local time strictly
+#     after now, whichever of the hour's two passes date answers; once both
+#     passes are behind, the next day's.
+for c in '1792888800 02:30 2026-10-25T02:30:00+01:00' '1792888800 02:50 2026-10-25T02:50:00+02:00' \
+  '1792891860 02:30 2026-10-26T02:30:00+01:00'; do
+  read -r at hm want <<< "$c"
+  fresh "32-$at-$hm"
+  envs=(TZ=Europe/Berlin) now=$at
+  noask global on until "$hm"
+  marker "$G"
+  { [ "$rc" -eq 0 ] && [ -z "$err" ] && [ "${m[2]-}" = "until=$want" ]; } || broken+=" $hm-at-$at"
+done
+verdict 32
+
+# 33. The state directory and noask.d are made at 700 whatever the umask; a
+#     switch narrows each of them and budgets.d that grants its group or
+#     others a bit, and says so after its own lines, once; one without such
+#     a bit (500) is left as it is. status and the bare command change no
+#     mode.
+mask=$(umask)
+fresh 33
+umask 002
+noask global on
+{ [ "$rc" -eq 0 ] && [[ $out != *narrowed* ]] && [ "$(stat -c %a -- "$st")" = 700 ]; } || broken+=" state-made"
+noask --session s-1 on
+{ [ "$rc" -eq 0 ] && [[ $out != *narrowed* ]] && [ "$(stat -c %a -- "$D")" = 700 ]; } || broken+=" noask.d-made"
+umask "$mask"
+fresh 33-wide
+mkdir -p -- "$st" && chmod 775 -- "$st"
+noask global on
+is wide 0 'noask: on for every session since 23:00' "marker: $G" '' "$(cat -- "$rule")" \
+  "noask: narrowed $st to the owner (it was 775)"
+[ "$(stat -c %a -- "$st")" = 700 ] || broken+=" wide-mode"
+noask global on; is wide-again 0 'noask: already on for every session since 23:00; nothing changed'
+mkdir -p -- "$D" && chmod 775 -- "$st" "$D"
+noask status; is wide-status 0 "on $(gen_of "$G")"
+noask; is wide-plain 0 'noask: on for every session since 23:00'
+[ "$(stat -c %a -- "$st") $(stat -c %a -- "$D")" = '775 775' ] || broken+=" readers-changed-mode"
+fresh 33-500
+own_dir "$D"
+chmod 500 -- "$D"
+noask global on; is 500 0 'noask: on for every session since 23:00' "marker: $G" '' "$(cat -- "$rule")"
+[ "$(stat -c %a -- "$D")" = 500 ] || broken+=" 500-mode"
+chmod 700 -- "$D"
+fresh 33-three
+own_dir "$st"
+mkdir -p -- "$D" "$st/budgets.d" && chmod 755 -- "$D" && chmod 770 -- "$st/budgets.d"
+noask global off
+is three 0 'noask: already off for every session' "noask: narrowed $D to the owner (it was 755)" \
+  "noask: narrowed $st/budgets.d to the owner (it was 770)"
+[ "$(stat -c %a -- "$D") $(stat -c %a -- "$st/budgets.d")" = '700 700' ] || broken+=" three-modes"
+verdict 33
+
+# 34. A session's on beside an unreadable global marker says that the global
+#     marker holds every session.
+fresh 34
+own_dir "$st"
+printf 'x\n' > "$G"
+noask --session s-1 on
+{ [ "$rc" -eq 0 ] && [ -z "$err" ] && [ "$(nth 1)" = "noask: on for this session since 23:00 until 2026-11-12 07:00$default; the global marker is unreadable (the marker has 1 line, not 4) and holds every session under noask; noask global off removes it" ]; } ||
+  broken+=" line"
+verdict 34
+
+# 35. The parser's reasons: the size limit (a marker of exactly 4096 bytes is
+#     still parsed), the count of lines, the offset's range in a time and in
+#     the generation. No reason in the script ends in handsoff.
+# put_global LINE...: the global marker holding the LINEs.
+put_global() {
+  own_dir "$st"
+  printf '%s\n' "$@" > "$G"
+}
+fresh 35
+own_dir "$st"
+printf '%5000s' '' > "$G"
+noask status; is long 3 'unreadable the marker is longer than 4096 bytes'
+put_global "$gl" "$sl" until= "level=$(printf '%*s' $((4080 - ${#gl} - ${#sl})) '' | tr ' ' x)"
+[ "$(stat -c %s -- "$G")" = 4096 ] || broken+=" exact-size"
+noask status; is exact 3 'unreadable line 4 is not level=handsoff or level=noask'
+put_global "$gl"
+noask status; is one-line 3 'unreadable the marker has 1 line, not 4'
+put_global "$gl" "$sl"
+noask status; is two-lines 3 'unreadable the marker has 2 lines, not 4'
+for off in +04:60 +14:01 +15:00; do
+  put_global "$gl" "since=2026-11-11T23:00:12$off" until= level=noask
+  noask status; is "since$off" 3 'unreadable line 2 is not since=<time>'
+done
+put_global "$gl" since=2026-11-12T09:00:12+14:00 until= level=noask
+noask status; is since+14:00 0 "on ${gl#generation=}"
+put_global generation=2026-11-11T23:00:12.000000000+15:00-0123abcd "$sl" until= level=noask
+noask status; is generation+15:00 3 'unreadable line 1 is not generation=<time>-<8 hex>'
+reasons=$(grep -oE "reason=(\"[^\"]*\"|'[^']*')" -- "$script")
+[ "$(grep -c . <<< "$reasons")" -ge 10 ] || broken+=" reasons-found"
+[ "$(grep -cE "handsoff[\"']\$" <<< "$reasons")" -eq 0 ] || broken+=" reason-ends-handsoff"
+verdict 35
+
+# 36. Off its platform (here: no flock) no marker can exist: status and the
+#     bare command read off, and every other form is refused with the
+#     platform line and writes nothing. The same folder with flock added
+#     makes a switch, so flock is the one thing missing.
+fresh 36
+bin36=$tmp/bin36
+mkdir -p -- "$bin36"
+for t in bash date env realpath dirname timeout head tr mkdir mktemp mv rm od cat stat chmod; do
+  if p=$(command -v "$t"); then ln -s -- "$p" "$bin36/$t"; else broken+=" link-$t"; fi
+done
+platform='noask: this command needs Linux with bash 5, GNU coreutils and flock; noask is not available here'
+envs=("PATH=$bin36")
+noask status; is status 0 off
+noask --session s-1 status; is session-status 0 off
+noask; is plain 0 'noask: off'
+noask --session s-1; is session-plain 0 'noask: off'
+for a in 'global on' '--session s-1 on' 'global off' '--session s-1 count question 6'; do
+  read -ra words <<< "$a"
+  noask "${words[@]}"
+  { [ "$rc" -eq 1 ] && [ -z "$out" ] && [ "$err" = "$platform" ]; } || broken+=" ${a// /_}"
+done
+[ ! -e "$home/.local/state" ] || broken+=" state"
+if p=$(command -v flock); then ln -s -- "$p" "$bin36/flock"; else broken+=" link-flock"; fi
+fresh 36-flock
+envs=("PATH=$bin36")
+noask global on
+{ [ "$rc" -eq 0 ] && [ -z "$err" ] && [ -f "$G" ]; } || broken+=" with-flock"
+verdict 36
 
 exit "$fail"

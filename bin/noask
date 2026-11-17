@@ -12,14 +12,25 @@
 #   noask [--session <id>] global on [<expiry>]
 #   noask [--session <id>] global off
 #   <expiry> is <n>h or <n>m (<n> from 1 to 99999), or `until HH:MM`: the
-#   next such local time strictly after now, refused (exit 2) when a clock
-#   change skips it on that day. The marker stores the absolute time.
+#   next such local time strictly after now (in an hour a clock change
+#   repeats, the earlier of its two passes still ahead), refused (exit 2)
+#   when a clock change skips it on that day. The marker stores the absolute
+#   time.
 #
 # The session S the command acts for is the --session value, which comes
-# first and must match ^[A-Za-z0-9_-]{1,64}$; else, for status and the bare
-# command only, CLAUDE_CODE_SESSION_ID when it has that form; else none.
-# `on` and `off` without --session are refused: a session's switch is typed
-# in the session (/noask on), and `noask global on` switches every session.
+# first, must match ^[A-Za-z0-9_-]{1,64}$ and must be none of the command's
+# own words (RESERVED; `--session on` is a wrong argument, whatever
+# follows); else, for status and the bare command only,
+# CLAUDE_CODE_SESSION_ID when it has that form; else none. `on` and `off`
+# without --session are refused: a session's switch is typed in the session
+# (/noask on), and `noask global on` switches every session.
+#
+# The platform is Linux with bash 5, GNU coreutils and flock; for coreutils
+# the command tests the one thing it needs that BSD's date lacks, a date
+# that reads -d @<epoch> (GNU's and uutils' do). Off the platform no marker
+# can exist: status, with or without --session, prints off and the bare
+# command "noask: off", exit 0; every other form exits 1 with a line that
+# says so and writes nothing.
 #
 # Markers: the global one is $HOME/.local/state/sdd/noask, a session's is
 # $HOME/.local/state/sdd/noask.d/<id>. Each holds four lines:
@@ -27,12 +38,15 @@
 #   since=<local ISO-8601 time to the second, numeric offset>
 #   until=<the same form, or empty; never empty in a session's marker>
 #   level=<noask or handsoff; always noask in the global marker>
+# A numeric offset is [+-]HH:MM from 00:00 to 14:00 (OFFSET_RE): no real
+# offset is past 14 hours, and the plugin's module refuses a minute past 59,
+# which date carries into the hour (+04:60 as +05:00).
 # A reading of one marker is off (no file), on, expired (an until not after
 # now; read as off) or unreadable (the file exists and cannot be read within
-# 2 seconds, or does not parse). S's reading is the global marker's when that
-# is on or unreadable, else S's own when that is not off, else the global
-# marker's; with no S, the global marker's alone. With HOME unset or empty
-# every reading is off.
+# 2 seconds, is longer than 4096 bytes, or does not parse). S's reading is
+# the global marker's when that is on or unreadable, else S's own when that
+# is not off, else the global marker's; with no S, the global marker's
+# alone. With HOME unset or empty every reading is off.
 #
 # Output. status: one line, off, on <generation>[ until <until>], expired
 # <until> or unreadable <reason>; the on and unreadable lines end in
@@ -42,23 +56,31 @@
 # the global switch's line, then one line per session marker that reads on,
 # then one per session marker that is unreadable. A switching command prints
 # what it did and, when it wrote a marker, the marker's path; a new `on` adds
-# an empty line and the rule text. <time> is HH:MM on today's local date,
-# else YYYY-MM-DD HH:MM.
+# an empty line and the rule text; a session's `on` beside an unreadable
+# global marker ends its first line saying that marker holds every session.
+# Last come the narrowing lines, "noask: narrowed <path> to the owner (it
+# was <octal mode>)". <time> is HH:MM on today's local date, else
+# YYYY-MM-DD HH:MM.
 #
-# A switching command checks its arguments, makes the state directory, takes
-# the lock <state directory>/lock (flock, 5 seconds), reads its target marker,
-# switches it (a write goes to a temporary .noask.* file renamed over the
-# marker, then is read back with the parser status uses), prints its lines,
-# and then sweeps: it removes each session marker that reads expired and each
-# leftover .noask.* file in both directories. A failed sweep changes neither
-# the output nor the exit. status and the bare command take no lock and write
+# A switching command checks its arguments, makes the state directory (mode
+# 700, as it makes noask.d; it never makes budgets.d), takes the lock
+# <state directory>/lock (flock, 5 seconds), narrows to the owner each of
+# the state directory, noask.d and budgets.d that grants its group or others
+# any bit (chmod go-rwx; a mode with no such bit, 500 included, is left as
+# it is), reads its target marker, switches it (a write goes to a temporary
+# .noask.* file renamed over the marker, then is read back with the parser
+# status uses), prints its lines, and then sweeps: it removes each session
+# marker that reads expired and each leftover .noask.* file in both
+# directories. A failed sweep changes neither the output nor the exit.
+# status and the bare command take no lock, change no mode and write
 # nothing.
 #
 # Exit codes: 0 done (a switch made, whatever the marker held before); 1 the
 # state directory, the lock, or a marker's write, read-back or removal
-# failed, or a switching command found HOME unset or empty; 2 a wrong
-# argument, nothing touched; 3 status or the bare command met an unreadable
-# marker.
+# failed, or a switching command found HOME unset or empty, or any form but
+# status and the bare command ran off the platform; 2 a wrong argument on
+# the platform, nothing touched; 3 status or the bare command met an
+# unreadable marker.
 #
 # Test seams: SDD_NOASK_NOW=<epoch seconds> replaces the clock;
 # SDD_NOASK_LOCK_WAIT=<seconds> replaces the lock's 5.
@@ -69,13 +91,15 @@ export LC_ALL=C
 readonly SESSION_HOURS=8 # a session's switch given no expiry ends this many hours after since
 readonly LOCK_SECONDS=5  # how long a switching command waits for the lock
 readonly READ_SECONDS=2  # a marker read that takes longer reads unreadable
+readonly MARKER_BYTES=4096 # a longer marker reads unreadable
 readonly ID_RE='^[A-Za-z0-9_-]{1,64}$'
-readonly TIME_RE='[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}[+-][0-9]{2}:[0-9]{2}'
-readonly GEN_RE='^generation=[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{9}[+-][0-9]{2}:[0-9]{2}-[0-9a-f]{8}$'
+# The command's own words, never a session id.
+readonly RESERVED='status on off global handsoff until count reset read question denial continuation'
+readonly OFFSET_RE='[+-]((0[0-9]|1[0-3]):[0-5][0-9]|14:00)' # 00:00 to 14:00, either sign
+readonly TIME_RE='[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}'"$OFFSET_RE"
+readonly GEN_RE='^generation=[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{9}'"$OFFSET_RE"'-[0-9a-f]{8}$'
 readonly SINCE_RE="^since=$TIME_RE\$"
 readonly UNTIL_RE="^until=($TIME_RE)?\$"
-RULE=$(dirname -- "$(dirname -- "$(realpath -- "${BASH_SOURCE[0]}")")")/scripts/noask-rule.md
-readonly RULE
 
 usage() {
   echo 'usage: noask [--session <id>] [status | on [handsoff] [<expiry>] | off | global on [<expiry>] | global off], <expiry> being <n>h, <n>m or until HH:MM' >&2
@@ -85,6 +109,26 @@ die() {
   printf 'noask: %s\n' "$1" >&2
   exit 1
 }
+# is_session_id WORD: WORD matches ID_RE and is none of the RESERVED words.
+is_session_id() { [[ $1 =~ $ID_RE ]] && [[ " $RESERVED " != *" $1 "* ]]; }
+
+# The platform, tested before anything that needs it and with nothing newer
+# than bash 3.2 reads: bash 5, flock, and a date that reads -d @<epoch>.
+# Off it no marker can exist, so status and the bare command read off and
+# every other form is refused.
+if [ "${BASH_VERSINFO[0]}" -lt 5 ] || ! command -v flock > /dev/null 2>&1 ||
+  [ "$(date -d @0 +%s 2> /dev/null)" != 0 ]; then
+  if [ "${1-}" = --session ] && [ $# -ge 2 ] && [ "$2" != --session ] && is_session_id "$2"; then shift 2; fi
+  case $#/${1-} in
+    0/) echo 'noask: off' ;;
+    1/status) echo off ;;
+    *) die 'this command needs Linux with bash 5, GNU coreutils and flock; noask is not available here' ;;
+  esac
+  exit 0
+fi
+
+RULE=$(dirname -- "$(dirname -- "$(realpath -- "${BASH_SOURCE[0]}")")")/scripts/noask-rule.md
+readonly RULE
 
 # Parse the arguments of an `on` after the word on: [handsoff] [<expiry>].
 parse_on() {
@@ -106,7 +150,7 @@ parse_on() {
 
 session='' given='' action='' scope='' handsoff='' expiry=''
 if [ "${1-}" = --session ]; then
-  { [ $# -ge 2 ] && [ "$2" != --session ] && [[ $2 =~ $ID_RE ]]; } || usage
+  { [ $# -ge 2 ] && [ "$2" != --session ] && is_session_id "$2"; } || usage
   session=$2 given=1
   shift 2
 fi
@@ -131,7 +175,7 @@ case ${1-} in
     ;;
   *) usage ;;
 esac
-if [ -z "$given" ] && [ -z "$scope" ] && [[ ${CLAUDE_CODE_SESSION_ID:-} =~ $ID_RE ]]; then
+if [ -z "$given" ] && [ -z "$scope" ] && is_session_id "${CLAUDE_CODE_SESSION_ID:-}"; then
   session=$CLAUDE_CODE_SESSION_ID
 fi
 
@@ -148,31 +192,41 @@ fi || die 'cannot read the clock'
 read -r now today hm_now stamp nanos <<< "$clock"
 
 iso_of() { date -d "@$1" +%Y-%m-%dT%H:%M:%S%:z; } # EPOCH as a marker's time
-# at_local DAY HH:MM: the epoch of that local time on DAY; fails when the
-# clock skips it that day (date refuses it, or answers another time of day).
+# at_local DAY HH:MM: the epochs, ascending, that date shows as HH:MM on DAY:
+# one, or two when a clock change repeats that hour. date answers either
+# pass (uutils' the first, GNU's the second), so the hour before and the
+# hour after its answer are looked at too. Fails when the clock skips HH:MM
+# that day (date refuses it, or answers another time of day).
 at_local() {
-  local out
-  out=$(date -d "$1 $2:00" +'%s %H:%M' 2>/dev/null) || return 1
-  [ "${out#* }" = "$2" ] || return 1
-  printf '%s\n' "${out%% *}"
+  local out t e
+  out=$(date -d "$1 $2:00" +'%s %F %H:%M' 2>/dev/null) || return 1
+  [ "${out#* }" = "$1 $2" ] || return 1
+  t=${out%% *}
+  for e in $((t - 3600)) "$t" $((t + 3600)); do
+    [ "$e" = "$t" ] || [ "$(date -d "@$e" +'%F %H:%M' 2>/dev/null)" = "$1 $2" ] || continue
+    printf '%s\n' "$e"
+  done
 }
-# Set until_epoch to the next local HH:MM strictly after now: today's when
-# that is after now, else tomorrow's; exit 2 when that day skips it.
+# Set until_epoch to the next local HH:MM strictly after now: today's
+# earliest pass after now, else tomorrow's first; exit 2 when that day skips
+# it.
 next_local() {
-  local hm=$1 t noon tomorrow
-  if t=$(at_local "$today" "$hm"); then
-    if [ "$t" -gt "$now" ]; then until_epoch=$t; return; fi
+  local hm=$1 t passes noon tomorrow
+  if passes=$(at_local "$today" "$hm"); then
+    for t in $passes; do
+      if [ "$t" -gt "$now" ]; then until_epoch=$t; return; fi
+    done
   elif [ $((10#${hm%:*} * 60 + 10#${hm#*:})) -gt $((10#${hm_now%:*} * 60 + 10#${hm_now#*:})) ]; then
     printf 'noask: %s does not exist on %s (a clock change skips it)\n' "$hm" "$today" >&2
     exit 2
   fi
   noon=$(date -d "$today 12:00:00" +%s) || die 'cannot read the clock'
   tomorrow=$(date -d "@$((noon + 86400))" +%F) || die 'cannot read the clock'
-  if ! t=$(at_local "$tomorrow" "$hm"); then
+  if ! passes=$(at_local "$tomorrow" "$hm"); then
     printf 'noask: %s does not exist on %s (a clock change skips it)\n' "$hm" "$tomorrow" >&2
     exit 2
   fi
-  until_epoch=$t
+  until_epoch=${passes%%$'\n'*}
 }
 
 # The expiry as a marker's until (until_new), empty when none was given.
@@ -197,7 +251,9 @@ fi
 STATE=$HOME/.local/state/sdd
 GLOBAL=$STATE/noask
 DIR=$STATE/noask.d
+BUDGETS=$STATE/budgets.d
 declare -A gm=() sm=() om=() wm=()
+narrowed=() # the narrowing lines, printed after a switching command's own
 
 # shown TIME: "<epoch> <time>" for a marker's TIME, <time> being HH:MM on
 # today's local date, else YYYY-MM-DD HH:MM; fails when date cannot read it.
@@ -216,7 +272,9 @@ shown() {
 # into the associative array NAME: state (off, on, expired or unreadable),
 # reason (when unreadable), generation, since, until and level as stored,
 # and since_at and until_at as <time>. A file removed while it is read
-# reads off.
+# reads off. A marker is read to one byte past MARKER_BYTES, so one of
+# exactly that size is still parsed. No reason ends in the word handsoff: a
+# status line that ends in it lets a session publish.
 # shellcheck disable=SC2034 # mk is a nameref: its fields land in NAME
 read_marker() {
   local file=$1 kind=$2 raw rc reason='' s='' u=''
@@ -225,7 +283,7 @@ read_marker() {
   mk=(['state']=off ['reason']='' ['generation']='' ['since']='' ['until']='' ['level']='' ['since_at']=''
     ['until_at']='')
   [ -e "$file" ] || [ -L "$file" ] || return 0
-  raw=$(timeout "$READ_SECONDS" head -c 4096 -- "$file" 2>/dev/null | tr '\0' '\001' && printf x)
+  raw=$(timeout "$READ_SECONDS" head -c $((MARKER_BYTES + 1)) -- "$file" 2>/dev/null | tr '\0' '\001' && printf x)
   rc=$?
   raw=${raw%x}
   [ "$rc" -ne 0 ] || mapfile -t lines <<< "${raw%$'\n'}"
@@ -235,10 +293,14 @@ read_marker() {
     reason='marker read timed out'
   elif [ "$rc" -ne 0 ]; then
     reason='the marker cannot be read'
+  elif [ "${#raw}" -gt "$MARKER_BYTES" ]; then
+    reason="the marker is longer than $MARKER_BYTES bytes"
   elif [ -z "$raw" ]; then
     reason='the marker is empty'
   elif [[ $raw != *$'\n' ]]; then
     reason='the last line has no newline'
+  elif [ "${#lines[@]}" -eq 1 ]; then
+    reason='the marker has 1 line, not 4'
   elif [ "${#lines[@]}" -ne 4 ]; then
     reason="the marker has ${#lines[@]} lines, not 4"
   elif ! [[ ${lines[0]} =~ $GEN_RE ]]; then
@@ -248,7 +310,6 @@ read_marker() {
   elif ! [[ ${lines[2]} =~ $UNTIL_RE ]] || { [ "${lines[2]}" != until= ] && ! u=$(shown "${lines[2]#until=}"); }; then
     reason='line 3 is not until=<time> or until='
   elif ! [[ ${lines[3]} =~ ^level=(noask|handsoff)$ ]]; then
-    # No reason ends in handsoff: a status line that ends in it lets a session publish.
     reason='line 4 is not level=handsoff or level=noask'
   elif [ "$kind" = global ] && [ "${lines[3]}" = level=handsoff ]; then
     reason="level=handsoff in the global marker, which only a session's marker holds"
@@ -283,11 +344,13 @@ word() {
   if [ "${wd[level]}" = handsoff ]; then echo handsoff; else echo on; fi
 }
 
-# Make the state directory and take its lock, held to the end of the command.
+# Make the state directory, take its lock, held to the end of the command,
+# and narrow the directories under the lock.
 take_lock() {
   local wait=${SDD_NOASK_LOCK_WAIT:-$LOCK_SECONDS} rc=0
   [[ $wait =~ ^[0-9]+(\.[0-9]+)?$ ]] || die 'SDD_NOASK_LOCK_WAIT is not a number of seconds'
-  mkdir -p -- "$STATE" 2>/dev/null
+  # shellcheck disable=SC2174 # 700 is for the state directory alone, not its parents
+  mkdir -p -m 700 -- "$STATE" 2>/dev/null
   [ -d "$STATE" ] || die "cannot make the state directory $STATE"
   { exec 9>>"$STATE/lock"; } 2>/dev/null || die "cannot open the lock $STATE/lock"
   flock -w "$wait" 9 || rc=$?
@@ -296,6 +359,22 @@ take_lock() {
     1) die 'the state directory is locked by another noask command' ;;
     *) die "cannot take the lock $STATE/lock" ;;
   esac
+  narrow
+}
+
+# Narrow to the owner each of the state directory, noask.d and budgets.d that
+# grants its group or others any bit; a mode with none, 500 included, is left
+# as it is. Each narrowing adds its line to narrowed.
+narrow() {
+  local d mode
+  for d in "$STATE" "$DIR" "$BUDGETS"; do
+    [ -d "$d" ] || continue
+    mode=$(stat -L -c %a -- "$d" 2>/dev/null) || continue
+    [[ $mode =~ ^[0-7]{3,4}$ ]] || continue
+    (((8#$mode & 8#077) != 0)) || continue
+    chmod go-rwx -- "$d" 2>/dev/null || continue
+    narrowed+=("noask: narrowed $d to the owner (it was $mode)")
+  done
 }
 
 # Set generation_new for a new marker: the clock's local time to the
@@ -457,7 +536,12 @@ cmd_session_on() {
   take_lock
   read_marker "$target" session sm
   read_marker "$GLOBAL" global gm
-  [ "${gm[state]}" != on ] || also="; also on for every session $(span gm)"
+  case ${gm[state]} in
+    on) also="; also on for every session $(span gm)" ;;
+    unreadable)
+      also="; the global marker is unreadable (${gm[reason]}) and holds every session under noask; noask global off removes it"
+      ;;
+  esac
   [ -z "$handsoff" ] || level=handsoff
   if [ "${sm[state]}" = on ]; then
     [ "${sm[level]}" != handsoff ] || level=handsoff
@@ -482,7 +566,7 @@ cmd_session_on() {
       until=$(iso_of $((now + SESSION_HOURS * 3600))) || die 'cannot read the clock'
       note=" ($SESSION_HOURS hours by default; /noask on <expiry> sets another)"
     fi
-    mkdir -p -- "$DIR" 2>/dev/null
+    mkdir -m 700 -- "$DIR" 2>/dev/null # its parent, the state directory, take_lock made
     [ -d "$DIR" ] || die "cannot make $DIR"
     new_generation
     write_marker "$target" session "$generation_new" "$stamp" "$until" "$level"
@@ -559,4 +643,5 @@ case $action/$scope in
   off/global) cmd_global_off ;;
   off/session) cmd_session_off ;;
 esac
+[ "${#narrowed[@]}" -eq 0 ] || printf '%s\n' "${narrowed[@]}"
 exit 0
