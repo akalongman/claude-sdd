@@ -141,6 +141,30 @@ listed leaves every `.claude` entry guarded by its spelling. Every
 file call a hook waits on is bounded as a marker's read is. And the
 first step's budgets are stated for what they are: with no Stop entry
 to reset them, they bound an activation.
+Revision 19, 2026-11-17, follows a second check of that plan as revised,
+by Qwen and by Codex, each finding checked against the plan, the command
+and this text before it was taken. Four of them were doors the wording
+of revision 18 had left or made. A redirection is now read once, for
+the cut into commands, for the plain push and for the guard: it is no
+word of a push, and `&>>`, `>& file` and `<>` write as `>` does. An
+option written `env -uu` no longer hides the command behind it. A move
+is judged by its sources, so a file moved into the home is no switch.
+And a switching command never makes the records' directory. The offset
+has one form, to `14:00`, in a generation as in a time. The sweep
+reads the markers after its command's own switch, and holds back while
+the directory of session markers cannot be listed. Decision 31 follows
+the body. The guard keeps its own text, uncounted, while the fence's
+option is off. What a failed listing of the home leaves open is stated
+as a limit, and `~/.claude` and the directory the variable names are
+resolved without the listing, so the limit is of the other entries.
+Three more doors showed when the rewritten rules were run as commands.
+After `env`, `command`, `exec`, `nohup` or `sudo` no option is read
+for a value any more, since two `env` programs disagree on which take
+one and a list of them was wrong twice: every later word that names a
+command the fence knows is read as one, at the price of a refusal when
+such a name is another command's argument. `time -p` is read. And a
+pattern in a path is matched as the shell matches it, so
+`rm -rf ~/.local/state/*` is the removal it is.
 
 ## Intent
 
@@ -936,7 +960,8 @@ build 2.1.322 and pinned on 2.1.325). Each marker holds
 four lines: `generation=<ISO-8601 time with nanoseconds plus a random
 suffix>`, `since=<ISO-8601 time>`, `until=<ISO-8601 time, or empty>` and
 `level=<noask or handsoff>`; the global marker's level is always `noask`.
-The offset of a time is `[+-]HH:MM`, at most 14 hours, and a time that
+The offset of a time is `[+-]HH:MM`, at most `14:00`, and the
+generation's time carries the same form (revision 19); a time that
 is no calendar time (30 February, 24:00) is unreadable to both readers,
 as is a marker without its final newline (revision 18: each reader took
 some of these and refused the others).
@@ -1290,8 +1315,13 @@ It does so while it holds the records' lock, taken without waiting, so
 a count in flight leaves the records for the next switching command;
 and while any marker reads unreadable it removes no record, since a
 record made under such a marker carries no generation a later reading
-could match (revision 18). A
-resumed session finds its record again, where the module's state began
+could match (revision 18). The markers are read as they stand when the
+sweep runs, after the command's own switch, so `noask global off` on an
+unreadable marker clears the records made under it; a directory of
+session markers that cannot be listed holds the sweep back as an
+unreadable marker does; and a switching command never makes the
+records' directory, which only a count under noask does (revision 19).
+A resumed session finds its record again, where the module's state began
 at zero; within one generation that keeps a spent budget spent, which
 is the rule already (only a new generation clears the flag), and across
 generations it changes nothing. Two calls that land together both
@@ -1510,10 +1540,20 @@ item", counted as permission denials. A push: a shell command whose git
 subcommand is `push`, with options between `git` and `push` in either
 spelling of an option's value, behind `if`, `while`, `until`, `!`,
 `env`, `command`, `exec`, `nohup`, `time` or `sudo`, inside `$(...)` or
-backticks, or across a backslash line break. An option of `env` (`-u`,
-`-C`) or of `exec` (`-a`) that takes the next word as its value takes
-it along, so the command behind it is still read (revision 18). A pull
-or merge request: a
+backticks, or across a backslash line break. After `env`, `command`,
+`exec`, `nohup` or `sudo` no option is read: which options take a
+value differs from one `env` program to the next, so every later word
+of that command that names `git`, `gh`, `glab`, `noask` or a command
+of the guard's list is read as a command, with the words after it. No
+spelling of an option's value hides the command behind it then
+(revision 18 read the values of `-u`, `-C` and `-a`; revision 19
+stopped reading options), and a line where such a name is an option's
+value or another command's argument is refused without need, as
+`sudo grep -rn noask docs` is, which the README says. `time` takes
+its `-p` along. A redirection is no word of
+a command: it is read once, descriptor, operator and target, for the
+cut into commands, for the plain push and for the guard on the switch
+(revision 19). A pull or merge request: a
 shell command that creates one (`gh pr create`, `glab mr create`, and
 `new`, the alias of each). An edit under the configuration directory: an
 edit or write through the file-editing tools to a path under one of the
@@ -1522,7 +1562,14 @@ they are every entry of the home directory whose name starts with
 `.claude` and the directory `CLAUDE_CONFIG_DIR` names, each also by
 where it resolves, since such a directory may be a link into a dotfiles
 checkout. When the home cannot be listed, every path whose first part
-below the home is spelled so counts as one (revision 18). The path is
+below the home is spelled so counts as one (revision 18). That guards
+by name and not by place. `~/.claude` and the directory the variable
+names need no listing and are resolved beside it, so they stay known
+by where they point; any other such directory that is a link is not
+while the listing fails, and none is while a path cannot be resolved
+in time, so an edit that names the link's target passes then. It is a
+stated limit; denying every edit then would let one hung listing spend
+a night's denial budget (revision 19). The path is
 judged as spelled and as resolved, so a file that
 is a link out of the directory is caught by its spelling and a link
 elsewhere that points into it by where it lands; a file that does not
@@ -1542,9 +1589,16 @@ directory resolves; and a shell command that removes,
 moves, copies over, links, truncates or redirects into a path spelled
 under that directory (`rm`, `rmdir`, `unlink`, `shred`, `mv`, `cp`,
 `ln`, `install`, `truncate`, `tee`, `dd`, `touch`, `chmod`, and a
-redirection in any of its spellings, `>`, `>>`, `>|` and `&>`), or
+redirection that can write, in any of its spellings and with or
+without a descriptor: `>`, `>>`, `>|`, `&>` and, since revision 19,
+`&>>`, `>&` before a file and `<>`, which makes the file it names), or
 that removes or moves a folder above it (`rm`, `rmdir` or `mv` of
-`~/.local/state`, `~/.local` or the home, since revision 18). A writer
+`~/.local/state`, `~/.local` or the home, since revision 18; for `mv`
+as what is moved, never as where it goes, since revision 19: a file
+moved into the home is no switch). A `*`, `?` or `[` in such a path
+is matched as the shell matches a name, so `rm -rf ~/.local/state/*`
+is read as the removal of the directory that it is; a brace list is
+not read (revision 19). A writer
 outside this list (`sed -i`, an interpreter's one-line program) passes
 as a wrapped command does. The switch is fenced from both sides because one `noask
 global off`, or one `rm` of the marker, typed by a session at the end
@@ -1571,11 +1625,12 @@ push && noask global off` does not pass, nor does a push whose output
 is redirected into a marker); and only a plain push passes, defined by
 what it may hold: `git push` with nothing between `git` and `push` but
 `-C <path>`, then at most `-u` or `--set-upstream`, a remote and one
-branch. Any other option, a ref that starts with `+` or holds a `:`,
-and a `-c` setting before `push` make it no plain push. What the
-repository's own configuration makes of a plain push (a mirror remote,
-a push default) the fence does not see, and the README says so. A
-subagent's push is refused as before:
+branch. A redirection is no part of it, so `git push origin b 2>&1`
+is plain (revision 19). Any other option, a ref that starts with `+`
+or holds a `:`, and a `-c` setting before `push` make it no plain
+push. What the repository's own configuration makes of a plain push (a
+mirror remote, a push default) the fence does not see, and the README
+says so. A subagent's push is refused as before:
 the driver publishes, never a controller. A command wrapped in
 `sh -c`, a script or an alias passes this fence; a here-document's body
 is data and is not read; and so does a shell write into the
@@ -1592,7 +1647,10 @@ global in a terminal; do not switch it or write its files; `noask` and
 `noask status` read it", and
 counted only while noask is on. While noask is on the refusal carries
 the fence's text for switching noask instead, which tells the session
-how to go on (revision 18). A script that runs the command passes,
+how to go on (revision 18), unless the fence's option is off: the
+guard then keeps its own text and counts nothing, since the count and
+the fence's text are the fence's (revision 19). A script that runs the
+command passes,
 as every wrapped call does, which is also how the plugin's own tests
 run in an agent's session. The guard is the first thing of noask
 to be built and released: the command has been on `main` since the
@@ -2061,7 +2119,10 @@ undesigned.
 30. Withdrawn in revision 12 with the rule it limited, noask taking a
     push back.
 31. With no home directory both readers read off; a session with no id
-    reads unreadable only while some session's own marker is on.
+    reads unreadable only while some session's own marker is on or
+    unreadable, or while the directory of session markers cannot be
+    listed (the unreadable marker since revision 18; both written
+    here in revision 19).
 32. `handsoff` is noask plus the owner's word to publish. The word has
     two homes, both typed by the owner: an apply run's launch, as since
     phase 1, and the second level of a session's own switch, `/noask on
