@@ -165,6 +165,24 @@ command the fence knows is read as one, at the price of a refusal when
 such a name is another command's argument. `time -p` is read. And a
 pattern in a path is matched as the shell matches it, so
 `rm -rf ~/.local/state/*` is the removal it is.
+Revision 20, 2026-11-17, follows a third check by Codex, narrowed to
+the guard's reading of a shell command, each finding run or read
+before it was taken. A command that holds a substitution is no longer
+cut at it, so `git -C "$(pwd)" push` is the push it is. A word is
+taken as the shell leaves it after quote removal, wherever its quotes
+and backslashes stand, and a here-document's delimiter the same way.
+`&>` takes no descriptor. A plain push holds literal words only, and a
+remote by its name. A destination option of `mv` is read in its short
+spellings too, and `--exchange` moves both paths. The pattern match
+refuses a little more than the shell matches. A directory of session
+markers that cannot be searched holds the sweep back as one that
+cannot be listed. Two things are named as limits: a copy that reaches
+the state directory through a folder above it, and a spelling built to
+hide a command, which passes as a wrapped one does. And the table of
+commands is from now on run under bash itself, with stubs in place of
+the programs, so that what the scan says is held against what the
+shell does; with that the review rounds on spellings end (owner,
+2026-11-17).
 
 ## Intent
 
@@ -1318,9 +1336,10 @@ record made under such a marker carries no generation a later reading
 could match (revision 18). The markers are read as they stand when the
 sweep runs, after the command's own switch, so `noask global off` on an
 unreadable marker clears the records made under it; a directory of
-session markers that cannot be listed holds the sweep back as an
-unreadable marker does; and a switching command never makes the
-records' directory, which only a count under noask does (revision 19).
+session markers that cannot be listed, or since revision 20 searched,
+holds the sweep back as an unreadable marker does; and a switching
+command never makes the records' directory, which only a count under
+noask does (revision 19).
 A resumed session finds its record again, where the module's state began
 at zero; within one generation that keeps a spent budget spent, which
 is the rule already (only a new generation clears the flag), and across
@@ -1550,7 +1569,11 @@ spelling of an option's value hides the command behind it then
 stopped reading options), and a line where such a name is an option's
 value or another command's argument is refused without need, as
 `sudo grep -rn noask docs` is, which the README says. `time` takes
-its `-p` along. A redirection is no word of
+its `-p` along. A command that holds a substitution is read whole
+and the substitution's text apart, so `git -C "$(pwd)" push` is a
+push; and a word is taken as the shell leaves it after quote removal,
+so `no""ask` is `noask`, a here-document's delimiter included
+(revision 20). A redirection is no word of
 a command: it is read once, descriptor, operator and target, for the
 cut into commands, for the plain push and for the guard on the switch
 (revision 19). A pull or merge request: a
@@ -1595,10 +1618,22 @@ without a descriptor: `>`, `>>`, `>|`, `&>` and, since revision 19,
 that removes or moves a folder above it (`rm`, `rmdir` or `mv` of
 `~/.local/state`, `~/.local` or the home, since revision 18; for `mv`
 as what is moved, never as where it goes, since revision 19: a file
-moved into the home is no switch). A `*`, `?` or `[` in such a path
-is matched as the shell matches a name, so `rm -rf ~/.local/state/*`
-is read as the removal of the directory that it is; a brace list is
-not read (revision 19). A writer
+moved into the home is no switch; with `--exchange` both paths are
+moved, since revision 20). A `*`, `?` or `[` in such a path is matched
+part by part, so `rm -rf ~/.local/state/*` is read as the removal of
+the directory that it is; a brace list is not read (revision 19). The
+match is a little wider than the shell's: a set stands for any one
+character and a leading dot is matched as well, so `rm -rf ~/*` is
+refused too. Each of these commands is refused when it names a path
+there, whether it would write it or only read it, since the guard does
+not read which argument a command writes. A copy that reaches the
+directory through a folder above it (`cp -R /tmp/sdd ~/.local/state`)
+is not read, and a spelling built to hide a command from the scan
+passes as a wrapped one does; the README lists both (revision 20). The
+plugin's tests run the table of commands under bash itself, with
+stubs in place of `git`, `gh`, `glab` and `noask` and no program that
+removes, moves or writes a file within reach, and hold what ran
+against what the scan says (revision 20). A writer
 outside this list (`sed -i`, an interpreter's one-line program) passes
 as a wrapped command does. The switch is fenced from both sides because one `noask
 global off`, or one `rm` of the marker, typed by a session at the end
@@ -1628,7 +1663,12 @@ what it may hold: `git push` with nothing between `git` and `push` but
 branch. A redirection is no part of it, so `git push origin b 2>&1`
 is plain (revision 19). Any other option, a ref that starts with `+`
 or holds a `:`, and a `-c` setting before `push` make it no plain
-push. What the repository's own configuration makes of a plain push (a
+push. So does a word that is not literal, one with a pattern, a
+variable or a substitution in it, since the shell may make several
+words of it; and so does a remote written as a URL or as `host:path`,
+since the word to publish covers the repository's own remotes, by
+their names (revision 20). What the repository's own configuration
+makes of a plain push (a
 mirror remote, a push default) the fence does not see, and the README
 says so. A subagent's push is refused as before:
 the driver publishes, never a controller. A command wrapped in
