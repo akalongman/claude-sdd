@@ -60,9 +60,11 @@
 #   denials=<n>
 #   continuations=<n>
 #   spent=<none, question, permission or continuation>
-# <n> is 0 to 99999. A record that cannot be read within 2 seconds, is longer
-# than 4096 bytes or does not parse is started again as an empty one, with a
-# line on standard error that says so.
+# <n> is 0 to 99999. A record that is longer than 4096 bytes or does not
+# parse is started again as an empty one, with a line on standard error that
+# says so. A record that exists and cannot be read within 2 seconds is not:
+# the count fails (exit 1) and leaves it as it is, since starting it again
+# would clear a spent budget inside its generation.
 #
 # count charges S's record, or its subagent's. When S reads off or expired it
 # prints off and makes nothing. Otherwise it makes budgets.d (mode 700), takes
@@ -116,10 +118,10 @@
 # Exit codes: 0 done (a switch made, whatever the marker held before; a
 # count's off or counted line); 1 the state directory, the lock, or a
 # marker's write, read-back or removal failed, or a count could not make
-# budgets.d, take its lock, or write or read back its record, or a switching
-# command found HOME unset or empty, or any form but status and the bare
-# command ran off the platform; 2 a wrong argument on the platform, nothing
-# touched; 3 status or the bare command met an unreadable marker.
+# budgets.d, take its lock, or read, write or read back its record, or a
+# switching command found HOME unset or empty, or any form but status and
+# the bare command ran off the platform; 2 a wrong argument on the platform,
+# nothing touched; 3 status or the bare command met an unreadable marker.
 #
 # Test seams: SDD_NOASK_NOW=<epoch seconds> replaces the clock;
 # SDD_NOASK_LOCK_WAIT=<seconds> replaces the lock's 5 and the count's 2. Either
@@ -474,13 +476,15 @@ remove_marker() {
 }
 
 # read_record FILE NAME: read the record FILE into the associative array
-# NAME: state (absent, ok or bad), reason (when bad), and generation,
-# refusals, denials, continuations and spent as stored, or as an empty record
-# holds them when the state is not ok. A file removed while it is read is
-# absent. A record is read to one byte past RECORD_BYTES, as a marker is.
+# NAME: state (absent; ok; unreadable, the file there and its read failed or
+# timed out; bad, it does not parse), reason (when unreadable or bad), and
+# generation, refusals, denials, continuations and spent as stored, or as an
+# empty record holds them when the state is not ok. A file removed while it
+# is read is absent. A record is read to one byte past RECORD_BYTES, as a
+# marker is.
 # shellcheck disable=SC2034 # rr is a nameref: its fields land in NAME
 read_record() {
-  local file=$1 raw rc reason=''
+  local file=$1 raw rc reason='' state=bad
   local -a lines=()
   local -n rr=$2
   rr=(['state']=absent ['reason']='' ['generation']='' ['refusals']=0 ['denials']=0 ['continuations']=0
@@ -493,9 +497,9 @@ read_record() {
   if [ "$rc" -ne 0 ] && [ ! -e "$file" ] && [ ! -L "$file" ]; then
     return 0
   elif [ "$rc" -eq 124 ]; then
-    reason='the record read timed out'
+    reason='the record read timed out' state=unreadable
   elif [ "$rc" -ne 0 ]; then
-    reason='the record cannot be read'
+    reason='the record cannot be read' state=unreadable
   elif [ "${#raw}" -gt "$RECORD_BYTES" ]; then
     reason="the record is longer than $RECORD_BYTES bytes"
   elif [ -z "$raw" ]; then
@@ -518,7 +522,7 @@ read_record() {
     reason='line 5 is not spent=none, question, permission or continuation'
   fi
   if [ -n "$reason" ]; then
-    rr['state']=bad rr['reason']=$reason
+    rr['state']=$state rr['reason']=$reason
     return 0
   fi
   rr['state']=ok rr['generation']=${lines[0]#generation=} rr['refusals']=${lines[1]#refusals=}
@@ -847,6 +851,7 @@ cmd_count() {
   session_reading
   case $reading_state in off | expired) echo off; return ;; esac
   read_record "$file" rec
+  [ "${rec[state]}" != unreadable ] || die "cannot read $file (${rec[reason]})"
   local note=${rec[reason]} # set when the record did not parse; said once the count has succeeded
   if [ "$reading_state" = on ] && [ "${rec[generation]}" != "$reading_generation" ]; then
     rec=(['generation']=$reading_generation ['refusals']=0 ['denials']=0 ['continuations']=0 ['spent']=none)

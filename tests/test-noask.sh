@@ -19,10 +19,10 @@
 #   Default SCRIPT: bin/noask in the plugin root, the parent of this script's
 #   directory. The rule text is read from scripts/ beside SCRIPT's bin/, and
 #   case 14 copies those two directories.
-# Case 29, case 10's mode-000 sub-case, case 43's mode-500 sub-case and case
-# 44's sub-cases with noask.d at 300 and 400 need a user that file modes
-# bind, so they are skipped when the tests run as root: case 29 prints a skip
-# line, the others a note line after their verdict.
+# Case 29, case 10's mode-000 sub-case, case 43's mode-500 and mode-000
+# sub-cases and case 44's sub-cases with noask.d at 300 and 400 need a user
+# that file modes bind, so they are skipped when the tests run as root: case
+# 29 prints a skip line, the others a note line after their verdict.
 set -uo pipefail
 
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -1048,8 +1048,10 @@ marker "$B/s-1"
 verdict 42
 
 # 43. A count that fails: the records' lock held elsewhere, budgets.d at
-#     mode 500 (left out as root, with a note line after the verdict); a
-#     record that does not parse is started again; wrong arguments.
+#     mode 500, a spent record at mode 000 (both left out as root, with a
+#     note line after the verdict) or one whose read times out (a FIFO),
+#     each record left as it was; a record that does not parse is started
+#     again; wrong arguments.
 fresh 43
 step on global on
 noask --session s-1 count question 6; is first 0 'counted none 1 0 0'
@@ -1080,6 +1082,24 @@ noask --session s-1 count question 6
 { [ "$rc" -eq 0 ] && [ "$out" = 'counted none 1 0 0' ] &&
   [ "$err" = "noask: the record $B/s-1 did not parse (the record has 1 line, not 5); started again" ]; } ||
   broken+=" not-parsed"
+noask --session s-1 count question 1; is spend 0 'counted question 2 0 0'
+if [ -z "$as_root" ]; then
+  cp -- "$B/s-1" "$tmp/c43-spent" 2>/dev/null
+  chmod 000 -- "$B/s-1"
+  for w in 'question 6' read; do
+    read -ra words <<< "$w"
+    noask --session s-1 count "${words[@]}"
+    { [ "$rc" -eq 1 ] && [ -z "$out" ] && [ "$err" = "noask: cannot read $B/s-1 (the record cannot be read)" ]; } ||
+      broken+=" mode-000-${w%% *}"
+  done
+  chmod 600 -- "$B/s-1"
+  marker "$B/s-1"
+  { cmp -s -- "$B/s-1" "$tmp/c43-spent" && [ "${m[4]-}" = spent=question ]; } || broken+=" mode-000-touched"
+fi
+rm -f -- "$B/s-1" && mkfifo -- "$B/s-1"
+noask --session s-1 count question 6
+{ [ "$rc" -eq 1 ] && [ -z "$out" ] && [ "$err" = "noask: cannot read $B/s-1 (the record read timed out)" ] &&
+  [ -p "$B/s-1" ]; } || broken+=" timed-out"
 fresh 43-arguments
 refused no-session usage count question 6
 envs=(CLAUDE_CODE_SESSION_ID=s-1)
@@ -1092,7 +1112,7 @@ refused extra usage --session s-1 count question 6 7
 refused reset-extra usage --session s-1 count reset 1
 refused bogus usage --session s-1 count bogus 6
 verdict 43
-[ -z "$as_root" ] || echo 'note 43 (the mode-500 sub-case needs a user that file modes bind)'
+[ -z "$as_root" ] || echo 'note 43 (the mode-500 and mode-000 sub-cases need a user that file modes bind)'
 
 # 44. The records' sweep by a switching command, after its own switch: a
 #     record whose generation no marker that reads on carries is removed, one
