@@ -7,13 +7,15 @@
 # CLAUDE_CODE_SESSION_ID, CLAUDE_PLUGIN_OPTION_TERMINAL, CLAUDE_CONFIG_DIR and
 # SDD_NOASK_LOCK_WAIT unset unless the case sets one, so no case touches the
 # real markers or records or reads the session this test runs in. Each
-# command runs under `timeout 10` (case 27's and case 42's under `timeout
-# 120`), so a hang fails its case instead of the run. Prints "ok <n>" or
-# "FAIL <n> (<broken parts>)" per case and "skip <n> (<reason>)" for a case
-# that cannot run; exits 1 when any case fails. Cases 1 to 30 are those of the
-# phase 2 plan (a local working document), Task 2; cases 31 to 44 those of
-# the plan of noask's first step, a local working document, Tasks 1 (31 to
-# 36) and 2 (37 to 44).
+# command runs under `timeout 10` (case 27's and case 42's, and case 45's
+# generator, under `timeout 120`), so a hang fails its case instead of the
+# run. Prints "ok <n>" or "FAIL <n> (<broken parts>)" per case and "skip <n>
+# (<reason>)" for a case that cannot run; exits 1 when any case fails. Cases
+# 1 to 30 are those of the phase 2 plan (a local working document), Task 2;
+# cases 31 to 45 those of the plan of noask's first step, a local working
+# document, Tasks 1 (31 to 36), 2 (37 to 44) and 4 (45). Case 45 runs
+# tests/gen-marker-fixtures.sh on SCRIPT, which makes its own temporary
+# HOMEs.
 #
 # Usage: bash tests/test-noask.sh [SCRIPT]
 #   Default SCRIPT: bin/noask in the plugin root, the parent of this script's
@@ -1195,5 +1197,14 @@ if [ -z "$as_root" ]; then
 fi
 verdict 44
 [ -z "$as_root" ] || echo 'note 44 (the noask.d mode sub-cases need a user that file modes bind)'
+
+# 45. The module's marker fixtures are the command's own: the generator's
+#     output on SCRIPT is hooks/marker.fixtures.ts, byte for byte.
+rc=0
+out=$(timeout 120 bash "$here/gen-marker-fixtures.sh" "$script" 2> "$tmp/gen.err" |
+  cmp - "$here/../hooks/marker.fixtures.ts" 2>&1) || rc=$?
+err=$(cat -- "$tmp/gen.err")
+{ [ "$rc" -eq 0 ] && [ -z "$out" ] && [ -z "$err" ]; } || broken+=" fixtures"
+verdict 45
 
 exit "$fail"

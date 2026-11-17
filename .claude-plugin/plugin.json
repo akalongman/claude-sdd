@@ -6,5 +6,26 @@
   "author": { "name": "Avtandil Kikabidze", "url": "https://github.com/akalongman" },
   "repository": "https://github.com/akalongman/claude-sdd",
   "license": "MIT",
-  "dependencies": ["superpowers@superpowers-marketplace"]
+  "dependencies": ["superpowers@superpowers-marketplace"],
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "questionBudget": {
+      "type": "number",
+      "title": "Question budget",
+      "description": "How many refused questions one noask activation allows before its question budget is spent: a whole number from 1 to 99999; any other value counts as 6.",
+      "default": 6
+    },
+    "denialBudget": {
+      "type": "number",
+      "title": "Denial budget",
+      "description": "How many denials, the fence's included, one noask activation allows before its denial budget is spent: a whole number from 1 to 99999; any other value counts as 10.",
+      "default": 10
+    },
+    "fence": {
+      "type": "boolean",
+      "title": "Fence",
+      "description": "While noask is on, deny before they run the outward calls the plugin names exactly, such as a push, each counted as a denial; off leaves them to the rule text.",
+      "default": true
+    }
+  }
 }

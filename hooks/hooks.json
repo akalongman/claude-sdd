@@ -1,0 +1,4 @@
+{
+  "description": "Loads the sdd hooks module, which keeps the main loop's turn state for the noask hooks",
+  "modules": ["./register.tsx"]
+}
