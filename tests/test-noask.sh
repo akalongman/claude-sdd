@@ -18,7 +18,9 @@
 # Usage: bash tests/test-noask.sh [SCRIPT]
 #   Default SCRIPT: bin/noask in the plugin root, the parent of this script's
 #   directory. The rule text is read from scripts/ beside SCRIPT's bin/, and
-#   case 14 copies those two directories.
+#   case 14 copies those two directories. Case 15 also reads the unit
+#   controller's overrides from the same plugin root,
+#   skills/apply/prompts/unit-controller-overrides.md.
 # Case 29, case 10's mode-000 sub-case, case 43's mode-500 and mode-000
 # sub-cases and case 44's sub-cases with noask.d at 300 and 400 need a user
 # that file modes bind, so they are skipped when the tests run as root: case
@@ -29,6 +31,7 @@ here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 script=${1:-$here/../bin/noask}
 src=$(dirname "$(dirname "$(realpath -m -- "$script")")")
 rule=$src/scripts/noask-rule.md
+overrides=$src/skills/apply/prompts/unit-controller-overrides.md
 tmp=$(cd "$(mktemp -d)" && pwd -P) || exit 1
 trap 'chmod -R u+rwx "$tmp" 2>/dev/null; rm -rf "$tmp"' EXIT
 as_root=
@@ -382,19 +385,30 @@ is lines 0 'noask: on for every session since 23:00' "marker: $G" '' \
 verdict 14
 
 # 15. The rule text: the lines an agent ends on, the ruling form, the
-#     exceptions, the four stops' words, and no tool's proper name. Read as
-#     one line, newlines as spaces, so the wrapping does not matter.
+#     exceptions, the four stops' words, publication keyed on the status
+#     line's last word, and no tool's proper name. Read as one line, newlines
+#     as spaces, so the wrapping does not matter. The unit controller's
+#     overrides, read the same way with runs of spaces squeezed (the bullets'
+#     lines are indented): a step outside the worktree is never a ruling, and
+#     under handsoff it parks the unit. A missing or unreadable file fails.
 joined=
 [ -f "$rule" ] && joined=$(tr '\n' ' ' < "$rule")
 [ -n "$joined" ] || broken+=" empty"
 for s in 'noask: waiting:' 'noask: done' 'noask: blocked:' 'Ruling: <decision>. Cost if wrong: <what>' \
   'Never switch noask yourself' 'An apply run the owner launched is the exception' \
   "The other exception is the owner's word to publish" 'irreversible or destructive' 'security-sensitive' \
-  'outside this worktree' 'every path forward is a guess'; do
+  'outside this worktree' 'every path forward is a guess' 'the last word of the'; do
   [[ $joined == *"$s"* ]] || broken+=" missing:${s// /_}"
 done
 for s in AskUserQuestion ExitPlanMode TodoWrite; do
   [[ $joined != *"$s"* ]] || broken+=" names:$s"
+done
+[[ $joined != *'status ends in'* ]] || broken+=" holds:status_ends_in"
+ojoined=
+{ [ -f "$overrides" ] && ojoined=$(tr '\n' ' ' < "$overrides" | tr -s ' '); } 2>/dev/null
+[ -n "$ojoined" ] || broken+=" overrides-unread"
+for s in 'is never a ruling' 'parked (outside the worktree:'; do
+  [[ $ojoined == *"$s"* ]] || broken+=" overrides-missing:${s// /_}"
 done
 verdict 15
 

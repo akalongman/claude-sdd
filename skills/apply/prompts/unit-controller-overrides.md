@@ -94,11 +94,15 @@ the final message.
   no ruling covers, returns `failed` with the reason ledgered, never
   `complete`.
 - **Rulings.** A question only a human can answer (the source and the code
-  disagree, a finding contradicts the source, an external side effect is
-  needed): without `Mode: handsoff` in your dispatch, stop and return
+  disagree, a finding contradicts the source): without
+  `Mode: handsoff` in your dispatch, stop and return
   `needs-ruling` with the question; with it, decide on your best reading,
   ledger `Ruling: <decision>. Cost if wrong: <what>`, append the same line to
-  `decisions.md`, and continue. Outside handsoff you may settle a finding
+  `decisions.md`, and continue. A step outside the worktree (a push,
+  a message to a person, a deploy, a write to a database this run does
+  not own) is never a ruling: without the mode return `needs-ruling`;
+  with it, ledger `Section N: parked (outside the worktree: <the step>)`
+  and return `parked`. Outside handsoff you may settle a finding
   or concern against the plan's own text yourself when all four hold: the
   change stays inside the unit's file list; every check the plan step
   names still passes unchanged; no spec line, task-list line or interface

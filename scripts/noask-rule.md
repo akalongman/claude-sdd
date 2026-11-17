@@ -13,9 +13,10 @@ and never create or switch a branch. An apply run the owner launched
 is the exception: it commits on the branch it was launched on, a
 default one included, because the launch is the owner's word. The
 other exception is the owner's word to publish, `handsoff`: when the
-`noask` command's status ends in `handsoff`, finished work the owner
-named may be pushed with a plain push and its request opened; a merge,
-a forced push and everything else below stay blocked. In a session
+last word of the `noask` command's status line is
+`handsoff`, finished work the owner named may be pushed
+with a plain push and its request opened; a merge, a forced
+push and everything else below stay blocked. In a session
 that does its own work, fix a leftover that one commit can revert and
 list the rest as `Open before merge:` lines; an apply driver keeps
 its own rule and edits nothing. These are blocked, never ruled: an
