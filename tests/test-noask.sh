@@ -6,21 +6,23 @@
 # (2026-11-11T23:00:12+04:00) unless the case moves the clock, and with
 # CLAUDE_CODE_SESSION_ID, CLAUDE_PLUGIN_OPTION_TERMINAL, CLAUDE_CONFIG_DIR and
 # SDD_NOASK_LOCK_WAIT unset unless the case sets one, so no case touches the
-# real markers or reads the session this test runs in. Each command runs
-# under `timeout 10` (case 27's under `timeout 120`), so a hang fails its case
-# instead of the run. Prints "ok <n>" or "FAIL <n> (<broken parts>)" per case
-# and "skip <n> (<reason>)" for a case that cannot run; exits 1 when any case
-# fails. Cases 1 to 30 are those of the phase 2 plan (a local working
-# document), Task 2; cases 31 to 36 those of the plan of noask's first step,
-# a local working document, Task 1.
+# real markers or records or reads the session this test runs in. Each
+# command runs under `timeout 10` (case 27's and case 42's under `timeout
+# 120`), so a hang fails its case instead of the run. Prints "ok <n>" or
+# "FAIL <n> (<broken parts>)" per case and "skip <n> (<reason>)" for a case
+# that cannot run; exits 1 when any case fails. Cases 1 to 30 are those of the
+# phase 2 plan (a local working document), Task 2; cases 31 to 44 those of
+# the plan of noask's first step, a local working document, Tasks 1 (31 to
+# 36) and 2 (37 to 44).
 #
 # Usage: bash tests/test-noask.sh [SCRIPT]
 #   Default SCRIPT: bin/noask in the plugin root, the parent of this script's
 #   directory. The rule text is read from scripts/ beside SCRIPT's bin/, and
 #   case 14 copies those two directories.
-# Case 29 and case 10's mode-000 sub-case need a user that file modes bind,
-# so they are skipped when the tests run as root: case 29 prints a skip line,
-# case 10 a note line after its verdict.
+# Case 29, case 10's mode-000 sub-case, case 43's mode-500 sub-case and case
+# 44's sub-cases with noask.d at 300 and 400 need a user that file modes
+# bind, so they are skipped when the tests run as root: case 29 prints a skip
+# line, the others a note line after their verdict.
 set -uo pipefail
 
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -47,14 +49,16 @@ gl=generation=2026-11-11T23:00:12.000000000+04:00-0123abcd
 sl=since=2026-11-11T23:00:12+04:00
 
 # fresh NAME: a new, empty HOME for the case or sub-case NAME, at the default
-# clock, with no extra variables and the default time limit; st, G and D are
-# its state directory, global marker and session marker directory.
+# clock, with no extra variables and the default time limit; st, G, D and B
+# are its state directory, global marker, session marker directory and the
+# sessions' records' directory.
 fresh() {
   home=$tmp/home-$1
   mkdir -p "$home"
   st=$home/.local/state/sdd
   G=$st/noask
   D=$st/noask.d
+  B=$st/budgets.d
   now=$T0 envs=() limit=10 nohome=
 }
 # noask ARG...: run the script under the case's HOME (unset when nohome is
@@ -863,5 +867,299 @@ envs=("PATH=$bin36")
 noask global on
 { [ "$rc" -eq 0 ] && [ -z "$err" ] && [ -f "$G" ]; } || broken+=" with-flock"
 verdict 36
+
+# 37. A count while the session reads off: with no marker, with HOME unset,
+#     and with the global marker expired, it prints off and makes no
+#     budgets.d; a switch on and off with no count between makes none either.
+fresh 37
+noask --session s-1 count question 6; is none 0 off
+[ ! -e "$B" ] || broken+=" none-made"
+nohome=1
+noask --session s-1 count question 6; is nohome 0 off
+nohome=
+step on global on 30m
+now=$T1 # 23:30:12, the marker's until
+noask --session s-1 count question 6; is expired 0 off
+[ ! -e "$B" ] || broken+=" expired-made"
+fresh 37-switch
+step on global on
+step off global off
+{ [ -d "$st" ] && [ ! -e "$B" ]; } || broken+=" switch-made"
+verdict 37
+
+# 38. Counting refused questions against a budget of 6 under the global
+#     marker: the sixth spends it, and a spent record counts nothing more;
+#     the record's lines and modes. Both test variables set and empty read as
+#     unset.
+fresh 38
+step on global on
+gen=$(gen_of "$G")
+for i in 1 2 3 4 5; do
+  noask --session s-1 count question 6; is "question-$i" 0 "counted none $i 0 0"
+done
+noask --session s-1 count question 6; is question-6 0 'counted question 6 0 0'
+noask --session s-1 count question 6; is question-7 0 'counted question 6 0 0'
+noask --session s-1 count denial 10; is spent-denial 0 'counted question 6 0 0'
+noask --session s-1 count read; is read 0 'counted question 6 0 0'
+marker "$B/s-1"
+{ [ -n "$gen" ] && [ "${#m[@]}" -eq 5 ] && [ "${m[0]}" = "generation=$gen" ] && [ "${m[1]}" = refusals=6 ] &&
+  [ "${m[2]}" = denials=0 ] && [ "${m[3]}" = continuations=0 ] && [ "${m[4]}" = spent=question ]; } ||
+  broken+=" record"
+[ "$(stat -c %a -- "$B/s-1" 2>/dev/null) $(stat -c %a -- "$B" 2>/dev/null)" = '600 700' ] || broken+=" modes"
+envs=(SDD_NOASK_NOW= SDD_NOASK_LOCK_WAIT=)
+noask --session s-1 count denial 10; is empty-variables 0 'counted question 6 0 0'
+envs=()
+verdict 38
+
+# 39. The three counters and reset: reset zeroes them while nothing is spent,
+#     and changes nothing once a budget is.
+fresh 39
+step on global on
+noask --session s-1 count denial 10; is denial-1 0 'counted none 0 1 0'
+noask --session s-1 count denial 10; is denial-2 0 'counted none 0 2 0'
+noask --session s-1 count continuation 20; is continuation 0 'counted none 0 2 1'
+noask --session s-1 count reset; is reset 0 'counted none 0 0 0'
+noask --session s-1 count question 1; is spend 0 'counted question 1 0 0'
+noask --session s-1 count reset; is reset-spent 0 'counted question 1 0 0'
+verdict 39
+
+# 40. The generation rule: a record of an earlier generation starts again
+#     (planted back after the switch's sweep removed it), a renewal keeps the
+#     count; the record carries the generation of the marker the session
+#     reads; under an unreadable global marker a new record's is empty.
+fresh 40
+step on global on
+noask --session s-1 count question 6; is first 0 'counted none 1 0 0'
+cp -- "$B/s-1" "$tmp/c40" 2>/dev/null
+step off global off
+step again global on
+cp -- "$tmp/c40" "$B/s-1" 2>/dev/null
+noask --session s-1 count question 6; is new-generation 0 'counted none 1 0 0'
+[ "$(gen_of "$B/s-1")" = "$(gen_of "$G")" ] || broken+=" new-generation-record"
+step renew global on 9h
+noask --session s-1 count question 6; is renewed 0 'counted none 2 0 0'
+fresh 40-session
+step s-1 --session s-1 on
+noask --session s-1 count denial 10; is session 0 'counted none 0 1 0'
+own=$(gen_of "$D/s-1")
+{ [ -n "$own" ] && [ "$(gen_of "$B/s-1")" = "$own" ]; } || broken+=" session-generation"
+step global global on
+noask --session s-1 count denial 10; is both 0 'counted none 0 1 0'
+gen=$(gen_of "$G")
+{ [ -n "$gen" ] && [ "$(gen_of "$B/s-1")" = "$gen" ]; } || broken+=" both-generation"
+fresh 40-unreadable
+two_lines "$G"
+noask --session s-1 count question 6; is unreadable 0 'counted none 1 0 0'
+marker "$B/s-1"
+[ "${m[0]-}" = generation= ] || broken+=" unreadable-generation"
+# late_count PART SWITCH...: while a holder has the records' lock, start
+# `noask --session s-1 count question 6`, wait until it waits for the lock
+# (its `flock -w 17 8` is running), run each SWITCH (a switching command's
+# words in one string), then free the lock; rc, out and err are the count's
+# (out and err one line each at most).
+late_count() {
+  local part=$1 held free holder waiter switching line=''
+  local -a words
+  shift
+  rm -f -- "$tmp/late-held" "$tmp/late-free" "$tmp/late-out"
+  mkfifo -- "$tmp/late-held" "$tmp/late-free"
+  exec {held}<>"$tmp/late-held" {free}<>"$tmp/late-free"
+  flock "$B/.lock" bash -c 'echo held; read -r -t 30 _' > "$tmp/late-held" <&"$free" &
+  holder=$!
+  read -r -t 10 -u "$held" line
+  [ "$line" = held ] || broken+=" $part-holder"
+  {
+    envs=(SDD_NOASK_LOCK_WAIT=17)
+    noask --session s-1 count question 6
+    printf '%s\n' "$rc" "$out" "$err" > "$tmp/late-out"
+  } &
+  waiter=$!
+  for _ in $(seq 1 100); do
+    pgrep -xf 'flock -w 17 8' > /dev/null && break
+    sleep 0.1
+  done
+  pgrep -xf 'flock -w 17 8' > /dev/null || broken+=" $part-not-waiting"
+  for switching in "$@"; do
+    read -ra words <<< "$switching"
+    step "$part-${switching// /-}" "${words[@]}"
+  done
+  echo free >&"$free"
+  wait "$holder"
+  wait "$waiter"
+  exec {held}<&- {free}<&-
+  { read -r rc; read -r out; read -r err; } < "$tmp/late-out"
+}
+# A count waiting for the records' lock acts on the reading it takes under
+# the lock: an off and an on meanwhile charge the new generation, an off
+# meanwhile prints off and writes nothing.
+fresh 40-late
+step on global on
+noask --session s-1 count question 6; is late-first 0 'counted none 1 0 0'
+late_count late global\ off global\ on
+is late 0 'counted none 1 0 0'
+gen=$(gen_of "$G")
+{ [ -n "$gen" ] && [ "$(gen_of "$B/s-1")" = "$gen" ]; } || broken+=" late-generation"
+fresh 40-late-off
+step on global on
+noask --session s-1 count question 6; is late-off-first 0 'counted none 1 0 0'
+cp -- "$B/s-1" "$tmp/c40-late-off" 2>/dev/null
+late_count late-off global\ off
+is late-off 0 off
+cmp -s -- "$B/s-1" "$tmp/c40-late-off" || broken+=" late-off-written"
+verdict 40
+
+# 41. A subagent's record is its own, and leaves the session's as it was; an
+#     agent id with a dot or a slash, or --agent before --session or with
+#     another word than count, is a wrong argument.
+fresh 41
+step on global on
+noask --session s-1 count question 6; is session 0 'counted none 1 0 0'
+cp -- "$B/s-1" "$tmp/c41" 2>/dev/null
+noask --session s-1 --agent a1 count denial 10; is agent 0 'counted none 0 1 0'
+marker "$B/s-1.a1"
+{ [ "${#m[@]}" -eq 5 ] && [ "${m[0]}" = "generation=$(gen_of "$G")" ] && [ "${m[2]}" = denials=1 ]; } ||
+  broken+=" agent-record"
+cmp -s -- "$B/s-1" "$tmp/c41" || broken+=" session-touched"
+fresh 41-arguments
+refused agent-dot usage --session s-1 --agent a.1 count denial 10
+refused agent-slash usage --session s-1 --agent a/1 count denial 10
+refused agent-first usage --agent a1 --session s-1 count denial 10
+refused agent-status usage --session s-1 --agent a1 status
+verdict 41
+
+# 42. Twenty counts for one session at once: each exits 0 and every one is
+#     counted; no temporary file is left.
+fresh 42
+step on global on
+mkdir -p -- "$tmp/c42"
+envs=(SDD_NOASK_LOCK_WAIT=60) limit=120
+for i in $(seq 1 20); do
+  { noask --session s-1 count denial 99; printf '%s\n' "$rc" > "$tmp/c42/$i"; } &
+done
+wait
+envs=() limit=10
+[ "$(find "$tmp/c42" -type f | wc -l)" -eq 20 ] || broken+=" runs"
+for f in "$tmp/c42"/*; do
+  [ "$(cat -- "$f")" = 0 ] || broken+=" run-${f##*/}"
+done
+marker "$B/s-1"
+[ "${m[2]-}" = denials=20 ] || broken+=" denials"
+[ -z "$(find "$B" -name '.noask.*' 2>/dev/null)" ] || broken+=" leftover"
+verdict 42
+
+# 43. A count that fails: the records' lock held elsewhere, budgets.d at
+#     mode 500 (left out as root, with a note line after the verdict); a
+#     record that does not parse is started again; wrong arguments.
+fresh 43
+step on global on
+noask --session s-1 count question 6; is first 0 'counted none 1 0 0'
+mkfifo -- "$tmp/c43"
+exec {pipe}<>"$tmp/c43"
+flock "$B/.lock" bash -c 'echo held; sleep 2' > "$tmp/c43" &
+holder=$!
+line=
+read -r -t 10 -u "$pipe" line
+[ "$line" = held ] || broken+=" holder"
+envs=(SDD_NOASK_LOCK_WAIT=0.2)
+noask --session s-1 count question 6
+{ [ "$rc" -eq 1 ] && [ "$err" = 'noask: the records are locked by another noask command' ] && [ -z "$out" ]; } ||
+  broken+=" locked"
+envs=()
+wait "$holder"
+exec {pipe}<&-
+marker "$B/s-1"
+[ "${m[1]-}" = refusals=1 ] || broken+=" locked-counted"
+printf 'x\n' > "$B/s-1"
+if [ -z "$as_root" ]; then
+  chmod 500 -- "$B"
+  noask --session s-1 count question 6 # the record does not parse either: still one line
+  { [ "$rc" -eq 1 ] && [ -z "$out" ] && [[ $err == 'noask: '* ]] && [[ $err != *$'\n'* ]]; } || broken+=" mode-500"
+  chmod 700 -- "$B"
+fi
+noask --session s-1 count question 6
+{ [ "$rc" -eq 0 ] && [ "$out" = 'counted none 1 0 0' ] &&
+  [ "$err" = "noask: the record $B/s-1 did not parse (the record has 1 line, not 5); started again" ]; } ||
+  broken+=" not-parsed"
+fresh 43-arguments
+refused no-session usage count question 6
+envs=(CLAUDE_CODE_SESSION_ID=s-1)
+refused env-session usage count question 6
+envs=()
+refused bare usage --session s-1 count
+refused no-budget usage --session s-1 count question
+refused zero usage --session s-1 count question 0
+refused extra usage --session s-1 count question 6 7
+refused reset-extra usage --session s-1 count reset 1
+refused bogus usage --session s-1 count bogus 6
+verdict 43
+[ -z "$as_root" ] || echo 'note 43 (the mode-500 sub-case needs a user that file modes bind)'
+
+# 44. The records' sweep by a switching command, after its own switch: a
+#     record whose generation no marker that reads on carries is removed, one
+#     under a session's marker that reads on stays, and so does the lock;
+#     status removes nothing. While a count holds the records' lock the sweep
+#     leaves the records and the temporary files to the next switch. No record
+#     is removed while a marker reads unreadable, or while noask.d cannot be
+#     listed (300) or searched (400) (both left out as root, with a note line).
+fresh 44
+step on global on
+step count --session s-1 count question 6
+noask global off; is off 0 'noask: off for every session'
+{ [ ! -e "$B/s-1" ] && [ -f "$B/.lock" ]; } || broken+=" stale-kept"
+step s-2 --session s-2 on
+step s-2-count --session s-2 count denial 10
+step global-on global on
+{ [ -f "$B/s-2" ] && [ -f "$B/.lock" ]; } || broken+=" live-removed"
+printf '%s\n' generation= refusals=0 denials=0 continuations=0 spent=none > "$B/s-9"
+noask status
+{ [ "$rc" -eq 0 ] && [ -f "$B/s-9" ]; } || broken+=" status-removed"
+step already global on
+{ [ ! -e "$B/s-9" ] && [ -f "$B/s-2" ]; } || broken+=" already-kept"
+fresh 44-locked
+step on global on
+step count --session s-1 count question 6
+: > "$B/.noask.x"
+mkfifo -- "$tmp/c44"
+exec {pipe}<>"$tmp/c44"
+flock "$B/.lock" bash -c 'echo held; sleep 2' > "$tmp/c44" &
+holder=$!
+line=
+read -r -t 10 -u "$pipe" line
+[ "$line" = held ] || broken+=" holder"
+noask global off; is locked-off 0 'noask: off for every session'
+{ [ -f "$B/s-1" ] && [ -e "$B/.noask.x" ]; } || broken+=" locked-removed"
+kill -0 "$holder" 2>/dev/null || broken+=" waited"
+wait "$holder"
+exec {pipe}<&-
+noask global off; is free-off 0 'noask: already off for every session'
+{ [ ! -e "$B/s-1" ] && [ ! -e "$B/.noask.x" ]; } || broken+=" free-kept"
+fresh 44-unreadable
+two_lines "$G"
+step count --session s-1 count question 6
+step s-2 --session s-2 on
+[ -f "$B/s-1" ] || broken+=" unreadable-removed"
+noask global off
+is unreadable-off 0 \
+  'noask: off for every session (unreadable marker removed); sessions still on by their own switch: 1 (noask lists them)'
+{ [ ! -e "$G" ] && [ ! -e "$B/s-1" ]; } || broken+=" unreadable-kept"
+if [ -z "$as_root" ]; then
+  fresh 44-300
+  step on global on
+  step count --session s-1 count question 6
+  own_dir "$D"
+  chmod 300 -- "$D"
+  noask global off; is 300-off 0 'noask: off for every session'
+  [ -f "$B/s-1" ] || broken+=" 300-removed"
+  chmod 700 -- "$D"
+  fresh 44-400
+  step s-1 --session s-1 on
+  step count --session s-1 count question 6
+  chmod 400 -- "$D"
+  noask global off; is 400-off 0 'noask: already off for every session'
+  [ -f "$B/s-1" ] || broken+=" 400-removed"
+  chmod 700 -- "$D"
+fi
+verdict 44
+[ -z "$as_root" ] || echo 'note 44 (the noask.d mode sub-cases need a user that file modes bind)'
 
 exit "$fail"

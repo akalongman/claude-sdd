@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # noask: the switch under which an agent stops asking the owner and rules for
 # itself, by the rule text in scripts/noask-rule.md. This command is the only
-# writer of the switch's markers; the plugin's module and hooks only read
-# them. It is reached through links from a terminal's PATH, so it finds the
-# plugin root from its own path with every symbolic link resolved.
+# writer of the switch's markers and of the sessions' records; the plugin's
+# module and hooks read the markers, never a record, and change a record only
+# through count. It is reached through links from a terminal's PATH, so it
+# finds the plugin root from its own path with every symbolic link resolved.
 #
 # Usage:
 #   noask [--session <id>] [status]
@@ -11,11 +12,15 @@
 #   noask --session <id> off
 #   noask [--session <id>] global on [<expiry>]
 #   noask [--session <id>] global off
+#   noask --session <id> [--agent <agent id>] count question|denial|continuation <budget>
+#   noask --session <id> [--agent <agent id>] count reset
+#   noask --session <id> [--agent <agent id>] count read
 #   <expiry> is <n>h or <n>m (<n> from 1 to 99999), or `until HH:MM`: the
 #   next such local time strictly after now (in an hour a clock change
 #   repeats, the earlier of its two passes still ahead), refused (exit 2)
 #   when a clock change skips it on that day. The marker stores the absolute
-#   time.
+#   time. <budget> is 1 to 99999 (^[1-9][0-9]{0,4}$); an <agent id> matches
+#   ^[A-Za-z0-9_-]{1,64}$. No person types count: the plugin's hooks call it.
 #
 # The session S the command acts for is the --session value, which comes
 # first, must match ^[A-Za-z0-9_-]{1,64}$ and must be none of the command's
@@ -48,6 +53,32 @@
 # is not off, else the global marker's; with no S, the global marker's
 # alone. With HOME unset or empty every reading is off.
 #
+# Records: a session's is $HOME/.local/state/sdd/budgets.d/<id>, a
+# subagent's budgets.d/<id>.<agent id>. Each holds five lines:
+#   generation=<the generation of the marker S reads, or empty>
+#   refusals=<n>
+#   denials=<n>
+#   continuations=<n>
+#   spent=<none, question, permission or continuation>
+# <n> is 0 to 99999. A record that cannot be read within 2 seconds, is longer
+# than 4096 bytes or does not parse is started again as an empty one, with a
+# line on standard error that says so.
+#
+# count charges S's record, or its subagent's. When S reads off or expired it
+# prints off and makes nothing. Otherwise it makes budgets.d (mode 700), takes
+# its lock budgets.d/.lock (flock, 2 seconds; never the switch's lock), reads
+# S again under it and acts on that second reading: off or expired prints off
+# and writes no record; on, with no record or one of another generation,
+# starts an empty record under the reading's generation; on under the
+# record's generation, or unreadable, keeps the record and its generation (an
+# empty one for a new record). Then question, denial and continuation add one
+# to refusals, denials and continuations while spent is none, and set spent
+# to question, permission and continuation when that counter reaches
+# <budget>; reset zeroes the three counters while spent is none; read writes
+# nothing. A record is written as a marker is (a temporary .noask.* file
+# renamed over it, then read back), and count prints the record as it then
+# stands: "counted <spent> <refusals> <denials> <continuations>".
+#
 # Output. status: one line, off, on <generation>[ until <until>], expired
 # <until> or unreadable <reason>; the on and unreadable lines end in
 # " handsoff" when S's own marker reads on at that level. The bare command
@@ -71,38 +102,53 @@
 # .noask.* file renamed over the marker, then is read back with the parser
 # status uses), prints its lines, and then sweeps: it removes each session
 # marker that reads expired and each leftover .noask.* file in both
-# directories. A failed sweep changes neither the output nor the exit.
+# directories; then, when budgets.d exists and its lock is free (flock -n,
+# taken after the state directory's), each file of budgets.d but .lock whose
+# generation= line names no marker that reads on, the markers read as they
+# stand after the switch, and the .noask.* files there. It removes no record
+# while the global marker or a session's reads unreadable, or while noask.d
+# exists and cannot be listed and searched: a record made under such a marker
+# carries a generation no reading can match, and removing it would start a
+# spent budget again. A failed sweep changes neither the output nor the exit.
 # status and the bare command take no lock, change no mode and write
 # nothing.
 #
-# Exit codes: 0 done (a switch made, whatever the marker held before); 1 the
-# state directory, the lock, or a marker's write, read-back or removal
-# failed, or a switching command found HOME unset or empty, or any form but
-# status and the bare command ran off the platform; 2 a wrong argument on
-# the platform, nothing touched; 3 status or the bare command met an
-# unreadable marker.
+# Exit codes: 0 done (a switch made, whatever the marker held before; a
+# count's off or counted line); 1 the state directory, the lock, or a
+# marker's write, read-back or removal failed, or a count could not make
+# budgets.d, take its lock, or write or read back its record, or a switching
+# command found HOME unset or empty, or any form but status and the bare
+# command ran off the platform; 2 a wrong argument on the platform, nothing
+# touched; 3 status or the bare command met an unreadable marker.
 #
 # Test seams: SDD_NOASK_NOW=<epoch seconds> replaces the clock;
-# SDD_NOASK_LOCK_WAIT=<seconds> replaces the lock's 5.
+# SDD_NOASK_LOCK_WAIT=<seconds> replaces the lock's 5 and the count's 2. Either
+# set to the empty string reads as unset.
 set -uo pipefail
 shopt -s nullglob
 export LC_ALL=C
 
 readonly SESSION_HOURS=8 # a session's switch given no expiry ends this many hours after since
 readonly LOCK_SECONDS=5  # how long a switching command waits for the lock
-readonly READ_SECONDS=2  # a marker read that takes longer reads unreadable
+readonly COUNT_LOCK_SECONDS=2 # how long a count waits for the records' lock
+readonly READ_SECONDS=2  # a marker or record read that takes longer reads unreadable
 readonly MARKER_BYTES=4096 # a longer marker reads unreadable
+readonly RECORD_BYTES=4096 # a longer record does not parse
 readonly ID_RE='^[A-Za-z0-9_-]{1,64}$'
 # The command's own words, never a session id.
 readonly RESERVED='status on off global handsoff until count reset read question denial continuation'
 readonly OFFSET_RE='[+-]((0[0-9]|1[0-3]):[0-5][0-9]|14:00)' # 00:00 to 14:00, either sign
 readonly TIME_RE='[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}'"$OFFSET_RE"
-readonly GEN_RE='^generation=[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{9}'"$OFFSET_RE"'-[0-9a-f]{8}$'
+readonly GENERATION='[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{9}'"$OFFSET_RE"'-[0-9a-f]{8}'
+readonly GEN_RE="^generation=$GENERATION\$"
 readonly SINCE_RE="^since=$TIME_RE\$"
 readonly UNTIL_RE="^until=($TIME_RE)?\$"
+readonly RECORD_GEN_RE="^generation=($GENERATION)?\$" # a record's generation may be empty
+readonly COUNTER='(0|[1-9][0-9]{0,4})'                 # a record's counter, 0 to 99999
 
 usage() {
-  echo 'usage: noask [--session <id>] [status | on [handsoff] [<expiry>] | off | global on [<expiry>] | global off], <expiry> being <n>h, <n>m or until HH:MM' >&2
+  echo 'usage: noask [--session <id>] [status | on [handsoff] [<expiry>] | off | global on [<expiry>] | global off], <expiry> being <n>h, <n>m or until HH:MM;' \
+    'noask --session <id> [--agent <agent id>] count question|denial|continuation <budget> | count reset | count read' >&2
   exit 2
 }
 die() {
@@ -148,13 +194,27 @@ parse_on() {
   esac
 }
 
-session='' given='' action='' scope='' handsoff='' expiry=''
+session='' given='' action='' scope='' handsoff='' expiry='' agent='' count_word='' budget=''
 if [ "${1-}" = --session ]; then
   { [ $# -ge 2 ] && [ "$2" != --session ] && is_session_id "$2"; } || usage
   session=$2 given=1
   shift 2
+  if [ "${1-}" = --agent ]; then
+    { [ $# -ge 3 ] && [ "$2" != --agent ] && [[ $2 =~ $ID_RE ]] && [ "$3" = count ]; } || usage
+    agent=$2
+    shift 2
+  fi
 fi
 case ${1-} in
+  count)
+    [ -n "$given" ] || usage
+    case $#/${2-} in
+      3/question | 3/denial | 3/continuation) [[ $3 =~ ^[1-9][0-9]{0,4}$ ]] || usage; budget=$3 ;;
+      2/reset | 2/read) ;;
+      *) usage ;;
+    esac
+    action=count count_word=$2
+    ;;
   '') action=show ;;
   status) [ $# -eq 1 ] || usage; action=status ;;
   on | off)
@@ -242,7 +302,7 @@ fi
 
 if [ -z "${HOME:-}" ]; then
   case $action in
-    status) echo off ;;
+    status | count) echo off ;;
     show) echo 'noask: off' ;;
     *) die 'HOME is not set' ;;
   esac
@@ -252,7 +312,7 @@ STATE=$HOME/.local/state/sdd
 GLOBAL=$STATE/noask
 DIR=$STATE/noask.d
 BUDGETS=$STATE/budgets.d
-declare -A gm=() sm=() om=() wm=()
+declare -A gm=() sm=() om=() wm=() rec=() rb=() # markers read and read back; a record and its read-back
 narrowed=() # the narrowing lines, printed after a switching command's own
 
 # shown TIME: "<epoch> <time>" for a marker's TIME, <time> being HH:MM on
@@ -344,11 +404,18 @@ word() {
   if [ "${wd[level]}" = handsoff ]; then echo handsoff; else echo on; fi
 }
 
+# lock_wait SECONDS: set the caller's wait to SDD_NOASK_LOCK_WAIT, or to
+# SECONDS when that is unset or empty.
+lock_wait() {
+  wait=${SDD_NOASK_LOCK_WAIT:-$1}
+  [[ $wait =~ ^[0-9]+(\.[0-9]+)?$ ]] || die 'SDD_NOASK_LOCK_WAIT is not a number of seconds'
+}
+
 # Make the state directory, take its lock, held to the end of the command,
 # and narrow the directories under the lock.
 take_lock() {
-  local wait=${SDD_NOASK_LOCK_WAIT:-$LOCK_SECONDS} rc=0
-  [[ $wait =~ ^[0-9]+(\.[0-9]+)?$ ]] || die 'SDD_NOASK_LOCK_WAIT is not a number of seconds'
+  local wait rc=0
+  lock_wait "$LOCK_SECONDS"
   # shellcheck disable=SC2174 # 700 is for the state directory alone, not its parents
   mkdir -p -m 700 -- "$STATE" 2>/dev/null
   [ -d "$STATE" ] || die "cannot make the state directory $STATE"
@@ -406,8 +473,78 @@ remove_marker() {
   [ ! -e "$1" ] && [ ! -L "$1" ] || die "cannot remove $1"
 }
 
+# read_record FILE NAME: read the record FILE into the associative array
+# NAME: state (absent, ok or bad), reason (when bad), and generation,
+# refusals, denials, continuations and spent as stored, or as an empty record
+# holds them when the state is not ok. A file removed while it is read is
+# absent. A record is read to one byte past RECORD_BYTES, as a marker is.
+# shellcheck disable=SC2034 # rr is a nameref: its fields land in NAME
+read_record() {
+  local file=$1 raw rc reason=''
+  local -a lines=()
+  local -n rr=$2
+  rr=(['state']=absent ['reason']='' ['generation']='' ['refusals']=0 ['denials']=0 ['continuations']=0
+    ['spent']=none)
+  [ -e "$file" ] || [ -L "$file" ] || return 0
+  raw=$(timeout "$READ_SECONDS" head -c $((RECORD_BYTES + 1)) -- "$file" 2>/dev/null | tr '\0' '\001' && printf x)
+  rc=$?
+  raw=${raw%x}
+  [ "$rc" -ne 0 ] || mapfile -t lines <<< "${raw%$'\n'}"
+  if [ "$rc" -ne 0 ] && [ ! -e "$file" ] && [ ! -L "$file" ]; then
+    return 0
+  elif [ "$rc" -eq 124 ]; then
+    reason='the record read timed out'
+  elif [ "$rc" -ne 0 ]; then
+    reason='the record cannot be read'
+  elif [ "${#raw}" -gt "$RECORD_BYTES" ]; then
+    reason="the record is longer than $RECORD_BYTES bytes"
+  elif [ -z "$raw" ]; then
+    reason='the record is empty'
+  elif [[ $raw != *$'\n' ]]; then
+    reason='the last line has no newline'
+  elif [ "${#lines[@]}" -eq 1 ]; then
+    reason='the record has 1 line, not 5'
+  elif [ "${#lines[@]}" -ne 5 ]; then
+    reason="the record has ${#lines[@]} lines, not 5"
+  elif ! [[ ${lines[0]} =~ $RECORD_GEN_RE ]]; then
+    reason='line 1 is not generation=<generation> or generation='
+  elif ! [[ ${lines[1]} =~ ^refusals=$COUNTER$ ]]; then
+    reason='line 2 is not refusals=<n>'
+  elif ! [[ ${lines[2]} =~ ^denials=$COUNTER$ ]]; then
+    reason='line 3 is not denials=<n>'
+  elif ! [[ ${lines[3]} =~ ^continuations=$COUNTER$ ]]; then
+    reason='line 4 is not continuations=<n>'
+  elif ! [[ ${lines[4]} =~ ^spent=(none|question|permission|continuation)$ ]]; then
+    reason='line 5 is not spent=none, question, permission or continuation'
+  fi
+  if [ -n "$reason" ]; then
+    rr['state']=bad rr['reason']=$reason
+    return 0
+  fi
+  rr['state']=ok rr['generation']=${lines[0]#generation=} rr['refusals']=${lines[1]#refusals=}
+  rr['denials']=${lines[2]#denials=} rr['continuations']=${lines[3]#continuations=} rr['spent']=${lines[4]#spent=}
+}
+
+# write_record FILE GENERATION REFUSALS DENIALS CONTINUATIONS SPENT: write the
+# five lines to a temporary file beside FILE, rename it over FILE, and read
+# FILE back into rb with read_record; exit 1 on a failure or a mismatch.
+write_record() {
+  local file=$1 tmp
+  tmp=$(mktemp -- "${file%/*}/.noask.XXXXXX" 2>/dev/null) || die "cannot write $file"
+  if ! printf 'generation=%s\nrefusals=%s\ndenials=%s\ncontinuations=%s\nspent=%s\n' "$2" "$3" "$4" "$5" "$6" \
+    > "$tmp" 2>/dev/null || ! mv -fT -- "$tmp" "$file" 2>/dev/null; then
+    rm -f -- "$tmp"
+    die "cannot write $file"
+  fi
+  read_record "$file" rb
+  { [ "${rb[state]}" = ok ] && [ "${rb[generation]}" = "$2" ] && [ "${rb[refusals]}" = "$3" ] &&
+    [ "${rb[denials]}" = "$4" ] && [ "${rb[continuations]}" = "$5" ] && [ "${rb[spent]}" = "$6" ]; } ||
+    die "$file does not read back as written"
+}
+
 # Remove each session marker that reads expired and each leftover temporary
-# file in both directories; a failure changes nothing the command reports.
+# file in both directories, then sweep budgets.d; a failure changes nothing
+# the command reports.
 sweep() {
   local f
   local -A sw=()
@@ -416,6 +553,51 @@ sweep() {
     [[ ${f##*/} =~ $ID_RE ]] || continue
     read_marker "$f" session sw
     [ "${sw[state]}" != expired ] || rm -f -- "$f" 2>/dev/null
+  done
+  sweep_records
+  return 0
+}
+
+# The records' sweep, after the markers' and under the records' lock taken
+# without waiting: remove each file of budgets.d but .lock whose generation=
+# line names no marker that reads on now, and each leftover temporary file.
+# Nothing is removed (or made) with no budgets.d, while the lock is busy,
+# while a marker reads unreadable, or while noask.d exists and cannot be
+# listed and searched (a marker hidden in it, or read as absent because it
+# cannot be looked at): a record made under such a marker carries a
+# generation no reading can match, and removing it would start a spent budget
+# again.
+sweep_records() {
+  local f first keep g
+  local -a live=()
+  local -A sw=()
+  [ -d "$BUDGETS" ] || return 0
+  if [ -d "$DIR" ] && ! { [ -r "$DIR" ] && [ -x "$DIR" ]; }; then return 0; fi
+  read_marker "$GLOBAL" global sw
+  case ${sw[state]} in
+    unreadable) return 0 ;;
+    on) live+=("generation=${sw[generation]}") ;;
+  esac
+  for f in "$DIR"/*; do
+    [[ ${f##*/} =~ $ID_RE ]] || continue
+    read_marker "$f" session sw
+    case ${sw[state]} in
+      unreadable) return 0 ;;
+      on) live+=("generation=${sw[generation]}") ;;
+    esac
+  done
+  { exec 8>>"$BUDGETS/.lock"; } 2>/dev/null || return 0
+  flock -n 8 || return 0
+  rm -f -- "$BUDGETS"/.noask.* 2>/dev/null
+  for f in "$BUDGETS"/* "$BUDGETS"/.[!.]* "$BUDGETS"/..?*; do
+    [ "${f##*/}" != .lock ] || continue
+    first=$(timeout "$READ_SECONDS" head -c "$RECORD_BYTES" -- "$f" 2>/dev/null | tr '\0' '\001')
+    first=${first%%$'\n'*}
+    keep=
+    for g in "${live[@]}"; do
+      [ "$first" != "$g" ] || keep=1
+    done
+    [ -n "$keep" ] || rm -f -- "$f" 2>/dev/null
   done
   return 0
 }
@@ -429,8 +611,12 @@ print_rule() {
   fi
 }
 
-cmd_status() {
-  local reading=gm line
+# session_reading: read the global marker into gm and, with an S, S's own
+# into sm; set the caller's reading to the name of the one whose state is
+# S's reading, and its reading_state and reading_generation to that state
+# and generation.
+session_reading() {
+  reading=gm
   read_marker "$GLOBAL" global gm
   if [ -n "$session" ]; then
     read_marker "$DIR/$session" session sm
@@ -438,6 +624,13 @@ cmd_status() {
       reading=sm
     fi
   fi
+  local -n sn=$reading
+  reading_state=${sn[state]} reading_generation=${sn[generation]}
+}
+
+cmd_status() {
+  local reading reading_state reading_generation line
+  session_reading
   local -n r=$reading
   case ${r[state]} in
     off) line=off ;;
@@ -635,8 +828,50 @@ cmd_session_off() {
   sweep
 }
 
+# count: charge count_word to the record of S, or of S's subagent, under S's
+# reading, as the header says.
+cmd_count() {
+  local file=$BUDGETS/$session${agent:+.$agent} reading reading_state reading_generation wait rc=0 counter='' spent=''
+  session_reading
+  case $reading_state in off | expired) echo off; return ;; esac
+  lock_wait "$COUNT_LOCK_SECONDS"
+  mkdir -m 700 -- "$BUDGETS" 2>/dev/null # the state directory exists: the marker just read is in it
+  [ -d "$BUDGETS" ] || die "cannot make $BUDGETS"
+  { exec 8>>"$BUDGETS/.lock"; } 2>/dev/null || die "cannot open the lock $BUDGETS/.lock"
+  flock -w "$wait" 8 || rc=$?
+  case $rc in
+    0) ;;
+    1) die 'the records are locked by another noask command' ;;
+    *) die "cannot take the lock $BUDGETS/.lock" ;;
+  esac
+  session_reading
+  case $reading_state in off | expired) echo off; return ;; esac
+  read_record "$file" rec
+  local note=${rec[reason]} # set when the record did not parse; said once the count has succeeded
+  if [ "$reading_state" = on ] && [ "${rec[generation]}" != "$reading_generation" ]; then
+    rec=(['generation']=$reading_generation ['refusals']=0 ['denials']=0 ['continuations']=0 ['spent']=none)
+  fi
+  case $count_word in
+    question) counter=refusals spent=question ;;
+    denial) counter=denials spent=permission ;;
+    continuation) counter=continuations spent=continuation ;;
+    reset) if [ "${rec[spent]}" = none ]; then rec['refusals']=0 rec['denials']=0 rec['continuations']=0; fi ;;
+  esac
+  if [ -n "$counter" ] && [ "${rec[spent]}" = none ]; then
+    rec[$counter]=$((rec[$counter] + 1))
+    [ "${rec[$counter]}" -lt "$budget" ] || rec['spent']=$spent
+  fi
+  if [ "$count_word" != read ]; then
+    write_record "$file" "${rec[generation]}" "${rec[refusals]}" "${rec[denials]}" "${rec[continuations]}" \
+      "${rec[spent]}"
+  fi
+  [ -z "$note" ] || printf 'noask: the record %s did not parse (%s); started again\n' "$file" "$note" >&2
+  printf 'counted %s %s %s %s\n' "${rec[spent]}" "${rec[refusals]}" "${rec[denials]}" "${rec[continuations]}"
+}
+
 case $action/$scope in
   status/) cmd_status ;;
+  count/) cmd_count ;;
   show/) if [ -n "$session" ]; then cmd_show_session; else cmd_show_terminal; fi ;;
   on/global) cmd_global_on ;;
   on/session) cmd_session_on ;;
