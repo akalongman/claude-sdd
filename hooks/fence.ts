@@ -3,8 +3,10 @@
 // substitutions and arithmetic (where a shift opens no here-document, and a double parenthesis is read as commands as
 // well), and names each push, pull request and merge request, and each call that switches noask or writes its state
 // directory (tests/fence-rows.txt holds the table this reading is held to, and tests/check-fence-rows.sh holds that
-// table against bash itself). configRoots, stateRoots, placed, spelled, isUnder and startsLikeConfig judge an edit's
-// path, by its spelling and by where it lands. Every file call goes through inTime.
+// table against bash itself). It reads each nested text once per reading and counts its work: a command it cannot read
+// to its end within WORK_LIMIT, or at all, is named as too complex to read, which the guard refuses in every session.
+// configRoots, stateRoots, placed, spelled, isUnder and startsLikeConfig judge an edit's path, by its spelling and by
+// where it lands. Every file call goes through inTime.
 import type { EngineInterface, FsStat } from 'claude-code';
 import { inTime } from './marker';
 
@@ -14,27 +16,59 @@ export type FenceWhat =
     | 'a merge request'
     | 'a push other than a plain one'
     | 'switching noask'
-    | 'an edit under the configuration directory';
+    | 'an edit under the configuration directory'
+    | 'a command too complex to read';
 
 export type FenceHit = { readonly what: FenceWhat };
 
 // One character of a word's literal value, and whether quoting made it literal: a quoted *, ? or [ is no pattern.
 type Char = { readonly value: string; readonly isQuoted: boolean };
 
-// A word: its literal value's characters, each substitution in it one UNKNOWN character; whether it holds a $, a
-// backtick or a process substitution outside single quotes; and its text as written.
-type Word = { readonly chars: ReadonlyArray<Char>; readonly isExpanding: boolean; readonly raw: string };
+// A word: its literal value's characters, each substitution in it one UNKNOWN character, and that value; whether it
+// holds a $, a backtick or a process substitution outside single quotes; its text as written; and whether it is a
+// NAME=value word. The value and the last are worked out once, as the word is read.
+type Word = {
+    readonly chars: ReadonlyArray<Char>;
+    readonly value: string;
+    readonly isExpanding: boolean;
+    readonly raw: string;
+    readonly isAssignment: boolean;
+};
 
 type Redirection = { readonly operator: string; readonly target: Word | undefined };
 
 // A simple command as the scan collects it, with the hits of the substitutions written in it.
 type SimpleCommand = { readonly words: Word[]; readonly redirections: Redirection[]; readonly inner: FenceWhat[] };
 
-// A here-document opened on the current line: its body starts at the line's end.
-type Pending = { readonly delimiter: string; readonly isTabStripped: boolean };
+// A here-document opened on the current line: its body starts at the line's end. `isLeftOpen` marks one that a
+// substitution in the line opened and left open: bash reads its body as that substitution ends, so before the bodies
+// of the line's own here-documents.
+type Pending = { readonly delimiter: string; readonly isTabStripped: boolean; readonly isLeftOpen: boolean };
 
-// The scan's place in a text, which it moves, and the here-documents waiting for the line's end.
-type Scanner = { readonly text: string; index: number; readonly pending: Pending[] };
+// The work of one call of shellHits, shared by every scanner of the call: the steps taken, which WORK_LIMIT bounds, and
+// the hits of each text read as a text of its own, kept by the text, so that a text nested in several readings is read
+// once.
+type Run = { steps: number; readonly texts: Map<string, ReadonlyArray<FenceWhat>> };
+
+// What a reading of arithmetic on the scan's own place came to, kept by its place, its opening and the queue it found,
+// so that a place read again is not read again: whether it closed, where the scan then stood, its substitutions' hits,
+// and the queue it left, each here-document in it the index of one in the queue it found, or one opened in it.
+type Arithmetic = {
+    readonly isClosed: boolean;
+    readonly index: number;
+    readonly hits: ReadonlyArray<FenceWhat>;
+    readonly pending: ReadonlyArray<number | Pending>;
+};
+
+// The scan's place in a text, which it moves, the here-documents waiting for the line's end, the call's work, and the
+// readings of arithmetic made in this text.
+type Scanner = {
+    readonly text: string;
+    index: number;
+    readonly pending: Pending[];
+    readonly run: Run;
+    readonly arithmetic: Map<string, Arithmetic>;
+};
 
 // Where the scan stood and the here-documents it waited for, to put it back after a reading that did not fit.
 type Mark = { readonly index: number; readonly pending: ReadonlyArray<Pending> };
@@ -55,6 +89,23 @@ type Reading = { readonly isPrefixed: boolean; readonly isAssigned: boolean };
 // The value of a part of a word the scan does not know, a substitution's: it equals no name.
 const UNKNOWN: Char = { value: '\u0000', isQuoted: true };
 const SLASH: Char = { value: '/', isQuoted: true };
+
+// The hit of a command the scan could not read to its end, alone in its answer.
+const TOO_COMPLEX: FenceWhat = 'a command too complex to read';
+
+// The characters of a word that tell whether it starts with the home: ~ and ~/, ${HOME}, and $HOME before a character
+// that ends a name.
+const HOME_PREFIX_LENGTH = 8;
+
+// The steps the scan may take for one command; past them the command is too complex to read. A step reads a
+// character, looks at one of a simple command's leading words, or handles one hit; looking a reading up, judging a
+// simple command and copying a parameter's text are a step for each character they handle, and a line of a
+// here-document's body or of a comment, which the scan skips without reading its characters one by one, is a step and
+// one more for each 32 characters (SKIPPED_SHIFT). Set so that the slowest command found ends in some 120 ms in the
+// plugin kit's runtime, well inside the 1 second a hook's .catch handler has, in which it scans the command again; a
+// plain script of some 230 KB, or a here-document's body of some 14 MB, is read to its end.
+const WORK_LIMIT = 500_000;
+const SKIPPED_SHIFT = 5;
 
 // The characters that end a word outside quotes, but for `<(` and `>(`.
 const METACHARACTERS: ReadonlySet<string> = new Set([' ', '\t', '\n', ';', '&', '|', '(', ')', '<', '>']);
@@ -132,7 +183,7 @@ function valueOf(chars: ReadonlyArray<Char>): string {
 }
 
 function literalOf(word: Word | undefined): string {
-    return word === undefined ? '' : valueOf(word.chars);
+    return word === undefined ? '' : word.value;
 }
 
 // A word's name: the base name of its literal value.
@@ -142,11 +193,36 @@ function nameOf(word: Word | undefined): string {
 }
 
 function isAssignment(word: Word): boolean {
-    return ASSIGNMENT.test(literalOf(word));
+    return word.isAssignment;
 }
 
 function charAt(scanner: Scanner, offset: number): string {
     return scanner.text.charAt(scanner.index + offset);
+}
+
+function scannerOf(text: string, run: Run): Scanner {
+    return { text, index: 0, pending: [], run, arithmetic: new Map() };
+}
+
+// Counts steps of the call's work.
+function spend(run: Run, steps: number): void {
+    run.steps += steps;
+}
+
+// Counts steps of the call's work; false once more than WORK_LIMIT are taken.
+function isWithinLimit(run: Run, steps: number): boolean {
+    spend(run, steps);
+    return run.steps <= WORK_LIMIT;
+}
+
+// Counts steps of a scan, one unless said; once the limit is spent the scan stands at its text's end, so that every
+// loop of the scan ends there and returns, and shellHits answers TOO_COMPLEX.
+function isScanning(scanner: Scanner, steps = 1): boolean {
+    if (isWithinLimit(scanner.run, steps)) {
+        return true;
+    }
+    scanner.index = scanner.text.length;
+    return false;
 }
 
 function quoted(text: string): Char[] {
@@ -188,7 +264,7 @@ function joinedPath(directory: string, rest: string): string {
 // Reads to the end of a single-quoted string, its characters quoted.
 function readSingleQuoted(scanner: Scanner, chars: Char[]): void {
     scanner.index += 1;
-    while (scanner.index < scanner.text.length) {
+    while (scanner.index < scanner.text.length && isScanning(scanner)) {
         const char = charAt(scanner, 0);
         scanner.index += 1;
         if (char === "'") {
@@ -222,7 +298,7 @@ function ansiCEscape(scanner: Scanner): string {
 
 // Reads a $'...' word's text, from after its opening quote, with its escapes as bash reads them.
 function readAnsiC(scanner: Scanner, chars: Char[]): void {
-    while (scanner.index < scanner.text.length) {
+    while (scanner.index < scanner.text.length && isScanning(scanner)) {
         const char = charAt(scanner, 0);
         if (char === "'") {
             scanner.index += 1;
@@ -237,12 +313,28 @@ function readAnsiC(scanner: Scanner, chars: Char[]): void {
     }
 }
 
+// The hits of a text read as a text of its own, with a queue of its own, read once in a call: a backtick
+// substitution's text, and the text of a double parenthesis read as commands. Its hits depend on the text alone.
+function textHits(text: string, run: Run, places: Places): ReadonlyArray<FenceWhat> {
+    if (!isWithinLimit(run, text.length)) {
+        return [];
+    }
+    const known = run.texts.get(text);
+    if (known !== undefined) {
+        spend(run, known.length);
+        return known;
+    }
+    const hits = scanList(scannerOf(text, run), 'end', places);
+    run.texts.set(text, hits);
+    return hits;
+}
+
 // Reads a backtick substitution and returns its hits: its text, with the backslashes bash removes inside it removed,
 // is read as a text of its own.
-function readBackticks(scanner: Scanner, isInDouble: boolean, places: Places): FenceWhat[] {
+function readBackticks(scanner: Scanner, isInDouble: boolean, places: Places): ReadonlyArray<FenceWhat> {
     let inner = '';
     scanner.index += 1;
-    while (scanner.index < scanner.text.length) {
+    while (scanner.index < scanner.text.length && isScanning(scanner)) {
         const char = charAt(scanner, 0);
         const next = charAt(scanner, 1);
         if (char === '\\' && next !== '') {
@@ -257,7 +349,7 @@ function readBackticks(scanner: Scanner, isInDouble: boolean, places: Places): F
         }
         inner += char;
     }
-    return scanList({ text: inner, index: 0, pending: [] }, 'end', places);
+    return textHits(inner, scanner.run, places);
 }
 
 // Reads a parameter expansion `${...}`, its text kept as quoted characters, the hits of the substitutions inside it
@@ -265,7 +357,7 @@ function readBackticks(scanner: Scanner, isInDouble: boolean, places: Places): F
 function readParameter(scanner: Scanner, chars: Char[], sink: FenceWhat[], places: Places): void {
     const start = scanner.index;
     scanner.index += 2;
-    while (scanner.index < scanner.text.length) {
+    while (scanner.index < scanner.text.length && isScanning(scanner)) {
         const char = charAt(scanner, 0);
         const next = charAt(scanner, 1);
         if (char === '}') {
@@ -286,17 +378,46 @@ function readParameter(scanner: Scanner, chars: Char[], sink: FenceWhat[], place
             scanner.index += 1;
         }
     }
-    chars.push(...quoted(scanner.text.slice(start, scanner.index)));
+    if (isWithinLimit(scanner.run, scanner.index - start)) {
+        chars.push(...quoted(scanner.text.slice(start, scanner.index)));
+    }
 }
 
 // Reads arithmetic, from after its opening `(` or `[` to the close that matches it, as bash's parser finds that end:
 // quotes, escapes and substitutions are read, the substitutions' hits added to `sink`, and nothing else is a command,
 // a redirection or a here-document's opener (a shift, `<<`, opens none). Returns whether the close was found; the
-// scan then stands past it.
+// scan then stands past it. A place this scanner read before with a queue of the same here-documents is not read
+// again: what that reading came to is given back, with this queue's own here-documents where it kept the ones it found.
 function readArithmetic(scanner: Scanner, open: '(' | '[', sink: FenceWhat[], places: Places): boolean {
+    const found = [...scanner.pending];
+    const key = `${scanner.index} ${open} ${JSON.stringify(found)}`;
+    const known = scanner.arithmetic.get(key);
+    if (!isScanning(scanner, key.length + (known === undefined ? 0 : known.hits.length + known.pending.length))) {
+        return false;
+    }
+    if (known === undefined) {
+        const hits: FenceWhat[] = [];
+        const isClosed = scanArithmetic(scanner, open, hits, places);
+        const indexes = new Map(found.map((pending, index) => [pending, index]));
+        const pending = scanner.pending.map((each) => indexes.get(each) ?? each);
+        scanner.arithmetic.set(key, { isClosed, index: scanner.index, hits, pending });
+        sink.push(...hits);
+        return isClosed;
+    }
+    const left = known.pending.flatMap((each) =>
+        typeof each === 'number' ? found.slice(each, each + 1) : [{ ...each }],
+    );
+    scanner.index = known.index;
+    scanner.pending.splice(0, scanner.pending.length, ...left);
+    sink.push(...known.hits);
+    return known.isClosed;
+}
+
+// readArithmetic's reading itself.
+function scanArithmetic(scanner: Scanner, open: '(' | '[', sink: FenceWhat[], places: Places): boolean {
     const close = open === '(' ? ')' : ']';
     let depth = 0;
-    while (scanner.index < scanner.text.length) {
+    while (scanner.index < scanner.text.length && isScanning(scanner)) {
         const char = charAt(scanner, 0);
         if (char === close && depth === 0) {
             scanner.index += 1;
@@ -322,36 +443,46 @@ function readArithmetic(scanner: Scanner, open: '(' | '[', sink: FenceWhat[], pl
 
 // The hits of one text read both as commands and as arithmetic, each kind named as often as the reading that names it
 // more often does: those of the commands, then each of the arithmetic's that they have not.
-function bothReadings(commands: ReadonlyArray<FenceWhat>, arithmetic: ReadonlyArray<FenceWhat>): FenceWhat[] {
-    const unmatched = [...commands];
+function bothReadings(commands: ReadonlyArray<FenceWhat>, arithmetic: ReadonlyArray<FenceWhat>, run: Run): FenceWhat[] {
+    spend(run, commands.length + arithmetic.length);
+    const unmatched = new Map<FenceWhat, number>();
+    for (const what of commands) {
+        unmatched.set(what, (unmatched.get(what) ?? 0) + 1);
+    }
     const added: FenceWhat[] = [];
     for (const what of arithmetic) {
-        const index = unmatched.indexOf(what);
-        if (index < 0) {
+        const count = unmatched.get(what) ?? 0;
+        if (count === 0) {
             added.push(what);
         } else {
-            unmatched.splice(index, 1);
+            unmatched.set(what, count - 1);
         }
     }
     return [...commands, ...added];
 }
 
-// After a reading on the scan's own place, puts the here-documents that waited before it back at the head of the
-// queue, ahead of those it left open. Bash keeps a line's here-documents apart from those of a substitution inside it,
-// and reads after the line the body of one the substitution left open; the scan's substitutions share the queue, and
-// one that spans a line end has read the line's bodies there.
+// After a reading on the scan's own place, puts the queue in bash's order: the here-documents that substitutions
+// before it on the line left open, then those it left open, then the line's own that waited before it. Bash reads the
+// body of a here-document that a substitution left open as that substitution ends, and the line's own after the line.
+// The scan's substitutions share the queue, and one that spans a line end has read the line's bodies there: those are
+// put back.
 function requeued(scanner: Scanner, mark: Mark): void {
-    const isKept = mark.pending.every((pending, index) => scanner.pending[index] === pending);
-    const opened = scanner.pending.slice(isKept ? mark.pending.length : 0);
-    scanner.pending.splice(0, scanner.pending.length, ...mark.pending, ...opened);
+    spend(scanner.run, mark.pending.length + scanner.pending.length);
+    const waited = new Set(mark.pending);
+    const opened = scanner.pending
+        .filter((pending) => !waited.has(pending))
+        .map((pending) => ({ ...pending, isLeftOpen: true }));
+    const leftBefore = mark.pending.filter(({ isLeftOpen }) => isLeftOpen);
+    const own = mark.pending.filter(({ isLeftOpen }) => !isLeftOpen);
+    scanner.pending.splice(0, scanner.pending.length, ...leftBefore, ...opened, ...own);
 }
 
 // Reads a `$((`, from its `$`, and adds its hits to `sink`. Bash reads the text from `$(` to the `)` that matches it
 // as a pair, then evaluates it as arithmetic or runs it as a command substitution by a test of that text. The scan
 // makes no such test and keeps the hits of both readings: the arithmetic one's, read on the scan's own place, and
 // those of the text read as a text of its own, as a command substitution is (`$((1+2)*(3))`, `$((git push) )`).
-// Whichever reading bash takes, the line's here-documents stay apart from the substitution's. One that does not
-// close is read as `$(` is.
+// Whichever reading bash takes, it reads the here-documents a substitution inside left open before the line's own.
+// One that does not close is read as `$(` is.
 function readArithmeticExpansion(scanner: Scanner, sink: FenceWhat[], places: Places): void {
     scanner.index += 2;
     const mark = markOf(scanner);
@@ -363,7 +494,7 @@ function readArithmeticExpansion(scanner: Scanner, sink: FenceWhat[], places: Pl
     }
     requeued(scanner, mark);
     const text = scanner.text.slice(mark.index, scanner.index - 1);
-    sink.push(...bothReadings(scanList({ text, index: 0, pending: [] }, 'end', places), arithmetic));
+    sink.push(...bothReadings(textHits(text, scanner.run, places), arithmetic, scanner.run));
 }
 
 // Reads a `$[...]`, bash's older arithmetic expansion, from its `$`: its substitutions' hits are added to `sink` and
@@ -396,6 +527,7 @@ function readSubscript(scanner: Scanner, chars: Char[], sink: FenceWhat[], place
         return false;
     }
     const subscript = scanner.text.slice(mark.index, scanner.index);
+    spend(scanner.run, subscript.length);
     sink.push(...inner);
     chars.push(...quoted(subscript));
     return /[$`]/.test(subscript);
@@ -405,8 +537,8 @@ function readSubscript(scanner: Scanner, chars: Char[], sink: FenceWhat[], place
 // must follow, as bash reads one where a reserved word may stand. Bash evaluates it as arithmetic; the scan adds to
 // `sink` the hits of that reading, its substitutions', and of a reading as commands too, the text inside the outer
 // pair read as a text of its own (so `((git push))` is a push). An arithmetic for (`isForLoop`) has no reading as
-// commands. Returns false, the scan put back where it stood, when no `))` ends it there: bash then reads a subshell
-// in a subshell (`((echo a); git push)`).
+// commands. The queue is then put in bash's order, as after a `$((`. Returns false, the scan put back where it stood,
+// when no `))` ends it there: bash then reads a subshell in a subshell (`((echo a); git push)`).
 function readArithmeticCommand(scanner: Scanner, sink: FenceWhat[], places: Places, isForLoop: boolean): boolean {
     const mark = markOf(scanner);
     const arithmetic: FenceWhat[] = [];
@@ -416,9 +548,10 @@ function readArithmeticCommand(scanner: Scanner, sink: FenceWhat[], places: Plac
         return false;
     }
     scanner.index += 1;
+    requeued(scanner, mark);
     const text = scanner.text.slice(mark.index + 1, scanner.index - 1);
-    const commands = isForLoop ? [] : scanList({ text, index: 0, pending: [] }, 'end', places);
-    sink.push(...bothReadings(commands, arithmetic));
+    const commands = isForLoop ? [] : textHits(text, scanner.run, places);
+    sink.push(...bothReadings(commands, arithmetic, scanner.run));
     return true;
 }
 
@@ -450,8 +583,10 @@ function readDollar(scanner: Scanner, chars: Char[], sink: FenceWhat[], places: 
         readParameter(scanner, chars, sink, places);
     } else {
         const name = SPECIAL_PARAMETER.exec(scanner.text.slice(scanner.index + 1))?.[0] ?? '';
-        chars.push(...quoted(scanner.text.slice(scanner.index, scanner.index + 1 + name.length)));
-        scanner.index += 1 + name.length;
+        if (isScanning(scanner, name.length)) {
+            chars.push(...quoted(scanner.text.slice(scanner.index, scanner.index + 1 + name.length)));
+            scanner.index += 1 + name.length;
+        }
     }
 }
 
@@ -459,7 +594,7 @@ function readDollar(scanner: Scanner, chars: Char[], sink: FenceWhat[], places: 
 function readDoubleQuoted(scanner: Scanner, chars: Char[], sink: FenceWhat[], places: Places): boolean {
     let isExpanding = false;
     scanner.index += 1;
-    while (scanner.index < scanner.text.length) {
+    while (scanner.index < scanner.text.length && isScanning(scanner)) {
         const char = charAt(scanner, 0);
         const next = charAt(scanner, 1);
         if (char === '"') {
@@ -495,17 +630,21 @@ function isAtWordEnd(scanner: Scanner): boolean {
 }
 
 // Reads one word; the hits of the substitutions in it are added to `sink`. Where an assignment may stand
-// (`isAssignable`), a `[` after a name opens an array's subscript, which bash reads as arithmetic (`a[1<<2]=x`).
+// (`isAssignable`), a `[` after a name opens an array's subscript, which bash reads as arithmetic (`a[1<<2]=x`). Only
+// the word's first `[` can follow a name, so the later ones are not tested.
 function readWord(scanner: Scanner, sink: FenceWhat[], places: Places, isAssignable = false): Word {
     const start = scanner.index;
     const chars: Char[] = [];
     let isExpanding = false;
-    while (!isAtWordEnd(scanner)) {
+    let isSubscriptPlace = isAssignable;
+    while (!isAtWordEnd(scanner) && isScanning(scanner)) {
         const char = charAt(scanner, 0);
         const next = charAt(scanner, 1);
+        const isSubscript = char === '[' && isSubscriptPlace && NAME.test(scanner.text.slice(start, scanner.index));
+        isSubscriptPlace &&= char !== '[';
         if (char === '\\' && next === '\n') {
             scanner.index += 2;
-        } else if (char === '[' && isAssignable && NAME.test(scanner.text.slice(start, scanner.index))) {
+        } else if (isSubscript) {
             isExpanding = readSubscript(scanner, chars, sink, places) || isExpanding;
         } else if (char === '\\') {
             chars.push({ value: next === '' ? char : next, isQuoted: true });
@@ -531,7 +670,14 @@ function readWord(scanner: Scanner, sink: FenceWhat[], places: Places, isAssigna
             scanner.index += 1;
         }
     }
-    return { chars, isExpanding, raw: scanner.text.slice(start, scanner.index) };
+    const value = valueOf(chars);
+    return {
+        chars,
+        value,
+        isExpanding,
+        raw: scanner.text.slice(start, scanner.index),
+        isAssignment: ASSIGNMENT.test(value),
+    };
 }
 
 // A here-document's delimiter: the word's text with its quotes and backslashes removed, and nothing expanded.
@@ -568,7 +714,7 @@ function quoteRemoved(raw: string): string {
 }
 
 function skipBlanks(scanner: Scanner): void {
-    for (;;) {
+    while (isScanning(scanner)) {
         if (BLANKS.has(charAt(scanner, 0))) {
             scanner.index += 1;
         } else if (charAt(scanner, 0) === '\\' && charAt(scanner, 1) === '\n') {
@@ -589,7 +735,7 @@ function readRedirection(scanner: Scanner, command: SimpleCommand, places: Place
         command.redirections.push({ operator, target: undefined });
     } else if (HERE_DOCUMENTS.has(operator)) {
         const delimiter = quoteRemoved(readWord(scanner, [], places).raw);
-        scanner.pending.push({ delimiter, isTabStripped: operator === '<<-' });
+        scanner.pending.push({ delimiter, isTabStripped: operator === '<<-', isLeftOpen: false });
     } else {
         command.redirections.push({ operator, target: readWord(scanner, command.inner, places) });
     }
@@ -602,6 +748,9 @@ function readBodies(scanner: Scanner): void {
         while (scanner.index < scanner.text.length) {
             const end = scanner.text.indexOf('\n', scanner.index);
             const stop = end < 0 ? scanner.text.length : end;
+            if (!isScanning(scanner, 1 + ((stop - scanner.index) >> SKIPPED_SHIFT))) {
+                return;
+            }
             const line = scanner.text.slice(scanner.index, stop);
             scanner.index = stop + 1;
             if ((isTabStripped ? line.replace(/^\t+/, '') : line) === delimiter) {
@@ -611,15 +760,20 @@ function readBodies(scanner: Scanner): void {
     }
 }
 
-function isCommandPosition(command: SimpleCommand): boolean {
-    return command.words.every((word) => LEADING.has(literalOf(word)));
+// Each word these two look at is a step of the scan's work.
+function isCommandPosition(command: SimpleCommand, run: Run): boolean {
+    return command.words.every((word) => {
+        spend(run, 1);
+        return LEADING.has(literalOf(word));
+    });
 }
 
 // Whether every word is a leading word, `time` or one of its options, or, with `isAssignmentKept`, a NAME=value word:
 // what may stand before the place where bash reads a reserved word, or with assignments an assignment.
-function isAllLeading(words: ReadonlyArray<Word>, isAssignmentKept: boolean): boolean {
+function isAllLeading(words: ReadonlyArray<Word>, isAssignmentKept: boolean, run: Run): boolean {
     let isAfterTime = false;
     for (const word of words) {
+        spend(run, 1);
         const value = literalOf(word);
         const isTimeOption: boolean = isAfterTime && value.startsWith('-');
         if (!LEADING.has(value) && value !== 'time' && !isTimeOption && !(isAssignmentKept && isAssignment(word))) {
@@ -632,10 +786,10 @@ function isAllLeading(words: ReadonlyArray<Word>, isAssignmentKept: boolean): bo
 
 // Where a `((` here opens an arithmetic command: 'command' where a reserved word may stand, 'for' after `for` (the
 // arithmetic for), undefined elsewhere.
-function arithmeticPlace(command: SimpleCommand): 'command' | 'for' | undefined {
+function arithmeticPlace(command: SimpleCommand, run: Run): 'command' | 'for' | undefined {
     const { words } = command;
     const isFor = literalOf(words.at(-1)) === 'for';
-    if (!isAllLeading(isFor ? words.slice(0, -1) : words, false)) {
+    if (!isAllLeading(isFor ? words.slice(0, -1) : words, false, run)) {
         return undefined;
     }
     return isFor ? 'for' : 'command';
@@ -650,10 +804,14 @@ function scanList(scanner: Scanner, closer: Closer, places: Places): FenceWhat[]
     let command = newCommand();
     let braces = 0;
     const finish = (): void => {
-        hits.push(...command.inner, ...commandHits(command, places));
+        if (command.words.length === 0 && command.redirections.length === 0 && command.inner.length === 0) {
+            return;
+        }
+        spend(scanner.run, command.inner.length);
+        hits.push(...command.inner, ...commandHits(command, places, scanner.run));
         command = newCommand();
     };
-    while (scanner.index < scanner.text.length) {
+    while (scanner.index < scanner.text.length && isScanning(scanner)) {
         const char = charAt(scanner, 0);
         const next = charAt(scanner, 1);
         if (BLANKS.has(char)) {
@@ -666,14 +824,17 @@ function scanList(scanner: Scanner, closer: Closer, places: Places): FenceWhat[]
             readBodies(scanner);
         } else if (char === '#') {
             const end = scanner.text.indexOf('\n', scanner.index);
-            scanner.index = end < 0 ? scanner.text.length : end;
+            const stop = end < 0 ? scanner.text.length : end;
+            if (isScanning(scanner, (stop - scanner.index) >> SKIPPED_SHIFT)) {
+                scanner.index = stop;
+            }
         } else if ((char === '&' && next === '>') || ((char === '<' || char === '>') && next !== '(')) {
             readRedirection(scanner, command, places);
         } else if (char === ';' || char === '&' || char === '|') {
             finish();
             scanner.index += 1;
         } else if (char === '(') {
-            const place = next === '(' ? arithmeticPlace(command) : undefined;
+            const place = next === '(' ? arithmeticPlace(command, scanner.run) : undefined;
             finish();
             if (place === undefined || !readArithmeticCommand(scanner, command.inner, places, place === 'for')) {
                 open.push('parenthesis');
@@ -689,14 +850,14 @@ function scanList(scanner: Scanner, closer: Closer, places: Places): FenceWhat[]
                 return hits;
             }
         } else {
-            const word = readWord(scanner, command.inner, places, isAllLeading(command.words, true));
+            const word = readWord(scanner, command.inner, places, isAllLeading(command.words, true, scanner.run));
             const following = charAt(scanner, 0);
             const isRedirected = (following === '<' || following === '>') && charAt(scanner, 1) !== '(';
             if (isRedirected && DESCRIPTOR.test(word.raw)) {
                 readRedirection(scanner, command, places);
                 continue;
             }
-            if (isCommandPosition(command)) {
+            if (isCommandPosition(command, scanner.run)) {
                 const value = literalOf(word);
                 if (word.raw === '}' && closer === 'brace' && braces === 0) {
                     finish();
@@ -719,9 +880,9 @@ function scanList(scanner: Scanner, closer: Closer, places: Places): FenceWhat[]
 // The judging of a simple command
 
 // The path a word's characters name, with a leading ~, $HOME or ${HOME} put as the home, as its parts with `.` and
-// `..` folded; undefined when it is not absolute.
+// `..` folded; undefined when it is not absolute. The tests read the word's first characters only.
 function pathOf(chars: ReadonlyArray<Char>, places: Places): ReadonlyArray<ReadonlyArray<Char>> | undefined {
-    const value = valueOf(chars);
+    const value = valueOf(chars.slice(0, HOME_PREFIX_LENGTH));
     const homeLength =
         value === '~' || value.startsWith('~/')
             ? 1
@@ -730,18 +891,18 @@ function pathOf(chars: ReadonlyArray<Char>, places: Places): ReadonlyArray<Reado
               : /^\$HOME(?![A-Za-z0-9_])/.test(value)
                 ? 5
                 : 0;
-    const absolute = homeLength === 0 ? chars : [...places.home, ...chars.slice(homeLength)];
+    const absolute = homeLength === 0 ? chars : places.home.concat(chars.slice(homeLength));
     if (absolute[0]?.value !== '/') {
         return undefined;
     }
     const parts: Char[][] = [];
     let part: Char[] = [];
-    for (const char of [...absolute, SLASH]) {
+    for (const char of absolute.concat(SLASH)) {
         if (char.value !== '/') {
             part.push(char);
             continue;
         }
-        const name = valueOf(part);
+        const name = part.length > 2 ? undefined : valueOf(part);
         if (name === '..') {
             parts.pop();
         } else if (name !== '' && name !== '.') {
@@ -756,8 +917,21 @@ function isUnquoted(char: Char | undefined, value: string): boolean {
     return char !== undefined && !char.isQuoted && char.value === value;
 }
 
+// For each index of a part, the first unquoted `]` at it or after it.
+function closesOf(part: ReadonlyArray<Char>): ReadonlyArray<number | undefined> {
+    const closes = new Array<number | undefined>(part.length + 1).fill(undefined);
+    for (let index = part.length - 1; index >= 0; index -= 1) {
+        closes[index] = isUnquoted(part[index], ']') ? index : closes[index + 1];
+    }
+    return closes;
+}
+
 // The index of the `]` that ends a set opened at `open`, or undefined when none does.
-function setEnd(part: ReadonlyArray<Char>, open: number): number | undefined {
+function setEnd(
+    part: ReadonlyArray<Char>,
+    open: number,
+    closes: ReadonlyArray<number | undefined>,
+): number | undefined {
     let index = open + 1;
     if (isUnquoted(part[index], '!') || isUnquoted(part[index], '^')) {
         index += 1;
@@ -765,34 +939,70 @@ function setEnd(part: ReadonlyArray<Char>, open: number): number | undefined {
     if (part[index]?.value === ']') {
         index += 1;
     }
-    for (; index < part.length; index += 1) {
-        if (isUnquoted(part[index], ']')) {
-            return index;
+    return closes[index];
+}
+
+// A part of a word as a pattern: a character as written, any one character (an unquoted ?, or a set), or any run of
+// characters (an unquoted *, a run of them being one).
+type Token = { readonly kind: 'char'; readonly value: string } | { readonly kind: 'one' } | { readonly kind: 'run' };
+
+function tokensOf(part: ReadonlyArray<Char>): ReadonlyArray<Token> {
+    const closes = closesOf(part);
+    const tokens: Token[] = [];
+    for (let index = 0; index < part.length; index += 1) {
+        const char = part[index];
+        const close = isUnquoted(char, '[') ? setEnd(part, index, closes) : undefined;
+        if (isUnquoted(char, '*')) {
+            if (tokens.at(-1)?.kind !== 'run') {
+                tokens.push({ kind: 'run' });
+            }
+        } else if (isUnquoted(char, '?') || close !== undefined) {
+            tokens.push({ kind: 'one' });
+            index = close ?? index;
+        } else {
+            const value = char?.value ?? '';
+            for (let unit = 0; unit < value.length; unit += 1) {
+                tokens.push({ kind: 'char', value: value.charAt(unit) });
+            }
         }
     }
-    return undefined;
+    return tokens;
+}
+
+// Whether the tokens match the whole name: a scan that, on a mismatch, goes back only to the last run it met, so its
+// work is bounded by the product of the two lengths.
+function isMatched(tokens: ReadonlyArray<Token>, name: string): boolean {
+    let token = 0;
+    let at = 0;
+    let runToken = -1;
+    let runAt = 0;
+    while (at < name.length) {
+        const current = tokens[token];
+        if (current?.kind === 'run') {
+            runToken = token;
+            runAt = at;
+            token += 1;
+        } else if (current !== undefined && (current.kind === 'one' || current.value === name.charAt(at))) {
+            token += 1;
+            at += 1;
+        } else if (runToken >= 0) {
+            token = runToken + 1;
+            runAt += 1;
+            at = runAt;
+        } else {
+            return false;
+        }
+    }
+    while (tokens[token]?.kind === 'run') {
+        token += 1;
+    }
+    return token === tokens.length;
 }
 
 // Whether a part of a word matches a name: as written, or as a pattern when it holds an unquoted *, ? or [ (a set is
 // any one character, and a leading `.` is matched like any other).
 function partMatches(part: ReadonlyArray<Char> | undefined, name: string): boolean {
-    if (part === undefined) {
-        return false;
-    }
-    let source = '';
-    for (let index = 0; index < part.length; index += 1) {
-        const char = part[index];
-        const close = isUnquoted(char, '[') ? setEnd(part, index) : undefined;
-        if (isUnquoted(char, '*')) {
-            source += '[\\s\\S]*';
-        } else if (isUnquoted(char, '?') || close !== undefined) {
-            source += '[\\s\\S]';
-            index = close ?? index;
-        } else {
-            source += (char?.value ?? '').replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
-        }
-    }
-    return new RegExp(`^${source}$`).test(name);
+    return part !== undefined && isMatched(tokensOf(part), name);
 }
 
 // Whether the characters name the state directory or a path below it.
@@ -964,9 +1174,17 @@ function ordered(kinds: ReadonlyArray<FenceWhat>): FenceWhat[] {
 }
 
 // A simple command's own hits: its leading words skipped, its NAME=value words and its redirections judged, then its
-// command, or every word after a prefix command that names one the fence reads.
-function commandHits(command: SimpleCommand, places: Places): FenceWhat[] {
+// command, or every word after a prefix command that names one the fence reads. Judging the command is a step for
+// each of its characters, and so is each reading after a prefix command.
+function commandHits(command: SimpleCommand, places: Places, run: Run): FenceWhat[] {
     const { words } = command;
+    const size = [...words, ...command.redirections.map(({ target }) => target)].reduce(
+        (sum, word) => sum + 1 + (word?.chars.length ?? 0),
+        0,
+    );
+    if (!isWithinLimit(run, size)) {
+        return [];
+    }
     const kinds: FenceWhat[] = [];
     let first = 0;
     let isAssigned = false;
@@ -997,7 +1215,7 @@ function commandHits(command: SimpleCommand, places: Places): FenceWhat[] {
     if (PREFIXES.has(name)) {
         for (let index = first + 1; index < words.length; index += 1) {
             const later = nameOf(words[index]);
-            if (READ_AFTER_PREFIX.has(later)) {
+            if (READ_AFTER_PREFIX.has(later) && isWithinLimit(run, size)) {
                 const isAssignedBefore = isAssigned || words.slice(0, index).some(isAssignment);
                 const reading = { isPrefixed: true, isAssigned: isAssignedBefore };
                 kinds.push(...readingHits(later, words.slice(index), reading, places));
@@ -1023,10 +1241,22 @@ function placesOf(home: string): Places {
     };
 }
 
-// One hit for each simple command of the call that the fence names, in the call's order; empty when none.
+// The hits of the whole command, or undefined when the scan could not read it to its end: its work passed WORK_LIMIT,
+// or it threw, as a nesting deeper than the stack holds does. The work and the readings kept live for this call only.
+function hitsOfAll(command: string, home: string): ReadonlyArray<FenceWhat> | undefined {
+    const run: Run = { steps: 0, texts: new Map() };
+    try {
+        const hits = scanList(scannerOf(command, run), 'end', placesOf(home));
+        return run.steps <= WORK_LIMIT ? hits : undefined;
+    } catch {
+        return undefined;
+    }
+}
+
+// One hit for each simple command of the call that the fence names, in the call's order; empty when none. A command
+// the scan cannot read to its end has one hit alone, TOO_COMPLEX, whatever else it holds: it is refused, never passed.
 export function shellHits(command: string, home: string): ReadonlyArray<FenceHit> {
-    const hits = scanList({ text: command, index: 0, pending: [] }, 'end', placesOf(home));
-    return hits.map((what) => ({ what }));
+    return (hitsOfAll(command, home) ?? [TOO_COMPLEX]).map((what) => ({ what }));
 }
 
 // 'a push', 'a pull request' and 'a merge request' are what a session at handsoff may do; every other hit is not.

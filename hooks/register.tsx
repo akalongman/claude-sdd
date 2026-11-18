@@ -4,7 +4,8 @@
 // `on` typed in an idle session submits the wake-up turn. Under noask it refuses the question and the plan approval,
 // and fences the shell's and the file tools' calls that need the owner (fence.ts names them), each refusal counted by
 // the command (count.ts) but the plan approval's; in every session it guards the switch, denying a call that switches
-// noask or writes its files. Each of those registrations carries a `.catch` handler that denies in the hook's place.
+// noask or writes its files, and a shell command too complex for the fence's scan to read to its end. Each of those
+// registrations carries a `.catch` handler that denies in the hook's place.
 // The markers are read by marker.ts; every text the module shows is in text.ts. A subagent's turn changes nothing.
 import type {
     CommandRunResult,
@@ -18,7 +19,7 @@ import type {
 } from 'claude-code';
 import type { Budgets, Counter, Spent } from './count';
 import { budgetsOf, countOn } from './count';
-import type { FenceHit } from './fence';
+import type { FenceHit, FenceWhat } from './fence';
 import { configRoots, isPublication, isUnder, placed, shellHits, spelled, startsLikeConfig, stateRoots } from './fence';
 import type { Reading } from './marker';
 import { inTime, isNoask, mayPublish, messageOf, readNoask, sessionIdOf } from './marker';
@@ -39,6 +40,7 @@ import {
     SUBAGENT_TEXT,
     SWITCH_TEXT,
     switchFailedLine,
+    TOO_COMPLEX_TEXT,
     wakeText,
     withCountFailure,
     withError,
@@ -57,6 +59,10 @@ const STATE_DIRECTORY = '.local/state/sdd';
 // What the plugin's options make of the refusals, fixed for this activation: the budgets the count is handed, and
 // whether the fence is on.
 type Fence = { readonly budgets: Budgets; readonly isFenced: boolean };
+
+// What the guard denies in every session, whatever the marker reads and whatever the fence option says: a call that
+// switches noask or writes its files, and a shell command the fence's scan could not read to its end.
+type Guarded = Extract<FenceWhat, 'switching noask' | 'a command too complex to read'>;
 
 // What the typed words ask, after an optional `global`: to switch a marker on or off, or anything else (the status,
 // the bare command, a wrong argument), which the command answers with its own lines whatever its exit.
@@ -284,8 +290,19 @@ async function directoryFor($: Pick<EngineInterface, 'session'>, path: string): 
     return path.startsWith('/') || path === '~' || path.startsWith('~/') ? '/' : $.session.cwd();
 }
 
-function isSwitching(hit: FenceHit): boolean {
-    return hit.what === 'switching noask';
+// The first hit the guard denies, if any.
+function guardedOf(hits: ReadonlyArray<FenceHit>): Guarded | undefined {
+    for (const { what } of hits) {
+        if (what === 'switching noask' || what === 'a command too complex to read') {
+            return what;
+        }
+    }
+    return undefined;
+}
+
+// The guard's own text for what it denies, where the fence's text is not the one given.
+function guardText(what: Guarded): string {
+    return what === 'switching noask' ? SWITCH_TEXT : TOO_COMPLEX_TEXT;
 }
 
 // Under noask the question is refused with the rule text, prefixed, and counted against the question budget.
@@ -308,22 +325,24 @@ async function planDenial($: EngineInterface, fence: Fence, agentId: string | un
     return isNoask(reading) ? answerFor($, fence.budgets, reading, agentId, undefined, PLAN_TEXT) : undefined;
 }
 
-// The guard's denial of a call that switches noask or writes its files: under noask with the fence on, the fence's
-// text and a count; otherwise the switch's own text, counted nowhere.
+// The guard's denial: under noask with the fence on, the fence's text and a count; otherwise the guard's own text for
+// what it denies, counted nowhere.
 async function guardDenial(
     $: EngineInterface,
     fence: Fence,
     reading: Reading,
     agentId: string | undefined,
+    what: Guarded,
 ): Promise<string> {
     return isNoask(reading) && fence.isFenced
-        ? answerFor($, fence.budgets, reading, agentId, 'denial', fenceText('switching noask'))
-        : withError(SWITCH_TEXT, reading);
+        ? answerFor($, fence.budgets, reading, agentId, 'denial', fenceText(what))
+        : withError(guardText(what), reading);
 }
 
-// A shell call: the guard first, on a call any of whose hits switches noask; then, under noask with the fence on, a
-// hit that is no publication denies the whole call with its text, and a call whose hits are all publications passes,
-// uncounted, for the main agent of a session at handsoff and is denied with its first hit's text otherwise.
+// A shell call: the guard first, on a call one of whose hits switches noask or that the scan could not read to its end;
+// then, under noask with the fence on, a hit that is no publication denies the whole call with its text, and a call
+// whose hits are all publications passes, uncounted, for the main agent of a session at handsoff and is denied with its
+// first hit's text otherwise.
 async function shellDenial(
     $: EngineInterface,
     fence: Fence,
@@ -332,8 +351,9 @@ async function shellDenial(
 ): Promise<string | undefined> {
     const reading = await readNoask($);
     const hits = shellHits(command, await homeOf($));
-    if (hits.some(isSwitching)) {
-        return guardDenial($, fence, reading, agentId);
+    const guarded = guardedOf(hits);
+    if (guarded !== undefined) {
+        return guardDenial($, fence, reading, agentId, guarded);
     }
     const [first] = hits;
     if (!isNoask(reading) || !fence.isFenced || first === undefined) {
@@ -361,7 +381,7 @@ async function editDenial(
     const [states, placedPath] = await Promise.all([stateRoots($, home), placed($, spelledPath)]);
     const paths = placedPath === undefined ? [spelledPath] : [spelledPath, placedPath];
     if (paths.some((each) => isUnder(each, states))) {
-        return guardDenial($, fence, reading, agentId);
+        return guardDenial($, fence, reading, agentId, 'switching noask');
     }
     if (!isNoask(reading) || !fence.isFenced) {
         return undefined;
@@ -377,36 +397,36 @@ async function editDenial(
 }
 
 // What the guard names by its words alone, with no file call and no read of a marker: a shell command one of whose
-// hits switches noask, or a path spelled under the state directory as spelled. False when HOME or the session's
-// directory cannot be read, or the scan throws; the handler then goes on to its own reading.
-async function isNamedByGuard(
+// hits switches noask or that the scan could not read to its end, or a path spelled under the state directory as
+// spelled. Undefined when HOME or the session's directory cannot be read; the handler then goes on to its own reading.
+async function namedByGuard(
     $: Pick<EngineInterface, 'env' | 'session'>,
     call: { readonly command: string } | { readonly path: string },
-): Promise<boolean> {
+): Promise<Guarded | undefined> {
     try {
         const home = await homeOf($);
         if ('command' in call) {
-            return shellHits(call.command, home).some(isSwitching);
+            return guardedOf(shellHits(call.command, home));
         }
         const spelledPath = spelled(call.path, home, await directoryFor($, call.path));
-        return isUnder(spelledPath, [spelled(STATE_DIRECTORY, home, home)]);
+        return isUnder(spelledPath, [spelled(STATE_DIRECTORY, home, home)]) ? 'switching noask' : undefined;
     } catch {
-        return false;
+        return undefined;
     }
 }
 
 // The denial of a `.catch` handler for a hook that failed before its call ran. A call the guard names by its words is
-// denied with the switch's own text, whatever the marker reads, since the handler cannot count; otherwise, under noask
-// on the handler's own reading, with the rule text (SUBAGENT_TEXT for an agent) and the failure. Undefined lets the
-// call go on.
+// denied with the guard's own text for it, whatever the marker reads, since the handler cannot count; otherwise, under
+// noask on the handler's own reading, with the rule text (SUBAGENT_TEXT for an agent) and the failure. Undefined lets
+// the call go on.
 async function caughtDenial(
     $: EngineInterface,
     agentId: string | undefined,
     failure: HookFailure,
-    isNamed: boolean,
+    named: Guarded | undefined,
 ): Promise<string | undefined> {
-    if (isNamed) {
-        return SWITCH_TEXT;
+    if (named !== undefined) {
+        return guardText(named);
     }
     const reading = await readNoask($);
     if (!isNoask(reading)) {
@@ -423,12 +443,12 @@ export const register: Register = (on, options) => {
     on('tool.call', { tool: QUESTION_TOOL }, async ($, e, next) =>
         decided(await questionDenial($, fence, e.agentId), () => next(e)),
     ).catch(async ($, e, next) =>
-        next.called ? next(e) : decided(await caughtDenial($, e.agentId, next.error, false), () => next(e)),
+        next.called ? next(e) : decided(await caughtDenial($, e.agentId, next.error, undefined), () => next(e)),
     );
     on('tool.call', { tool: 'ExitPlanMode' }, async ($, e, next) =>
         decided(await planDenial($, fence, e.agentId), () => next(e)),
     ).catch(async ($, e, next) =>
-        next.called ? next(e) : decided(await caughtDenial($, e.agentId, next.error, false), () => next(e)),
+        next.called ? next(e) : decided(await caughtDenial($, e.agentId, next.error, undefined), () => next(e)),
     );
     on('tool.call', { tool: 'Bash' }, async ($, e, next) =>
         decided(await shellDenial($, fence, e.command, e.agentId), () => next(e)),
@@ -436,8 +456,8 @@ export const register: Register = (on, options) => {
         if (next.called) {
             return next(e);
         }
-        const isNamed = await isNamedByGuard($, { command: e.command });
-        return decided(await caughtDenial($, e.agentId, next.error, isNamed), () => next(e));
+        const named = await namedByGuard($, { command: e.command });
+        return decided(await caughtDenial($, e.agentId, next.error, named), () => next(e));
     });
     on('tool.call', { tool: 'Edit' }, async ($, e, next) =>
         decided(await editDenial($, fence, e.file_path, e.agentId), () => next(e)),
@@ -445,8 +465,8 @@ export const register: Register = (on, options) => {
         if (next.called) {
             return next(e);
         }
-        const isNamed = await isNamedByGuard($, { path: e.file_path });
-        return decided(await caughtDenial($, e.agentId, next.error, isNamed), () => next(e));
+        const named = await namedByGuard($, { path: e.file_path });
+        return decided(await caughtDenial($, e.agentId, next.error, named), () => next(e));
     });
     on('tool.call', { tool: 'Write' }, async ($, e, next) =>
         decided(await editDenial($, fence, e.file_path, e.agentId), () => next(e)),
@@ -454,8 +474,8 @@ export const register: Register = (on, options) => {
         if (next.called) {
             return next(e);
         }
-        const isNamed = await isNamedByGuard($, { path: e.file_path });
-        return decided(await caughtDenial($, e.agentId, next.error, isNamed), () => next(e));
+        const named = await namedByGuard($, { path: e.file_path });
+        return decided(await caughtDenial($, e.agentId, next.error, named), () => next(e));
     });
     on('tool.call', { tool: 'NotebookEdit' }, async ($, e, next) =>
         decided(await editDenial($, fence, e.notebook_path, e.agentId), () => next(e)),
@@ -463,8 +483,8 @@ export const register: Register = (on, options) => {
         if (next.called) {
             return next(e);
         }
-        const isNamed = await isNamedByGuard($, { path: e.notebook_path });
-        return decided(await caughtDenial($, e.agentId, next.error, isNamed), () => next(e));
+        const named = await namedByGuard($, { path: e.notebook_path });
+        return decided(await caughtDenial($, e.agentId, next.error, named), () => next(e));
     });
     // `session.start` runs again at every reload of the plugin, so the command is registered there each time; the
     // engine replaces a name registered again, and only a refusal is toasted.

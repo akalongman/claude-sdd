@@ -24,6 +24,7 @@ import {
     SUBAGENT_TEXT,
     SWITCH_TEXT,
     switchFailedLine,
+    TOO_COMPLEX_TEXT,
     WAITING_LINE,
     WAKE_TEXT,
     wakeText,
@@ -120,6 +121,13 @@ test("the refusals' fixed texts are the spec's", async () => {
     );
 });
 
+test("the guard's text for a command too complex to read is the owner's", async () => {
+    expect(TOO_COMPLEX_TEXT).toBe(
+        'the noask guard cannot read this command to its end: it is too long or nested too deep; write it with ' +
+            'less nesting, or split it into shorter commands',
+    );
+});
+
 test("the end-of-turn lines and the text for a turn that waits on nothing are the spec's", async () => {
     expect(WAITING_LINE).toBe('noask: waiting:');
     expect(DONE_LINE).toBe('noask: done');
@@ -189,6 +197,7 @@ test('no exported text holds an em or en dash', async () => {
         'a push other than a plain one',
         'switching noask',
         'an edit under the configuration directory',
+        'a command too complex to read',
     ];
     const composed = [
         ...whats.map((what) => fenceText(what)),
@@ -202,6 +211,7 @@ test('no exported text holds an em or en dash', async () => {
     ];
     const fixed = Object.values(texts).filter((value): value is string => typeof value === 'string');
     expect(fixed).toContain(SWITCH_TEXT);
+    expect(fixed).toContain(TOO_COMPLEX_TEXT);
     expect(fixed.length).toBeGreaterThanOrEqual(15);
     for (const text of [...fixed, ...composed]) {
         expect(/[\u2013\u2014]/.test(text), text).toBe(false);

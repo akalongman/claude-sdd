@@ -1,8 +1,9 @@
 // Every text the sdd module shows the owner or submits to the session, in the spec's words, each listed once: the
 // /noask command as the typeahead lists it, its lines and toasts, the wake-up turn and the rule text that turn
 // carries, and the texts a refused call carries (the question, the plan approval, the fence, the guard on the switch,
-// a spent budget, and what an unreadable marker, a failed count or a failed hook adds); OWNER_ONLY_LINE is the owner's
-// ruling, which the spec's next revision takes up. register.tsx composes them; nothing else writes one.
+// a spent budget, and what an unreadable marker, a failed count or a failed hook adds); OWNER_ONLY_LINE and
+// TOO_COMPLEX_TEXT carry the owner's rulings, which the spec's next revision takes up. register.tsx composes them;
+// nothing else writes one.
 import type { EngineInterface, HookFailure } from 'claude-code';
 import type { Counted, Spent } from './count';
 import type { FenceWhat } from './fence';
@@ -55,6 +56,13 @@ export const SUBAGENT_SPENT_TEXT =
 export const SWITCH_TEXT =
     "the noask switch is the owner's: it is typed as /noask in a session or as noask global in a terminal; do not " +
     'switch it or write its files; `noask` and `noask status` read it';
+
+// The guard's text for a shell command the fence's scan could not read to its end, while the session is not under
+// noask; under noask the fence's text names it. The refusal is the owner's ruling, which the spec's next revision
+// takes up.
+export const TOO_COMPLEX_TEXT =
+    'the noask guard cannot read this command to its end: it is too long or nested too deep; write it with less ' +
+    'nesting, or split it into shorter commands';
 
 // The three lines a turn under noask ends on, and the text for a turn that ends on waiting with nothing of its own
 // running; step two's Stop entry uses them, and they are held equal to the apply skill's reference from this release.

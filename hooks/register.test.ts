@@ -27,6 +27,7 @@ import {
     SUBAGENT_SPENT_TEXT,
     SUBAGENT_TEXT,
     SWITCH_TEXT,
+    TOO_COMPLEX_TEXT,
     WAKE_TEXT,
 } from './text';
 
@@ -1336,6 +1337,35 @@ test("under noask every door to the switch is denied with the fence's text, each
     expect(seen.reached).toEqual(READING_COMMANDS.map((command) => `Bash ${command}`));
 });
 
+// A command the fence's scan cannot read to its end, a push inside 200,000 nested `$(`, deeper than the scan follows
+// within its work limit or its stack: the guard denies it in every session, as it denies a switch, with a text of its
+// own outside noask and the fence's under it. (hooks/fence.test.ts holds the nested `$((` of the review to the limit.)
+const TOO_DEEP = `echo ${'$('.repeat(200_000)}git push${')'.repeat(200_000)}`;
+
+test("outside noask a command too complex to read is denied with the guard's own text, uncounted", async ($, on) => {
+    const seen = scene(on);
+    expect(await call($, shell(TOO_DEEP))).toEqual(denied(TOO_COMPLEX_TEXT));
+    expect(seen.runs).toEqual([]);
+    expect(seen.reached).toEqual([]);
+});
+
+test("under noask a command too complex to read is denied with the fence's text, counted once", async ($, on) => {
+    const seen = scene(on, { files: { [GLOBAL]: MARKER_ON } });
+    expect(await call($, shell(TOO_DEEP))).toEqual(fenced('a command too complex to read'));
+    expect(argsOf(seen)).toEqual([DENIAL_RUN]);
+    expect(seen.reached).toEqual([]);
+});
+
+test(
+    "with the fence off a command too complex to read is denied with the guard's own text, uncounted",
+    { options: { fence: false } },
+    async ($, on) => {
+        const seen = scene(on, { files: { [GLOBAL]: MARKER_ON } });
+        expect(await call($, shell(TOO_DEEP))).toEqual(denied(TOO_COMPLEX_TEXT));
+        expect(seen.runs).toEqual([]);
+    },
+);
+
 for (const [name, files] of [
     ["the session's own marker alone", { [OWN]: MARKER_SESSION }],
     ['the global marker', { [GLOBAL]: MARKER_ON }],
@@ -1678,6 +1708,18 @@ for (const [name, input] of NAMED_BY_THE_GUARD) {
             expect(seen.reached).toEqual([]);
         });
     }
+}
+
+for (const [marker, files] of [
+    ['off', {}],
+    ['on', { [GLOBAL]: MARKER_ON }],
+] as const) {
+    test(`with the marker ${marker} a hook that throws on a command too complex to read gets it`, async ($, on) => {
+        const seen = scene(on, { files, refusedHomeRead: 2 });
+        expect(await call($, shell(TOO_DEEP))).toEqual(denied(TOO_COMPLEX_TEXT));
+        expect(seen.runs).toEqual([]);
+        expect(seen.reached).toEqual([]);
+    });
 }
 
 test('with the marker file never answering, the handler denies once the timer fires', async ($, on) => {

@@ -16,7 +16,106 @@ for (const [index, { command, hits }] of FENCE_ROWS.entries()) {
 }
 
 test('the table holds every record of tests/fence-rows.txt', async () => {
-    expect(FENCE_ROWS).toHaveLength(246);
+    expect(FENCE_ROWS).toHaveLength(253);
+});
+
+// The scan's work. Each nested text is read once per reading, and a command whose reading passes the scan's work limit
+// is too complex to read: one hit of its own, refused by the guard in every session. A hook's .catch handler has 1
+// second, in which it scans the command again after the hook, so each scan below must end in a quarter of it. Each of
+// the review's three nestings doubled or tripled the scan's time with each level before; now a moderate depth is read
+// to its end, and a deep one, past the limit, is refused.
+
+const TOO_COMPLEX: ReadonlyArray<FenceWhat> = ['a command too complex to read'];
+const TIME_BOUND_MS = 250;
+
+// The hits of one call of shellHits, and its time.
+function timed(command: string): { readonly hits: ReadonlyArray<FenceWhat>; readonly ms: number } {
+    const start = performance.now();
+    const hits = shellHits(command, HOME).map(({ what }) => what);
+    return { hits, ms: performance.now() - start };
+}
+
+function nested(wrap: (inner: string) => string, depth: number): string {
+    let text = '$(git push)';
+    for (let level = 0; level < depth; level += 1) {
+        text = wrap(text);
+    }
+    return text;
+}
+
+// A nesting: its name, one level, the whole command around it, a depth read to its end and a depth refused. The limit
+// is spent at 80, 46 and 75 levels.
+type Nesting = readonly [string, (inner: string) => string, (text: string) => string, number, number];
+
+const NESTINGS: ReadonlyArray<Nesting> = [
+    ['$((X))', (inner) => `$((${inner}))`, (text) => `echo ${text}`, 20, 400],
+    ['$(( (( X )) ))', (inner) => `$(( (( ${inner} )) ))`, (text) => `echo ${text}`, 13, 240],
+    ['$((X) )', (inner) => `$((${inner}) )`, (text) => `x=${text}`, 20, 400],
+];
+
+for (const [shape, wrap, whole, readDepth, refusedDepth] of NESTINGS) {
+    test(`${shape} ${readDepth} deep is read to its end, ${refusedDepth} deep is refused, each in time`, async () => {
+        const read = timed(whole(nested(wrap, readDepth)));
+        expect(read.hits).toEqual(['a push']);
+        expect(read.ms).toBeLessThan(TIME_BOUND_MS);
+        const refused = timed(whole(nested(wrap, refusedDepth)));
+        expect(refused.hits).toEqual(TOO_COMPLEX);
+        expect(refused.ms).toBeLessThan(TIME_BOUND_MS);
+    });
+}
+
+// A reading that does not fit (an unclosed $[ or $((, a (( that no )) ends) puts the scan back, which reads the text
+// again another way. A place is read once for each queue it is read with, so such readings nested in each other cost
+// no more than the text's length times their depth; each level doubled the scan's time before.
+const FAILED_READINGS: ReadonlyArray<readonly [string, string]> = [
+    ['an unclosed $[', `echo ${'$[x '.repeat(22)}\ngit push`],
+    ['an unclosed $((', `echo ${'$((x '.repeat(18)}\ngit push`],
+    ['a (( that no )) ends', nested((inner) => `((x $( ${inner} ) ); true)`, 18)],
+];
+
+for (const [name, command] of FAILED_READINGS) {
+    test(`${name}, nested, is read to its end in time`, async () => {
+        const read = timed(command);
+        expect(read.hits).toEqual(['a push']);
+        expect(read.ms).toBeLessThan(TIME_BOUND_MS);
+    });
+}
+
+// Only a word's first `[` can follow a name and open a subscript; testing every later one took time growing with the
+// square of the word.
+test('a word of many brackets after a long name is read in time', async () => {
+    const read = timed(`${'a'.repeat(40_000)}${'['.repeat(40_000)}=x\ngit push`);
+    expect(read.hits).toEqual(['a push']);
+    expect(read.ms).toBeLessThan(TIME_BOUND_MS);
+});
+
+test('a nesting deeper than the scan can follow is refused, never passed', async () => {
+    const deep = timed(`echo ${'$('.repeat(200_000)}git push${')'.repeat(200_000)}`);
+    expect(deep.hits).toEqual(TOO_COMPLEX);
+    expect(deep.ms).toBeLessThan(TIME_BOUND_MS);
+});
+
+// A path's part is matched against a name by a scan that goes back only to the last run of stars: a part of many stars
+// took seconds to match by a backtracking pattern, and one of many brackets made a pattern too large to build.
+test('a path part of many stars or brackets is matched in time', async () => {
+    const stars = '*'.repeat(300);
+    for (const [command, hits] of [
+        [`rm ~/.local/st${stars}Z/x`, []],
+        [`rm ~/.local/st${stars}e/sdd/noask`, ['switching noask']],
+        [`rm /${'['.repeat(40_000)}/x`, []],
+    ] as const) {
+        const matched = timed(command);
+        expect(matched.hits, command.slice(0, 40)).toEqual(hits);
+        expect(matched.ms, command.slice(0, 40)).toBeLessThan(TIME_BOUND_MS);
+    }
+});
+
+test('a long ordinary script, here-document and all, is read to its end', async () => {
+    const line = 'for f in *.txt; do grep -n "$pattern" "$f" | sed -e "s/x/y/" >> "/tmp/out-$(date +%s).log"; done\n';
+    const body = 'some text of a file written through a here-document, with $dollars and `ticks`\n';
+    const script = timed(`${line.repeat(1_000)}cat <<'EOF' > notes.md\n${body.repeat(20_000)}EOF\ngit push`);
+    expect(script.hits).toEqual(['a push']);
+    expect(script.ms).toBeLessThan(TIME_BOUND_MS);
 });
 
 // A (( that is no arithmetic is a subshell in a subshell, read as the spaced ( ( of the table is: a here-document
@@ -63,6 +162,7 @@ test('a push, a pull request and a merge request are publications; every other h
         'a push other than a plain one',
         'switching noask',
         'an edit under the configuration directory',
+        'a command too complex to read',
     ];
     for (const what of publications) {
         expect(isPublication({ what }), what).toBe(true);

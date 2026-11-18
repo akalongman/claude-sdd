@@ -1286,10 +1286,12 @@ noask global off
 ## too for a (( where a command stands that )) ends, which bash reads as
 ## arithmetic, so a (( that names a command is refused. The text read as
 ## commands is a text of its own, so a << in it opens no here-document for
-## the lines after. Whichever reading bash takes, it keeps
-## the here-documents of the line around a $(( apart from those of a
-## substitution inside it, and reads after the line the body of one that
-## substitution left open. An arithmetic for has no reading as commands.
+## the lines after. Whichever reading bash takes, it keeps the
+## here-documents of the line around a $(( or a (( apart from those of a
+## substitution inside it, and reads their bodies in this order: first
+## those that substitutions left open, in the order they were opened (bash
+## reads each as its substitution ends), then those that waited on the
+## line, after the line. An arithmetic for has no reading as commands.
 
 # hits: a push
 # bash: agrees
@@ -1339,4 +1341,92 @@ $(noask global off) ))
 # hits: none
 # bash: agrees
 for ((git push; 0; )); do :; done
+# end
+
+# hits: a push
+# bash: agrees
+: <<A; x=$(( $(: <<B) 1 ))
+echo L1
+B
+echo L2
+A
+git push
+B
+echo L4
+# end
+
+# hits: switching noask
+# bash: agrees
+: <<A; x=$(( $(: <<B) 1 ))
+echo L1
+B
+echo L2
+A
+noask global off
+B
+echo L4
+# end
+
+# hits: a push
+# bash: agrees
+: <<A; x=$(( $(true
+A
+: <<B) 1 ))
+echo L1
+B
+echo L2
+A
+git push
+B
+echo L4
+# end
+
+# hits: none
+# bash: agrees
+: <<A; x=$(( $(: <<B) 1 ))
+echo L1
+A
+echo L2
+B
+git push
+# end
+
+# hits: a push
+# bash: agrees
+: <<A; x=$(( $(: <<B) ) ; (true) )
+echo L1
+B
+echo L2
+A
+git push
+B
+echo L4
+# end
+
+# hits: a push
+# bash: agrees
+: <<A; x=$(( $(: <<B) 1 )); y=$(( $(: <<C) 1 ))
+echo P1
+B
+echo P2
+C
+echo P3
+A
+git push
+C
+echo P5
+B
+echo P6
+A
+echo P7
+# end
+
+# hits: a push
+# bash: agrees
+: <<EOF; (( $(true
+EOF
+) ))
+it's
+EOF
+git push
 # end

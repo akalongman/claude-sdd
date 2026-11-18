@@ -1039,4 +1039,85 @@ $(noask global off) ))`,
         command: `for ((git push; 0; )); do :; done`,
         hits: [],
     },
+    {
+        command: `: <<A; x=$(( $(: <<B) 1 ))
+echo L1
+B
+echo L2
+A
+git push
+B
+echo L4`,
+        hits: ['a push'],
+    },
+    {
+        command: `: <<A; x=$(( $(: <<B) 1 ))
+echo L1
+B
+echo L2
+A
+noask global off
+B
+echo L4`,
+        hits: ['switching noask'],
+    },
+    {
+        command: `: <<A; x=$(( $(true
+A
+: <<B) 1 ))
+echo L1
+B
+echo L2
+A
+git push
+B
+echo L4`,
+        hits: ['a push'],
+    },
+    {
+        command: `: <<A; x=$(( $(: <<B) 1 ))
+echo L1
+A
+echo L2
+B
+git push`,
+        hits: [],
+    },
+    {
+        command: `: <<A; x=$(( $(: <<B) ) ; (true) )
+echo L1
+B
+echo L2
+A
+git push
+B
+echo L4`,
+        hits: ['a push'],
+    },
+    {
+        command: `: <<A; x=$(( $(: <<B) 1 )); y=$(( $(: <<C) 1 ))
+echo P1
+B
+echo P2
+C
+echo P3
+A
+git push
+C
+echo P5
+B
+echo P6
+A
+echo P7`,
+        hits: ['a push'],
+    },
+    {
+        command: `: <<EOF; (( $(true
+EOF
+) ))
+it's
+EOF
+git push`,
+        hits: ['a push'],
+    },
 ];
