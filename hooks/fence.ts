@@ -43,14 +43,19 @@ type Redirection = { readonly operator: string; readonly target: Word | undefine
 // A simple command as the scan collects it, with the hits of the substitutions written in it.
 type SimpleCommand = { readonly words: Word[]; readonly redirections: Redirection[]; readonly inner: FenceWhat[] };
 
-// A here-document opened on the current line: its body starts at the line's end.
-type Pending = { readonly delimiter: string; readonly isTabStripped: boolean };
+// A here-document opened on the current line: its body starts at the line's end. `isLeftOpen` marks one that a
+// substitution inside a double parenthesis opened and left open, in a text where that is no refusal: bash reads its
+// body as that substitution ends, so before the bodies of the line's own here-documents.
+type Pending = { readonly delimiter: string; readonly isTabStripped: boolean; readonly isLeftOpen: boolean };
+
+// The hits of the texts read as texts of their own, each kept by its text.
+type Texts = Map<string, ReadonlyArray<FenceWhat>>;
 
 // The work of one call of shellHits, shared by every scanner of the call: the steps taken, which WORK_LIMIT bounds;
-// whether a substitution closed on a here-document it opened and left open, which stays set whatever reading found it;
-// and the hits of each text read as a text of its own, kept by the text, so that a text nested in several readings is
-// read once.
-type Run = { steps: number; isLeftOpen: boolean; readonly texts: Map<string, ReadonlyArray<FenceWhat>> };
+// whether a watched substitution closed on a here-document it opened and left open, which stays set whatever reading
+// found it; and the hits of each text read as a text of its own, kept by the way it was read, watched or not, and
+// then by the text, so that a text nested in several readings is read once for each way.
+type Run = { steps: number; isLeftOpen: boolean; readonly watched: Texts; readonly unwatched: Texts };
 
 // What a reading of arithmetic on the scan's own place came to, kept by its place, its opening and the queue it found,
 // so that a place read again is not read again: whether it closed, where the scan then stood, its substitutions' hits,
@@ -63,11 +68,13 @@ type Arithmetic = {
 };
 
 // The scan's place in a text, which it moves, the here-documents waiting for the line's end, the call's work, and the
-// readings of arithmetic made in this text. `isOwnText` marks a text read as a text of its own, which bash reads from
-// a string as it expands the word: a here-document left open in it ends with the text and takes no line after it.
+// readings of arithmetic made in this text. `isWatched` says whether a substitution in this text that closes on a
+// here-document it opened and left open is a refusal (scanList): so in the command's own text and in a backtick
+// substitution's text, which bash runs as commands wherever it stands; not in the text of a double parenthesis read as
+// commands, which is arithmetic to bash more often than not, nor in a backtick substitution's text inside that one.
 type Scanner = {
     readonly text: string;
-    readonly isOwnText: boolean;
+    readonly isWatched: boolean;
     index: number;
     readonly pending: Pending[];
     readonly run: Run;
@@ -210,8 +217,8 @@ function charAt(scanner: Scanner, offset: number): string {
     return scanner.text.charAt(scanner.index + offset);
 }
 
-function scannerOf(text: string, run: Run, isOwnText: boolean): Scanner {
-    return { text, isOwnText, index: 0, pending: [], run, arithmetic: new Map() };
+function scannerOf(text: string, run: Run, isWatched: boolean): Scanner {
+    return { text, isWatched, index: 0, pending: [], run, arithmetic: new Map() };
 }
 
 // Counts steps of the call's work.
@@ -328,26 +335,31 @@ function readAnsiC(scanner: Scanner, chars: Char[]): void {
     }
 }
 
-// The hits of a text read as a text of its own, with a queue of its own, read once in a call: a backtick
-// substitution's text, and the text of a double parenthesis read as commands. Its hits depend on the text alone. Bash
-// reads such a text from a string, so a here-document left open in it, by a substitution too, ends with the text (and
-// a shift of an arithmetic text, read as an opener here, is nothing to refuse).
-function textHits(text: string, run: Run, places: Places): ReadonlyArray<FenceWhat> {
+// The hits of a text read as a text of its own, with a queue of its own: a backtick substitution's text, and the text
+// of a double parenthesis read as commands. Bash reads such a text from a string, so a here-document that the text
+// itself leaves open ends with the text; one that a substitution in it leaves open takes its body from the text's next
+// lines, as on the command's own text. So a backtick substitution's text is watched as the text that holds it is
+// (`isWatched`), and the text of a double parenthesis never is: a shift of an arithmetic text reads here as an opener,
+// behind a comparison as one that a process substitution leaves open (`n<(1<<10)`), and is nothing to refuse. The
+// hits depend on the text alone, but only a watched reading marks the call, so a text is read once in a call for each
+// of the two ways: a reading kept from one way is never given back for the other.
+function textHits(text: string, run: Run, places: Places, isWatched: boolean): ReadonlyArray<FenceWhat> {
     if (!isWithinLimit(run, text.length)) {
         return [];
     }
-    const known = run.texts.get(text);
+    const texts = isWatched ? run.watched : run.unwatched;
+    const known = texts.get(text);
     if (known !== undefined) {
         spend(run, known.length);
         return known;
     }
-    const hits = scanList(scannerOf(text, run, true), 'end', places);
-    run.texts.set(text, hits);
+    const hits = scanList(scannerOf(text, run, isWatched), 'end', places);
+    texts.set(text, hits);
     return hits;
 }
 
 // Reads a backtick substitution and returns its hits: its text, with the backslashes bash removes inside it removed,
-// is read as a text of its own.
+// is read as a text of its own, watched as the text it stands in is.
 function readBackticks(scanner: Scanner, isInDouble: boolean, places: Places): ReadonlyArray<FenceWhat> {
     let inner = '';
     scanner.index += 1;
@@ -366,7 +378,7 @@ function readBackticks(scanner: Scanner, isInDouble: boolean, places: Places): R
         }
         inner += char;
     }
-    return textHits(inner, scanner.run, places);
+    return textHits(inner, scanner.run, places, scanner.isWatched);
 }
 
 // Reads a parameter expansion `${...}`, its text kept as quoted characters, the hits of the substitutions inside it
@@ -478,21 +490,34 @@ function bothReadings(commands: ReadonlyArray<FenceWhat>, arithmetic: ReadonlyAr
     return [...commands, ...added];
 }
 
-// After a reading of a double parenthesis on the scan's own place, puts back the here-documents that waited before it.
-// Bash reads their bodies after the line; the scan's substitutions share the queue, and one inside the double
-// parenthesis that spans a line end has read them there. Nothing else can wait now: a here-document opened inside is
-// opened by a substitution, and one that a substitution leaves open is a refusal (scanList), whatever the queue holds.
+// After a reading of a double parenthesis on the scan's own place, puts the queue in bash's order: the here-documents
+// that a double parenthesis before it on the line left open, then those this one left open, then the line's own that
+// waited before it. Bash reads the body of a here-document that a substitution left open as that substitution ends,
+// and the line's own after the line. The scan's substitutions share the queue, and one inside the double parenthesis
+// that spans a line end has read the line's bodies there: those are put back. A here-document opened inside is opened
+// by a substitution there and is never dropped. In a watched text it makes the call a refusal (scanList), whatever
+// the queue holds; in the text of a double parenthesis read as commands it is none, and when bash runs that text as
+// commands it takes the body from the text's next lines, so the scan must as well.
 function requeued(scanner: Scanner, mark: Mark): void {
-    spend(scanner.run, mark.pending.length);
-    scanner.pending.splice(0, scanner.pending.length, ...mark.pending);
+    if (mark.pending.length === 0 && scanner.pending.length === 0) {
+        return;
+    }
+    spend(scanner.run, mark.pending.length + scanner.pending.length);
+    const waited = new Set(mark.pending);
+    const opened = scanner.pending
+        .filter((pending) => !waited.has(pending))
+        .map((pending) => ({ ...pending, isLeftOpen: true }));
+    const leftBefore = mark.pending.filter(({ isLeftOpen }) => isLeftOpen);
+    const own = mark.pending.filter(({ isLeftOpen }) => !isLeftOpen);
+    scanner.pending.splice(0, scanner.pending.length, ...leftBefore, ...opened, ...own);
 }
 
 // Reads a `$((`, from its `$`, and adds its hits to `sink`. Bash reads the text from `$(` to the `)` that matches it
 // as a pair, then evaluates it as arithmetic or runs it as a command substitution by a test of that text. The scan
 // makes no such test and keeps the hits of both readings: the arithmetic one's, read on the scan's own place, and
-// those of the text read as a text of its own, as a command substitution is (`$((1+2)*(3))`, `$((git push) )`).
-// Whichever reading bash takes, it reads the bodies of the line's own here-documents after the line. One that does
-// not close is read as `$(` is.
+// those of the text read as a text of its own, unwatched, as a command substitution is (`$((1+2)*(3))`,
+// `$((git push) )`). Whichever reading bash takes, it reads the bodies of the line's own here-documents after the
+// line, and those a substitution inside left open before them. One that does not close is read as `$(` is.
 function readArithmeticExpansion(scanner: Scanner, sink: FenceWhat[], places: Places): void {
     scanner.index += 2;
     const mark = markOf(scanner);
@@ -504,7 +529,7 @@ function readArithmeticExpansion(scanner: Scanner, sink: FenceWhat[], places: Pl
     }
     requeued(scanner, mark);
     const text = scanner.text.slice(mark.index, scanner.index - 1);
-    sink.push(...bothReadings(textHits(text, scanner.run, places), arithmetic, scanner.run));
+    sink.push(...bothReadings(textHits(text, scanner.run, places, false), arithmetic, scanner.run));
 }
 
 // Reads a `$[...]`, bash's older arithmetic expansion, from its `$`: its substitutions' hits are added to `sink` and
@@ -546,8 +571,8 @@ function readSubscript(scanner: Scanner, chars: Char[], sink: FenceWhat[], place
 // Reads an arithmetic command, from its first `(`: the text to the `)` that matches the second `(`, which a second `)`
 // must follow, as bash reads one where a reserved word may stand. Bash evaluates it as arithmetic; the scan adds to
 // `sink` the hits of that reading, its substitutions', and of a reading as commands too, the text inside the outer
-// pair read as a text of its own (so `((git push))` is a push). An arithmetic for (`isForLoop`) has no reading as
-// commands. The line's own here-documents are then put back, as after a `$((`. Returns false, the scan put back where
+// pair read as a text of its own, unwatched (so `((git push))` is a push). An arithmetic for (`isForLoop`) has no
+// reading as commands. The queue is then put in bash's order, as after a `$((`. Returns false, the scan put back where
 // it stood, when no `))` ends it there: bash then reads a subshell in a subshell (`((echo a); git push)`).
 function readArithmeticCommand(scanner: Scanner, sink: FenceWhat[], places: Places, isForLoop: boolean): boolean {
     const mark = markOf(scanner);
@@ -560,7 +585,7 @@ function readArithmeticCommand(scanner: Scanner, sink: FenceWhat[], places: Plac
     scanner.index += 1;
     requeued(scanner, mark);
     const text = scanner.text.slice(mark.index + 1, scanner.index - 1);
-    const commands = isForLoop ? [] : textHits(text, scanner.run, places);
+    const commands = isForLoop ? [] : textHits(text, scanner.run, places, false);
     sink.push(...bothReadings(commands, arithmetic, scanner.run));
     return true;
 }
@@ -745,7 +770,7 @@ function readRedirection(scanner: Scanner, command: SimpleCommand, places: Place
         command.redirections.push({ operator, target: undefined });
     } else if (HERE_DOCUMENTS.has(operator)) {
         const delimiter = quoteRemoved(readWord(scanner, [], places).raw);
-        scanner.pending.push({ delimiter, isTabStripped: operator === '<<-' });
+        scanner.pending.push({ delimiter, isTabStripped: operator === '<<-', isLeftOpen: false });
     } else {
         command.redirections.push({ operator, target: readWord(scanner, command.inner, places) });
     }
@@ -811,13 +836,16 @@ function arithmeticPlace(command: SimpleCommand, run: Run): 'command' | 'for' | 
 // A list that a `)` or a `}` closes is a substitution's (`$(`, `<(`, `>(`, `${ ...; }`), and it shares the scan's
 // queue. When it closes on a here-document that it opened itself and whose body it has not read, bash warns and takes
 // that body from the lines after the close, before the bodies of the line's own here-documents. The scan does not
-// follow that order: it marks the call (`close`), and shellHits answers LEFT_OPEN alone. A here-document that waited
-// when the substitution began is the line's own and is no mark; neither is one left open in a text read as a text of
-// its own, nor one in a substitution that the text's end cuts short.
+// follow that order: in a watched text (the command's own, and a backtick substitution's there) it marks the call
+// (`close`), and shellHits answers LEFT_OPEN alone. A here-document that waited when the substitution began is the
+// line's own and is no mark; neither is one in a substitution that the text's end cuts short, nor one that a text read
+// as a text of its own leaves open at its end. In the text of a double parenthesis read as commands nothing is
+// watched: the here-document stays in the queue, in the order it was opened in (after a double parenthesis inside
+// that text, in the order `requeued` gives).
 function scanList(scanner: Scanner, closer: Closer, places: Places): FenceWhat[] {
     const hits: FenceWhat[] = [];
     const open: Array<'parenthesis' | 'case'> = [];
-    const isWatched = closer !== 'end' && !scanner.isOwnText && isScanning(scanner, scanner.pending.length);
+    const isWatched = closer !== 'end' && scanner.isWatched && isScanning(scanner, scanner.pending.length);
     const waited: ReadonlySet<Pending> | undefined = isWatched ? new Set(scanner.pending) : undefined;
     let command = newCommand();
     let braces = 0;
@@ -1297,9 +1325,9 @@ function placesOf(home: string): Places {
 // WORK_LIMIT, or it threw, as a nesting deeper than the stack holds does. One read to its end in which a substitution
 // left a here-document open is LEFT_OPEN alone. The work and the readings kept live for this call only.
 function hitsOfAll(command: string, home: string): ReadonlyArray<FenceWhat> {
-    const run: Run = { steps: 0, isLeftOpen: false, texts: new Map() };
+    const run: Run = { steps: 0, isLeftOpen: false, watched: new Map(), unwatched: new Map() };
     try {
-        const hits = scanList(scannerOf(command, run, false), 'end', placesOf(home));
+        const hits = scanList(scannerOf(command, run, true), 'end', placesOf(home));
         if (isSpent(run)) {
             return [TOO_COMPLEX];
         }

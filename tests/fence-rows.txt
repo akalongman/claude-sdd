@@ -1442,12 +1442,20 @@ git push
 ## whose body it has not read, bash warns ("unterminated here-document") and
 ## takes that body from the lines after the close, before the bodies of the
 ## line's own here-documents. The scan does not follow that order: it
-## refuses to read such a command, whatever bash goes on to run. No refusal:
-## a here-document opened outside the substitution, which is the line's
-## own; one whose body the substitution holds; one left open in a backtick
-## substitution, which ends with the backtick's text in bash too; and a
-## shift of an arithmetic text, which is an opener only in that text's
-## reading as commands.
+## refuses to read such a command, whatever bash goes on to run. So too
+## inside a backtick substitution's text, which bash runs as commands
+## wherever it stands, taking such a body from the next lines of that text.
+## No refusal: a here-document opened outside the substitution, which is
+## the line's own, in a backtick substitution's text as well; one whose
+## body the substitution holds; one that a backtick substitution's own text
+## leaves open, which ends with that text in bash too; and a shift of an
+## arithmetic text, which is an opener only in that text's reading as
+## commands. Nothing is refused inside a text read that way, a $(( that
+## bash runs as a command substitution included. There the scan keeps a
+## here-document that a substitution leaves open, and after a $(( or a ((
+## inside that text it reads the bodies in bash's order: first those that
+## substitutions left open, in the order they were opened, then those that
+## waited on the line (the last two records).
 
 # hits: a here-document left open by a substitution
 # bash: differs: not read (a substitution leaves a here-document open; bash ran the switch)
@@ -1549,8 +1557,8 @@ x=`: <<B`
 git push
 # end
 
-# hits: a push
-# bash: agrees
+# hits: a here-document left open by a substitution
+# bash: differs: not read (a substitution leaves a here-document open; bash ran the push)
 x=`echo $(: <<B)`
 git push
 # end
@@ -1564,4 +1572,74 @@ git push
 # hits: a push
 # bash: agrees
 if (( n<(1<<10) )); then git push; fi
+# end
+
+# hits: a here-document left open by a substitution
+# bash: differs: not read (a substitution leaves a here-document open; bash ran the push)
+z=`y=$(( $(: <<C) 1 ))
+it's
+C
+git push`
+# end
+
+# hits: a here-document left open by a substitution
+# bash: differs: not read (a substitution leaves a here-document open; bash ran the switch)
+z=`y=$(( $(: <<C) 1 ))
+it's
+C
+noask global off`
+# end
+
+# hits: a here-document left open by a substitution
+# bash: differs: not read (a substitution leaves a here-document open; bash ran the push)
+z=`: <<A; x=$( $(: <<B) )
+echo L1
+B
+echo L2
+A
+git push
+B
+echo L4`
+# end
+
+# hits: switching noask
+# bash: agrees
+z=`: <<A; x=$(echo hi)
+git push
+A
+noask global off`
+# end
+
+# hits: a push
+# bash: agrees
+x=$((echo a <<E
+it's
+E
+y=$(( $(: <<C) 1 ))
+it's
+C
+git push
+) )
+# end
+
+# hits: a push
+# bash: agrees
+x=$((echo a <<E
+it's
+E
+: <<A; x=$(( $(: <<B) 1 )); y=$(( $(: <<C) 1 ))
+echo P1
+B
+echo P2
+C
+it's P3
+A
+git push
+C
+echo P5
+B
+echo P6
+A
+echo P7
+) )
 # end

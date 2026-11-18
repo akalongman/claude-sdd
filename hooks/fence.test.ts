@@ -16,7 +16,7 @@ for (const [index, { command, hits }] of FENCE_ROWS.entries()) {
 }
 
 test('the table holds every record of tests/fence-rows.txt', async () => {
-    expect(FENCE_ROWS).toHaveLength(267);
+    expect(FENCE_ROWS).toHaveLength(273);
 });
 
 // The scan's work. Each nested text is read once per reading, and a command whose reading passes the scan's work limit
@@ -164,7 +164,9 @@ test('a long list of paths is judged to its end', async () => {
 // A here-document left open by a substitution. A substitution that closes on a here-document it opened, its body not
 // read, makes bash take that body from the lines after the close, before the bodies of the line's own here-documents.
 // The scan does not follow that order and refuses to read the command: one hit of its own, alone, whatever else the
-// command holds. (tests/fence-rows.txt holds the shapes bash was run on; these are the forms beside them.)
+// command holds. A backtick substitution's text is run as commands wherever it stands, so the substitutions in it are
+// watched as those of the command's own text are, in every place a backtick substitution can stand.
+// (tests/fence-rows.txt holds the shapes bash was run on; these are the forms beside them.)
 const LEFT_OPEN: ReadonlyArray<FenceWhat> = ['a here-document left open by a substitution'];
 const LEFT_OPEN_FORMS: ReadonlyArray<readonly [string, string]> = [
     ['a command substitution', 'x=$(cat <<B)'],
@@ -185,6 +187,22 @@ const LEFT_OPEN_FORMS: ReadonlyArray<readonly [string, string]> = [
     ['a <<- opener', 'x=$(cat <<-B)'],
     ['a substitution that read one body and left another open', 'x=$(cat <<A\na\nA\ncat <<B)'],
     ['one opened after a line end inside', 'x=$(true\ncat <<B)'],
+    ['a substitution in a backtick substitution', 'x=`echo $(cat <<B)`'],
+    ['a substitution in a backtick substitution in double quotes', 'echo "`echo $(cat <<B)`"'],
+    ['a process substitution in a backtick substitution', 'x=`diff <(cat <<B) a`'],
+    ['a ${ ...; } substitution in a backtick substitution', 'x=`y=${ cat <<B; }`'],
+    ['a substitution in a $(( in a backtick substitution', 'x=`y=$(( $(cat <<B) 1 ))`'],
+    ['a substitution in a (( in a backtick substitution', 'x=`(( $(cat <<B) 1 ))`'],
+    ['a substitution in a backtick substitution in a backtick substitution', 'x=`echo \\`echo $(cat <<B)\\``'],
+    ['a substitution in a backtick substitution in a substitution', 'x=$(echo `echo $(cat <<B)`)'],
+    ['a substitution in a backtick substitution in a $((', 'x=$(( `echo $(cat <<B)` + 1 ))'],
+    ['a substitution in a backtick substitution in a $[', 'x=$[ `echo $(cat <<B)` ]'],
+    [
+        'a substitution in a backtick substitution in an arithmetic for',
+        'for (( i = `echo $(cat <<B)`; ; )); do :; done',
+    ],
+    ['a substitution in a backtick substitution in a subscript', 'a[`echo $(cat <<B)`]=x'],
+    ['a substitution in a backtick substitution in a parameter expansion', 'x=${y:-`echo $(cat <<B)`}'],
 ];
 
 for (const [name, opening] of LEFT_OPEN_FORMS) {
@@ -198,10 +216,11 @@ for (const [name, opening] of LEFT_OPEN_FORMS) {
 }
 
 // What is no refusal, each with the hits it had before: a here-document opened outside the substitution, which is the
-// line's own, also when the substitution spans the line's end; one whose body the substitution holds; one left open in
-// a text read as a text of its own, a backtick substitution's, which ends with that text in bash too; a shift of an
-// arithmetic text, an opener only in that text's reading as commands, also where a comparison before it reads there
-// as a process substitution; a here-string; and a substitution that the command's end cuts short.
+// line's own, also when the substitution spans the line's end; one whose body the substitution holds; one that a
+// backtick substitution's own text leaves open, which ends with that text in bash too, and in that text the line's
+// own, a body inside a substitution and a shift, as on the command's own text; a shift of an arithmetic text, an
+// opener only in that text's reading as commands, also where a comparison before it reads there as a process
+// substitution; a here-string; and a substitution that the command's end cuts short.
 const NOT_LEFT_OPEN: ReadonlyArray<readonly [string, ReadonlyArray<FenceWhat>]> = [
     [': <<A; x=$(echo hi)\ngit push\nA\nnoask global off', ['switching noask']],
     ['cat <<A <<B; x=$(echo hi)\ngit push\nA\ngit push\nB\nnoask global off', ['switching noask']],
@@ -209,8 +228,13 @@ const NOT_LEFT_OPEN: ReadonlyArray<readonly [string, ReadonlyArray<FenceWhat>]> 
     ['x=$(cat <<B\ngit push\nB\n); noask global off', ['switching noask']],
     ['git commit -m "$(cat <<\'EOF\'\nA title\n\nIts body.\nEOF\n)"\ngit push', ['a push']],
     ['x=`cat <<B`\ngit push', ['a push']],
-    ['x=`echo $(cat <<B)`\ngit push', ['a push']],
-    ['echo "`echo $(cat <<B)`"\ngit push', ['a push']],
+    ['x=`cat <<B\ngit push\nB\nnoask global off`', ['switching noask']],
+    ['z=`: <<A; x=$(echo hi)\ngit push\nA\nnoask global off`', ['switching noask']],
+    ['x=`y=$(cat <<B\ngit push\nB\n); noask global off`', ['switching noask']],
+    ['x=`echo $((1<<2))`\ngit push', ['a push']],
+    ['y=`echo $(( n<(1<<10) ))`; git push', ['a push']],
+    ['w=`if (( n<(1<<10) )); then git push; fi`', ['a push']],
+    ['x=$(( `echo $((1<<2))` + n<(1<<10) ))\ngit push', ['a push']],
     ['echo $((1<<2))\ngit push', ['a push']],
     ['x=$(( n<(1<<10) ))\ngit push', ['a push']],
     ['x=$(( n>(1<<10) ))\ngit push', ['a push']],
@@ -229,6 +253,75 @@ for (const [command, hits] of NOT_LEFT_OPEN) {
         expect(shellHits(command, HOME).map(({ what }) => what)).toEqual(hits);
     });
 }
+
+// A backtick substitution's text that holds line ends. Bash reads it from a string and takes the body of a
+// here-document that a substitution in it left open from the next lines of that text, in the order it keeps on the
+// command's own text. Read unwatched, such a here-document was dropped after a double parenthesis, so a body line with
+// one apostrophe swallowed the line bash runs, and beside the text's own here-document the bodies were read in an
+// order that is not bash's. Each is refused, in double quotes too, with a push or a switch after the body.
+const IN_BACKTICKS: ReadonlyArray<readonly [string, string]> = [
+    ['a $(( in the text', "z=`y=$(( $(: <<C) 1 ))\nit's\nC\ngit push`"],
+    ['a $(( in the text, in double quotes', 'z="`y=$(( $(: <<C) 1 ))\nit\'s\nC\ngit push`"'],
+    ['a (( in the text', "z=`(( $(: <<C) 1 ))\nit's\nC\ngit push`"],
+    ['a $(( in the text, a switch after the body', "z=`y=$(( $(: <<C) 1 ))\nit's\nC\nnoask global off`"],
+    [
+        "a substitution in a substitution beside the text's own here-document",
+        'z=`: <<A; x=$( $(: <<B) )\necho L1\nB\necho L2\nA\ngit push\nB\necho L4`',
+    ],
+    [
+        "a substitution beside the text's own here-document",
+        'z=`: <<A; x=$(: <<B)\necho L1\nB\necho L2\nA\ngit push\nB\necho L4`',
+    ],
+];
+
+for (const [name, command] of IN_BACKTICKS) {
+    test(`in a backtick substitution's text of several lines, ${name} is refused`, async () => {
+        expect(timed(command).hits).toEqual(LEFT_OPEN);
+        expect(timed(`${command}\necho done`).hits).toEqual(LEFT_OPEN);
+    });
+}
+
+// A text read on its own is kept for the call by the way it was read as well as by its text, since only a watched
+// reading marks the call. Here one text stands twice as a backtick substitution's: inside the text of a $(( read as
+// commands, where nothing is watched (the apostrophe in the here-document's body and the one in the comment hide it
+// from the arithmetic reading on the command's own text), and on a line of the command's own, in either order. Alone,
+// the hidden one is no refusal: what a double parenthesis read as commands is spared reaches every text inside it.
+test("a text read unwatched is read again, watched, where it is a backtick substitution's text", async () => {
+    const hidden = "x=$((echo a <<E\nit's\nE\n: `: $(: <<C)`\n# it's\n) )";
+    const shown = 'z=`: $(: <<C)`';
+    expect(timed(`${hidden}\n${shown}\ngit push`).hits).toEqual(LEFT_OPEN);
+    expect(timed(`${shown}\n${hidden}\ngit push`).hits).toEqual(LEFT_OPEN);
+    expect(timed(`${hidden}\ngit push`).hits).toEqual(['a push']);
+});
+
+// The text of a double parenthesis read as commands stays unwatched, and a here-document that a substitution leaves
+// open in it is kept, never dropped: after a $(( or a (( inside that text the queue is put in bash's order, first the
+// here-documents that substitutions left open, in the order they were opened, then those that waited on the line.
+// Each command is a $(( that bash runs as a command substitution, its inside hidden from the arithmetic reading by the
+// apostrophes of two bodies. Bash ran the push of the first two (tests/fence-rows.txt holds them against it) and of
+// the third, the second without the line's own here-document; the fourth is a backtick substitution inside such a
+// text, which is unwatched with it (the backtick in the comment pairs with the substitution's last one in the
+// arithmetic reading, where the first stands inside the quote).
+test('in a double parenthesis read as commands a here-document left open is kept, in its order', async () => {
+    const open = "x=$((echo a <<E\nit's\nE\n";
+    expect(timed(`${open}y=$(( $(: <<C) 1 ))\nit's\nC\ngit push\n) )`).hits).toEqual(['a push']);
+    const two = ': <<A; x=$(( $(: <<B) 1 )); y=$(( $(: <<C) 1 ))';
+    const bodies = "echo P1\nB\necho P2\nC\nit's P3\nA\ngit push\nC\necho P5\nB\necho P6\nA\necho P7";
+    expect(timed(`${open}${two}\n${bodies}\n) )`).hits).toEqual(['a push']);
+    const alone = "x=$(( $(: <<B) 1 )); y=$(( $(: <<C) 1 ))\necho P1\nB\nit's P2\nC\ngit push";
+    expect(timed(`${open}${alone}\n) )`).hits).toEqual(['a push']);
+    expect(timed(`${open}z=\`y=$(( $(: <<C) 1 ))\nit's\nC\ngit push\`\n# \`\n) )`).hits).toEqual(['a push']);
+});
+
+// The stated limit of that text, pinned so that a change of it shows: a plain substitution there that leaves a
+// here-document open beside the line's own keeps the order they were opened in, which is not bash's, and the push
+// that bash runs is not named. On the command's own text and in a backtick substitution's the same lines are refused.
+test('in a double parenthesis read as commands a plain substitution keeps the order of opening', async () => {
+    const lines = ": <<A; echo $(: <<B)\necho L1\nB\nit's L2\nA\ngit push\nB\necho L4";
+    expect(timed(`x=$((echo a <<E\nit's\nE\n${lines}\n) )`).hits).toEqual([]);
+    expect(timed(lines).hits).toEqual(LEFT_OPEN);
+    expect(timed(`z=\`${lines}\``).hits).toEqual(LEFT_OPEN);
+});
 
 // A (( that is no arithmetic is a subshell in a subshell, read as the spaced ( ( is. The arithmetic reading that did
 // not fit read the line's here-document at the line end inside its substitution; the reading that follows finds that

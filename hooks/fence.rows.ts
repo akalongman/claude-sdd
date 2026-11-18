@@ -1212,7 +1212,7 @@ git push`,
     {
         command: `x=\`echo $(: <<B)\`
 git push`,
-        hits: ['a push'],
+        hits: ['a here-document left open by a substitution'],
     },
     {
         command: `x=$(( n<(1<<10) ))
@@ -1221,6 +1221,70 @@ git push`,
     },
     {
         command: `if (( n<(1<<10) )); then git push; fi`,
+        hits: ['a push'],
+    },
+    {
+        command: `z=\`y=$(( $(: <<C) 1 ))
+it's
+C
+git push\``,
+        hits: ['a here-document left open by a substitution'],
+    },
+    {
+        command: `z=\`y=$(( $(: <<C) 1 ))
+it's
+C
+noask global off\``,
+        hits: ['a here-document left open by a substitution'],
+    },
+    {
+        command: `z=\`: <<A; x=$( $(: <<B) )
+echo L1
+B
+echo L2
+A
+git push
+B
+echo L4\``,
+        hits: ['a here-document left open by a substitution'],
+    },
+    {
+        command: `z=\`: <<A; x=$(echo hi)
+git push
+A
+noask global off\``,
+        hits: ['switching noask'],
+    },
+    {
+        command: `x=$((echo a <<E
+it's
+E
+y=$(( $(: <<C) 1 ))
+it's
+C
+git push
+) )`,
+        hits: ['a push'],
+    },
+    {
+        command: `x=$((echo a <<E
+it's
+E
+: <<A; x=$(( $(: <<B) 1 )); y=$(( $(: <<C) 1 ))
+echo P1
+B
+echo P2
+C
+it's P3
+A
+git push
+C
+echo P5
+B
+echo P6
+A
+echo P7
+) )`,
         hits: ['a push'],
     },
 ];
