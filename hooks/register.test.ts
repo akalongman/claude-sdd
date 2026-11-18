@@ -2,6 +2,7 @@ import type {
     CommandSpec,
     On,
     ProcessRunInit,
+    PromptOrigin,
     PromptSubmitInput,
     SessionMessage,
     TurnCompleteInput,
@@ -132,17 +133,31 @@ const HISTORY: ReadonlyArray<SessionMessage> = [
 
 // What the world beneath the plugin answers. Absent: the registration succeeds, the session's id is s-1, the command
 // answers as noaskReply does, the transcript holds HISTORY, the rule file holds RULE_FILE_TEXT, `$.state` is the kit's
-// and every submission enters. `rule: 'hang'` is a read that never answers; `submit: 'reject'` a submission that
-// rejects; `turn: 'deny'` refuses `$.state.get`.
+// and every submission enters. `messages` as a function is asked at each read of the transcript, and answers when what
+// it returns does; `rule: 'hang'` is a read that never answers, and a promise one that answers when the test settles
+// it; `turn: 'deny'` refuses `$.state.get`, and a function is asked at each read of the turn and answers when what it
+// returns does; `submit: 'reject'` is a submission that rejects.
 type World = {
     readonly register?: 'deny';
     readonly id?: string | Error;
     readonly reply?: Reply;
-    readonly messages?: ReadonlyArray<SessionMessage> | 'deny';
-    readonly rule?: string | 'deny' | 'hang';
-    readonly turn?: 'deny';
+    readonly messages?:
+        | ReadonlyArray<SessionMessage>
+        | 'deny'
+        | (() => ReadonlyArray<SessionMessage> | Promise<ReadonlyArray<SessionMessage>>);
+    readonly rule?: string | 'deny' | 'hang' | Promise<string>;
+    readonly turn?: 'deny' | (() => string | Promise<string>);
     readonly submit?: 'drop' | 'reject';
 };
+
+// A promise the test settles itself: an answer of the world beneath that comes late, or never.
+function deferred<T>(): { readonly promise: Promise<T>; readonly resolve: (value: T) => void } {
+    let resolve: (value: T) => void = () => undefined;
+    const promise = new Promise<T>((settle) => {
+        resolve = settle;
+    });
+    return { promise, resolve };
+}
 
 type Run = { readonly argv: ReadonlyArray<string>; readonly init: ProcessRunInit | undefined };
 
@@ -186,18 +201,26 @@ function stage(on: On, world: World = {}): Stage {
             ? { deny: reply.message }
             : { value: { ...reply, isStdoutTruncated: false, isStderrTruncated: false } };
     });
-    on('session.messages', () =>
-        world.messages === 'deny'
-            ? { deny: 'no transcript in this test' }
-            : { value: [...(world.messages ?? HISTORY)] },
-    );
-    if (world.turn === 'deny') {
+    on('session.messages', async () => {
+        if (world.messages === 'deny') {
+            return { deny: 'no transcript in this test' };
+        }
+        const messages = typeof world.messages === 'function' ? await world.messages() : (world.messages ?? HISTORY);
+        return { value: [...messages] };
+    });
+    const turn = world.turn;
+    if (turn === 'deny') {
         on('state.get', () => ({ deny: 'no state in this test' }));
+    } else if (turn !== undefined) {
+        on('state.get', async () => ({ value: { value: await turn(), version: 1 } }));
     }
     on('fs.read', (_$, e) => {
         recorded.reads.push(e.path);
         if (world.rule === 'hang') {
             return new Promise<never>(() => undefined);
+        }
+        if (world.rule instanceof Promise) {
+            return world.rule.then((value) => ({ value }));
         }
         return world.rule === 'deny' ? { deny: 'no such file in this test' } : { value: world.rule ?? RULE_FILE_TEXT };
     });
@@ -224,8 +247,9 @@ function argsOf(world: Stage): ReadonlyArray<ReadonlyArray<string>> {
     return world.runs.map((run) => run.argv.slice(1));
 }
 
-async function noask($: Engine, args: string): Promise<string | undefined> {
-    return (await $.command.run({ command: 'noask', args, ...AT_PROMPT })).text;
+// A run of /noask, typed at the prompt unless `origin` says where else it came from.
+async function noask($: Engine, args: string, origin: PromptOrigin = AT_PROMPT.origin): Promise<string | undefined> {
+    return (await $.command.run({ command: 'noask', args, ...AT_PROMPT, origin })).text;
 }
 
 // A session whose main loop has run a turn and finished it.
@@ -470,12 +494,14 @@ test('with the rule file unreadable the turn carries the fallback rule and why',
 test('with a rule file read that never answers the turn carries the fallback once the timer fires', async ($, on) => {
     const world = stage(on, { rule: 'hang' });
     await idle($);
-    expect(await noask($, 'on')).toBe(`${SESSION_ON}\n\n${RULE}\n${PARTIAL_LINE}`);
+    const answer = noask($, 'on');
     await world.clock.settle();
     expect(world.submits).toEqual([]);
     await world.clock.advance(1_999);
     expect(world.submits).toEqual([]);
     await world.clock.advance(1);
+    expect(await answer).toBe(`${SESSION_ON}\n\n${RULE}\n${PARTIAL_LINE}`);
+    await world.clock.settle();
     expect(world.submits.map((submitted) => submitted.text)).toEqual([
         `${WAKE_TEXT}\n\n${FALLBACK_RULE} (rule file unreadable: timed out)`,
     ]);
@@ -517,6 +543,140 @@ test('a turn state that cannot be read submits nothing and fails nothing', async
     const text = await noask($, 'on');
     await world.clock.settle();
     expect(text).toBe(`${SESSION_ON}\n\n${RULE}\n${PARTIAL_LINE}`);
+    expect(world.submits).toEqual([]);
+    expect(world.toasts).toEqual([]);
+});
+
+// The session is looked at while the command runs, before its text is shown: the transcript first, as it is when
+// /noask is typed, then the rule text, then the turn, each look bounded to 2 seconds.
+
+test('a transcript that holds a history only once the command answered gets no turn', async ($, on) => {
+    let transcript: ReadonlyArray<SessionMessage> = [];
+    const world = stage(on, { messages: () => transcript });
+    await idle($);
+    const text = await noask($, 'on');
+    transcript = HISTORY;
+    await world.clock.settle();
+    expect(text).toBe(`${SESSION_ON}\n\n${RULE}\n${PARTIAL_LINE}`);
+    expect(world.submits).toEqual([]);
+    expect(world.toasts).toEqual([]);
+});
+
+test('a turn that starts while the transcript is read gets no wake-up turn behind it', async ($, on) => {
+    const transcript = deferred<ReadonlyArray<SessionMessage>>();
+    const world = stage(on, { messages: () => transcript.promise });
+    await idle($);
+    const answer = noask($, 'on');
+    await world.clock.settle();
+    await $.turn.start(turnStart('t2'));
+    transcript.resolve(HISTORY);
+    expect(await answer).toBe(`${SESSION_ON}\n\n${RULE}\n${PARTIAL_LINE}`);
+    await world.clock.settle();
+    expect(world.submits).toEqual([]);
+    expect(world.toasts).toEqual([]);
+});
+
+test('a turn that starts while the transcript is read gets no turn, even when it ends at once', async ($, on) => {
+    const transcript = deferred<ReadonlyArray<SessionMessage>>();
+    const world = stage(on, { messages: () => transcript.promise });
+    await idle($);
+    const answer = noask($, 'on');
+    await world.clock.settle();
+    await $.turn.start(turnStart('t2'));
+    transcript.resolve(HISTORY);
+    expect(await answer).toBe(`${SESSION_ON}\n\n${RULE}\n${PARTIAL_LINE}`);
+    await $.turn.complete(turnComplete('t2'));
+    await world.clock.settle();
+    expect(world.submits).toEqual([]);
+    expect(world.toasts).toEqual([]);
+});
+
+test('a turn that starts while the rule file is read gets no wake-up turn behind it', async ($, on) => {
+    const ruleRead = deferred<string>();
+    const world = stage(on, { rule: ruleRead.promise });
+    await idle($);
+    const answer = noask($, 'on');
+    await world.clock.settle();
+    await $.turn.start(turnStart('t2'));
+    ruleRead.resolve(RULE_FILE_TEXT);
+    expect(await answer).toBe(`${SESSION_ON}\n\n${RULE}\n${PARTIAL_LINE}`);
+    await world.clock.settle();
+    expect(world.submits).toEqual([]);
+    expect(world.toasts).toEqual([]);
+});
+
+test('a transcript that does not answer in 2 seconds wakes nothing, nor when it answers later', async ($, on) => {
+    const transcript = deferred<ReadonlyArray<SessionMessage>>();
+    const world = stage(on, { messages: () => transcript.promise });
+    await idle($);
+    const answer = noask($, 'on');
+    await world.clock.advance(1_999);
+    expect(world.submits).toEqual([]);
+    await world.clock.advance(1);
+    expect(await answer).toBe(`${SESSION_ON}\n\n${RULE}\n${PARTIAL_LINE}`);
+    expect(world.submits).toEqual([]);
+    transcript.resolve(HISTORY);
+    await world.clock.settle();
+    expect(world.submits).toEqual([]);
+    expect(world.toasts).toEqual([]);
+});
+
+test('a turn state that does not answer in 2 seconds wakes nothing, nor when it answers later', async ($, on) => {
+    const turn = deferred<string>();
+    const world = stage(on, { turn: () => turn.promise });
+    await $.session.start(SESSION);
+    const answer = noask($, 'on');
+    await world.clock.advance(1_999);
+    expect(world.submits).toEqual([]);
+    await world.clock.advance(1);
+    expect(await answer).toBe(`${SESSION_ON}\n\n${RULE}\n${PARTIAL_LINE}`);
+    expect(world.submits).toEqual([]);
+    turn.resolve('complete');
+    await world.clock.settle();
+    expect(world.submits).toEqual([]);
+    expect(world.toasts).toEqual([]);
+});
+
+// The host check refuses a submission from a command.run hook still in flight, so the wake-up turn is submitted once
+// the command's text is shown, after the turn is read once more, bounded too.
+
+test('a turn that starts once the command answered, before the submission, gets no turn behind it', async ($, on) => {
+    const world = stage(on);
+    await idle($);
+    expect(await noask($, 'on')).toBe(`${SESSION_ON}\n\n${RULE}\n${PARTIAL_LINE}`);
+    await $.turn.start(turnStart('t2'));
+    await world.clock.settle();
+    expect(world.submits).toEqual([]);
+    expect(world.toasts).toEqual([]);
+});
+
+test('a turn running when /noask on is typed gets no turn, even when it ends before the submission', async ($, on) => {
+    const world = stage(on);
+    await $.session.start(SESSION);
+    await $.turn.start(turnStart('t1'));
+    expect(await noask($, 'on')).toBe(`${SESSION_ON}\n\n${RULE}\n${PARTIAL_LINE}`);
+    await $.turn.complete(turnComplete('t1'));
+    await world.clock.settle();
+    expect(world.submits).toEqual([]);
+    expect(world.toasts).toEqual([]);
+});
+
+test('a turn read before the submission that does not answer in 2 seconds wakes nothing', async ($, on) => {
+    const late = deferred<string>();
+    const reads: string[] = [];
+    const world = stage(on, {
+        turn: () => {
+            reads.push('turn');
+            return reads.length === 1 ? 'complete' : late.promise;
+        },
+    });
+    await $.session.start(SESSION);
+    expect(await noask($, 'on')).toBe(`${SESSION_ON}\n\n${RULE}\n${PARTIAL_LINE}`);
+    await world.clock.settle();
+    expect(reads).toEqual(['turn', 'turn']);
+    await world.clock.advance(2_000);
+    late.resolve('complete');
+    await world.clock.settle();
     expect(world.submits).toEqual([]);
     expect(world.toasts).toEqual([]);
 });
@@ -625,5 +785,71 @@ test('a status, an off and an on refused with exit 2 do not carry the partial li
     for (const text of texts) {
         expect(text).not.toContain(PARTIAL_LINE);
     }
+    expect(world.toasts).toEqual([]);
+});
+
+// Who typed it: a switch runs only when the owner typed it, at the prompt or through the bridge; from anywhere else the
+// command's text is the one line below, written out here once more, and a status still runs.
+const OWNER_ONLY = 'noask: /noask switches only when the owner types it; nothing changed';
+const BRIDGE: PromptOrigin = { kind: 'bridge' };
+const NOT_THE_OWNER: ReadonlyArray<PromptOrigin> = [
+    { kind: 'scheduled-trigger' },
+    { kind: 'peer' },
+    { kind: 'plugin', name: 'other' },
+];
+
+for (const origin of NOT_THE_OWNER) {
+    test(`a switch from origin ${origin.kind} runs nothing, raises nothing and says so`, async ($, on) => {
+        const world = stage(on);
+        await idle($);
+        const texts: Array<string | undefined> = [];
+        for (const args of ['on handsoff', 'off', 'global off', 'global on 9h']) {
+            texts.push(await noask($, args, origin));
+        }
+        await world.clock.settle();
+        expect(texts).toEqual([OWNER_ONLY, OWNER_ONLY, OWNER_ONLY, OWNER_ONLY]);
+        expect(world.runs).toEqual([]);
+        expect(world.toasts).toEqual([]);
+        expect(world.submits).toEqual([]);
+        expect(world.reads).toEqual([]);
+    });
+
+    test(`a status from origin ${origin.kind} still runs and shows the command's lines`, async ($, on) => {
+        const world = stage(on, { reply: printed('noask: off\n') });
+        await idle($);
+        expect(await noask($, '', origin)).toBe('noask: off');
+        expect(await noask($, 'status', origin)).toBe('noask: off');
+        await world.clock.settle();
+        expect(argsOf(world)).toEqual([
+            ['--session', 's-1'],
+            ['--session', 's-1', 'status'],
+        ]);
+        expect(world.toasts).toEqual([]);
+        expect(world.submits).toEqual([]);
+    });
+}
+
+test('a switch not typed by the owner is refused before the session id is read', async ($, on) => {
+    const world = stage(on, { id: new Error('no id in this test') });
+    await $.session.start(SESSION);
+    expect(await noask($, 'on', { kind: 'peer' })).toBe(OWNER_ONLY);
+    expect(await noask($, 'global off', { kind: 'scheduled-trigger' })).toBe(OWNER_ONLY);
+    expect(world.runs).toEqual([]);
+    expect(world.toasts).toEqual([]);
+});
+
+test('a switch typed through the bridge runs as one typed at the prompt', async ($, on) => {
+    const world = stage(on);
+    await idle($);
+    expect(await noask($, 'on', BRIDGE)).toBe(`${SESSION_ON}\n\n${RULE}\n${PARTIAL_LINE}`);
+    await world.clock.settle();
+    expect(world.submits.map((submitted) => submitted.text)).toEqual([`${WAKE_TEXT}\n\n${RULE}`]);
+    expect(await noask($, 'off', BRIDGE)).toBe('noask: off for this session');
+    expect(await noask($, 'global off', BRIDGE)).toBe('noask: off for every session');
+    expect(argsOf(world)).toEqual([
+        ['--session', 's-1', 'on'],
+        ['--session', 's-1', 'off'],
+        ['--session', 's-1', 'global', 'off'],
+    ]);
     expect(world.toasts).toEqual([]);
 });

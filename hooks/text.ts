@@ -1,6 +1,7 @@
 // Every text the sdd module shows the owner or submits to the session, in the spec's words, each listed once: the
 // /noask command as the typeahead lists it, its lines and toasts, the wake-up turn and the rule text that turn
-// carries. register.tsx composes them; nothing else writes one.
+// carries; OWNER_ONLY_LINE is the owner's ruling, which the spec's next revision takes up. register.tsx composes them;
+// nothing else writes one.
 import type { EngineInterface } from 'claude-code';
 import { inTime } from './marker';
 
@@ -27,6 +28,10 @@ export const FALLBACK_RULE =
 export const PARTIAL_LINE =
     'noask: this release refuses questions and fences outward calls only; a turn that ends on a question in plain ' +
     "text, a permission prompt and a tool server's question still wait for you";
+
+// The text of a switching /noask that did not come from the owner's own typing (the prompt or the bridge): nothing is
+// run, submitted or toasted.
+export const OWNER_ONLY_LINE = 'noask: /noask switches only when the owner types it; nothing changed';
 
 // What a failed switch names when the command printed nothing.
 const NO_OUTPUT = 'no output';

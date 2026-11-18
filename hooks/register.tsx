@@ -1,10 +1,19 @@
 // The sdd plugin's hooks module. In this step it keeps `sdd.mainTurn`, the main loop's turn as the module last saw
 // it, and serves `/noask`, the session's door to the noask command (bin/noask): registered at every session start, it
-// runs the command by its argument vector and shows its lines, and an `on` typed in an idle session submits the
-// wake-up turn. The markers' reader (marker.ts) and the count's caller (count.ts) are the parts the later hooks are
-// built from; every text the module shows is in text.ts. A subagent's turn changes nothing.
-import type { CommandRunResult, CommandSpec, EngineInterface, ProcessRunInit, Register } from 'claude-code';
-import { messageOf, sessionIdOf } from './marker';
+// runs the command by its argument vector and shows its lines, a switch only when the owner typed it, and an `on`
+// typed in an idle session submits the wake-up turn. The markers' reader (marker.ts) and the count's caller
+// (count.ts) are the parts the later hooks are built from; every text the module shows is in text.ts. A subagent's
+// turn changes nothing.
+import type {
+    CommandRunResult,
+    CommandSpec,
+    EngineInterface,
+    ProcessRunInit,
+    PromptOrigin,
+    Register,
+    SessionMessage,
+} from 'claude-code';
+import { inTime, messageOf, sessionIdOf } from './marker';
 import {
     ARGUMENT_HINT,
     COMMAND_DESCRIPTION,
@@ -12,6 +21,7 @@ import {
     notRegisteredLine,
     notRunLine,
     notSubmittedLine,
+    OWNER_ONLY_LINE,
     ruleText,
     switchFailedLine,
     wakeText,
@@ -59,7 +69,7 @@ function outputOf(stdout: string, stderr: string): string {
     return [stdout.trimEnd(), stderr.trimEnd()].filter((part) => part !== '').join('\n');
 }
 
-// A toast that throws is let go: a hook's answer, and the wake-up that nothing awaits, must not fail on it.
+// A toast that throws is let go: a hook's answer, and the submission that nothing awaits, must not fail on it.
 function toast($: Pick<EngineInterface, 'ui'>, text: string): void {
     try {
         $.ui.toast(text);
@@ -78,29 +88,63 @@ async function runCommand($: Pick<EngineInterface, 'process'>, argv: ReadonlyArr
     }
 }
 
-// Whether the session may take the wake-up turn: no main-loop turn in flight, and a transcript that holds a message,
-// since its history may end on a question (a resumed, forked, compacted or cleared session); a new session, its
-// transcript empty, has nothing to answer. Rejects when the turn or the transcript cannot be read.
-async function isIdleWithHistory($: Pick<EngineInterface, 'state' | 'session'>): Promise<boolean> {
-    const turn = await $.state.get({ plugin: 'sdd', key: 'mainTurn' });
-    if (turn.value === 'running') {
-        return false;
-    }
-    return (await $.session.messages()).length > 0;
+// Whether the run came from the owner's own typing: Enter at the prompt, or a message through the bridge (the owner's
+// phone or web client). A schedule or a loop, another session, a channel, another plugin and the SDK may not switch.
+function isTypedByOwner(origin: PromptOrigin): boolean {
+    return origin.kind === 'composer' || origin.kind === 'bridge';
 }
 
-// The wake-up turn after an `on` that exited 0: WAKE_TEXT, an empty line and the rule text, submitted as the owner's
-// own words when the session is idle with a history. Nothing awaits it. The rule file is read first, so the session
-// is looked at just before the submission: that narrows the window in which a turn starts between the look and the
-// submission, it does not close it. A turn or a transcript that cannot be read submits nothing and says nothing, since
-// the switch was made and its lines are shown; a submission that rejects or is dropped is toasted. Never rejects.
-async function wakeUp($: EngineInterface): Promise<void> {
-    const text = wakeText(await ruleText($));
+// The transcript, a rejection when the call throws as it is made.
+async function transcriptOf($: Pick<EngineInterface, 'session'>): Promise<ReadonlyArray<SessionMessage>> {
+    return $.session.messages();
+}
+
+// The main loop's turn as `sdd.mainTurn` holds it, a rejection when the call throws as it is made.
+async function mainTurnOf($: Pick<EngineInterface, 'state'>): Promise<unknown> {
+    return (await $.state.get({ plugin: 'sdd', key: 'mainTurn' })).value;
+}
+
+// Whether no main-loop turn is in flight, by `sdd.mainTurn` read through inTime; false when the read fails or does
+// not answer in time.
+async function isIdle($: Pick<EngineInterface, 'state' | 'clock'>): Promise<boolean> {
+    const turn = await inTime($, mainTurnOf($));
+    return turn.ok && turn.value !== 'running';
+}
+
+// The wake-up turn's text after an `on` that exited 0, WAKE_TEXT, an empty line and the rule text, or undefined when
+// the session is not to take it. The session is looked at while the command runs, before its text is shown: the
+// transcript first, as it is when /noask is typed, since a history may end on a question (a resumed, forked, compacted
+// or cleared session) while a new session's, empty, has nothing to answer; then the rule text; then the main loop's
+// turn, read last. Each look is bounded by inTime; one that fails or does not answer in time gives no turn and says
+// nothing, since the switch was made and its lines are shown. Never rejects.
+async function wakeTextFor(
+    $: Pick<EngineInterface, 'session' | 'state' | 'fs' | 'plugin' | 'clock'>,
+): Promise<string | undefined> {
+    const transcript = await inTime($, transcriptOf($));
+    if (!transcript.ok || transcript.value.length === 0) {
+        return undefined;
+    }
+    const rule = await ruleText($);
+    return (await isIdle($)) ? wakeText(rule) : undefined;
+}
+
+// The wake-up turn, submitted as the owner's own words once the hook has answered: the host check refuses a
+// submission from a command.run hook still in flight, since it would wait on the turn the hook holds. So it waits one
+// tick of the clock, reads the main loop's turn again, bounded by inTime, and submits at once when no turn is running,
+// with no `$` call between that read and the submission. That narrows the window in which a turn starts between the
+// look and the submission; it does not close it, and a turn that starts in it gets the wake-up turn queued behind it.
+// Nothing awaits it. A wait or a read that fails gives no turn and says nothing; a submission that rejects or is
+// dropped is toasted. Never rejects.
+async function submitWakeUp(
+    $: Pick<EngineInterface, 'clock' | 'state' | 'prompt' | 'ui'>,
+    text: string,
+): Promise<void> {
     try {
-        if (!(await isIdleWithHistory($))) {
-            return;
-        }
+        await $.clock.sleep(0);
     } catch {
+        return;
+    }
+    if (!(await isIdle($))) {
         return;
     }
     try {
@@ -113,14 +157,19 @@ async function wakeUp($: EngineInterface): Promise<void> {
     }
 }
 
-// `/noask <args>`: the command run with the words typed after `--session <the session's id>`, or after nothing for a
-// global command in a session with no usable id, where a session's command runs nothing: without `--session` the
-// command would read a status for the id in the host process's environment, and refuse a switch. A failed switch, its
-// exit neither 0 nor 2, and a run that rejects are said twice, in the text and in a toast, and wake nothing; an `on`
-// that exited 0 ends on the partial line and wakes the session.
-async function noask($: EngineInterface, args: string): Promise<CommandRunResult> {
+// `/noask <args>`: a switch that the owner did not type runs nothing and says so in OWNER_ONLY_LINE, before the
+// session's id is read; a status runs whoever asked. Otherwise the command runs with the words typed after
+// `--session <the session's id>`, or after nothing for a global command in a session with no usable id, where a
+// session's command runs nothing: without `--session` the command would read a status for the id in the host
+// process's environment, and refuse a switch. A failed switch, its exit neither 0 nor 2, and a run that rejects are
+// said twice, in the text and in a toast, and wake nothing; an `on` that exited 0 ends on the partial line, and a
+// session idle with a history when it was typed gets the wake-up turn once the text is shown.
+async function noask($: EngineInterface, args: string, origin: PromptOrigin): Promise<CommandRunResult> {
     const words = args.split(WHITE_SPACE).filter((word) => word !== '');
     const switching = switchingOf(words);
+    if (switching !== 'none' && !isTypedByOwner(origin)) {
+        return { text: OWNER_ONLY_LINE };
+    }
     const session = await sessionIdOf($);
     if (!session.ok && words[0] !== 'global') {
         const line = noIdLine(session.error);
@@ -142,7 +191,10 @@ async function noask($: EngineInterface, args: string): Promise<CommandRunResult
         return { text: line };
     }
     if (switching === 'on' && ran.exitCode === 0) {
-        void wakeUp($);
+        const wakeUpText = await wakeTextFor($);
+        if (wakeUpText !== undefined) {
+            void submitWakeUp($, wakeUpText);
+        }
         return { text: withPartialLine(ran.output) };
     }
     return { text: ran.output };
@@ -173,5 +225,5 @@ export const register: Register = (on) => {
     });
     // The command has no behaviour but this hook's, so next is never called. Registered with `immediate`, it may run
     // while a turn is streaming; the wake-up then finds the turn running and submits nothing.
-    on('command.run', { command: 'noask' }, ($, e) => noask($, e.args));
+    on('command.run', { command: 'noask' }, ($, e) => noask($, e.args, e.origin));
 };

@@ -7,6 +7,7 @@ import {
     notRegisteredLine,
     notRunLine,
     notSubmittedLine,
+    OWNER_ONLY_LINE,
     PARTIAL_LINE,
     switchFailedLine,
     WAKE_TEXT,
@@ -70,6 +71,10 @@ test("the command's failure lines", async () => {
     expect(noIdLine("this session's id could not be read (boom)")).toBe(
         "noask: this session's id could not be read (boom); noask global on still switches every session",
     );
+});
+
+test("a switch the owner did not type is refused in the owner's words", async () => {
+    expect(OWNER_ONLY_LINE).toBe('noask: /noask switches only when the owner types it; nothing changed');
 });
 
 test("the module's own toasts", async () => {
