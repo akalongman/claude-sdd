@@ -16,7 +16,7 @@ for (const [index, { command, hits }] of FENCE_ROWS.entries()) {
 }
 
 test('the table holds every record of tests/fence-rows.txt', async () => {
-    expect(FENCE_ROWS).toHaveLength(238);
+    expect(FENCE_ROWS).toHaveLength(246);
 });
 
 // A (( that is no arithmetic is a subshell in a subshell, read as the spaced ( ( of the table is: a here-document

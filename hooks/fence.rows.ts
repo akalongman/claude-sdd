@@ -972,7 +972,7 @@ noask global off`,
     },
     {
         command: `((git push))`,
-        hits: [],
+        hits: ['a push'],
     },
     {
         command: `echo $((1<<2)*(3))
@@ -996,5 +996,47 @@ git push
 =1
 noask global off`,
         hits: ['switching noask'],
+    },
+    {
+        command: `x=$((true "$(echo "it's")") ; (git push))`,
+        hits: ['a push'],
+    },
+    {
+        command: `x=$((true "$(echo "it's")") ; (rm ~/.local/state/sdd/noask))`,
+        hits: ['switching noask'],
+    },
+    {
+        command: `: <<EOF; x=$((1<<2))
+git push
+EOF
+noask global off`,
+        hits: ['switching noask'],
+    },
+    {
+        command: `: <<EOF; x=$(( $(true
+EOF
+) ))
+git push
+EOF`,
+        hits: [],
+    },
+    {
+        command: `x=$(( $(: <<EOF) ) ; (true) )
+git push
+EOF`,
+        hits: [],
+    },
+    {
+        command: `echo $(( 1 <<X
+$(noask global off) ))`,
+        hits: ['switching noask'],
+    },
+    {
+        command: `(( 1 #$(noask global off) ))`,
+        hits: ['switching noask'],
+    },
+    {
+        command: `for ((git push; 0; )); do :; done`,
+        hits: [],
     },
 ];

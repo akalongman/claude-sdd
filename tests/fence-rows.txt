@@ -1142,8 +1142,9 @@ sed -i s/x/y/ ~/.local/state/sdd/budgets.d/s-1
 ## $[...], a (( )) command, an arithmetic for and an array's subscript where
 ## an assignment stands, while the substitutions inside are still read. A
 ## $(( whose text is no arithmetic is a command substitution of that text,
-## and a (( with no )) to end it is a subshell in a subshell, while one that
-## has it is arithmetic even when it names a command; where no assignment
+## and a (( with no )) to end it is a subshell in a subshell, while bash
+## reads one that has it as arithmetic even when it names a command, which
+## the scan refuses all the same (the next section); where no assignment
 ## stands, and after let, << opens a here-document.
 
 # hits: a push
@@ -1247,8 +1248,8 @@ EOF
 noask global off
 # end
 
-# hits: none
-# bash: agrees
+# hits: a push
+# bash: differs: not earned (the scan keeps both readings of a ((; bash read this one as arithmetic and ran nothing)
 ((git push))
 # end
 
@@ -1277,4 +1278,65 @@ let y<<=1
 git push
 =1
 noask global off
+# end
+
+## Both readings of a double parenthesis. Bash reads the text of a $(( as
+## arithmetic or as a command substitution by a test of that text, which
+## the scan does not make: it keeps the hits of both readings. It keeps them
+## too for a (( where a command stands that )) ends, which bash reads as
+## arithmetic, so a (( that names a command is refused. The text read as
+## commands is a text of its own, so a << in it opens no here-document for
+## the lines after. Whichever reading bash takes, it keeps
+## the here-documents of the line around a $(( apart from those of a
+## substitution inside it, and reads after the line the body of one that
+## substitution left open. An arithmetic for has no reading as commands.
+
+# hits: a push
+# bash: agrees
+x=$((true "$(echo "it's")") ; (git push))
+# end
+
+# hits: switching noask
+# bash: agrees
+x=$((true "$(echo "it's")") ; (rm ~/.local/state/sdd/noask))
+# end
+
+# hits: switching noask
+# bash: agrees
+: <<EOF; x=$((1<<2))
+git push
+EOF
+noask global off
+# end
+
+# hits: none
+# bash: agrees
+: <<EOF; x=$(( $(true
+EOF
+) ))
+git push
+EOF
+# end
+
+# hits: none
+# bash: agrees
+x=$(( $(: <<EOF) ) ; (true) )
+git push
+EOF
+# end
+
+# hits: switching noask
+# bash: agrees
+echo $(( 1 <<X
+$(noask global off) ))
+# end
+
+# hits: switching noask
+# bash: agrees
+(( 1 #$(noask global off) ))
+# end
+
+# hits: none
+# bash: agrees
+for ((git push; 0; )); do :; done
 # end

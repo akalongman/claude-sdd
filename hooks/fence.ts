@@ -1,10 +1,10 @@
 // The fence: what a shell call or an edit names that needs the owner. shellHits reads a shell command as bash cuts it
 // into simple commands, one scan from left to right that keeps track of quotes, comments, here-documents,
-// substitutions and arithmetic (where a shift opens no here-document), and names each push, pull request and merge
-// request, and each call that switches noask or writes its state directory (tests/fence-rows.txt holds the table this
-// reading is held to, and tests/check-fence-rows.sh holds that table against bash itself). configRoots, stateRoots,
-// placed, spelled, isUnder and startsLikeConfig judge an edit's path, by its spelling and by where it lands. Every file
-// call goes through inTime.
+// substitutions and arithmetic (where a shift opens no here-document, and a double parenthesis is read as commands as
+// well), and names each push, pull request and merge request, and each call that switches noask or writes its state
+// directory (tests/fence-rows.txt holds the table this reading is held to, and tests/check-fence-rows.sh holds that
+// table against bash itself). configRoots, stateRoots, placed, spelled, isUnder and startsLikeConfig judge an edit's
+// path, by its spelling and by where it lands. Every file call goes through inTime.
 import type { EngineInterface, FsStat } from 'claude-code';
 import { inTime } from './marker';
 
@@ -320,52 +320,50 @@ function readArithmetic(scanner: Scanner, open: '(' | '[', sink: FenceWhat[], pl
     return false;
 }
 
-// Whether a text's parentheses balance, none closing before it opens, quoted text and escaped characters aside:
-// bash's test of the inside of a `$((...))` before it evaluates it as arithmetic.
-function isBalanced(text: string): boolean {
-    let depth = 0;
-    for (let index = 0; index < text.length; index += 1) {
-        const char = text.charAt(index);
-        if (char === '\\') {
-            index += 1;
-        } else if (char === "'") {
-            const end = text.indexOf("'", index + 1);
-            index = end < 0 ? text.length : end;
-        } else if (char === '"') {
-            index += 1;
-            while (index < text.length && text.charAt(index) !== '"') {
-                index += text.charAt(index) === '\\' ? 2 : 1;
-            }
-        } else if (char === '(' || char === ')') {
-            depth += char === '(' ? 1 : -1;
-            if (depth < 0) {
-                return false;
-            }
+// The hits of one text read both as commands and as arithmetic, each kind named as often as the reading that names it
+// more often does: those of the commands, then each of the arithmetic's that they have not.
+function bothReadings(commands: ReadonlyArray<FenceWhat>, arithmetic: ReadonlyArray<FenceWhat>): FenceWhat[] {
+    const unmatched = [...commands];
+    const added: FenceWhat[] = [];
+    for (const what of arithmetic) {
+        const index = unmatched.indexOf(what);
+        if (index < 0) {
+            added.push(what);
+        } else {
+            unmatched.splice(index, 1);
         }
     }
-    return depth === 0;
+    return [...commands, ...added];
 }
 
-// Reads a `$((`, from its `$`, and adds its hits to `sink`. As bash does, it reads the text from `$(` to the `)` that
-// matches it as a pair, and that text is arithmetic when it ends in `)` and balances inside its outer pair; otherwise
-// it is a command substitution of that text, read as a text of its own (`$((1+2)*(3))`, `$((git push) )`). One that
-// does not close is read as `$(` is.
+// After a reading on the scan's own place, puts the here-documents that waited before it back at the head of the
+// queue, ahead of those it left open. Bash keeps a line's here-documents apart from those of a substitution inside it,
+// and reads after the line the body of one the substitution left open; the scan's substitutions share the queue, and
+// one that spans a line end has read the line's bodies there.
+function requeued(scanner: Scanner, mark: Mark): void {
+    const isKept = mark.pending.every((pending, index) => scanner.pending[index] === pending);
+    const opened = scanner.pending.slice(isKept ? mark.pending.length : 0);
+    scanner.pending.splice(0, scanner.pending.length, ...mark.pending, ...opened);
+}
+
+// Reads a `$((`, from its `$`, and adds its hits to `sink`. Bash reads the text from `$(` to the `)` that matches it
+// as a pair, then evaluates it as arithmetic or runs it as a command substitution by a test of that text. The scan
+// makes no such test and keeps the hits of both readings: the arithmetic one's, read on the scan's own place, and
+// those of the text read as a text of its own, as a command substitution is (`$((1+2)*(3))`, `$((git push) )`).
+// Whichever reading bash takes, the line's here-documents stay apart from the substitution's. One that does not
+// close is read as `$(` is.
 function readArithmeticExpansion(scanner: Scanner, sink: FenceWhat[], places: Places): void {
     scanner.index += 2;
     const mark = markOf(scanner);
-    const inner: FenceWhat[] = [];
-    if (!readArithmetic(scanner, '(', inner, places)) {
+    const arithmetic: FenceWhat[] = [];
+    if (!readArithmetic(scanner, '(', arithmetic, places)) {
         backTo(scanner, mark);
         sink.push(...scanList(scanner, 'parenthesis', places));
         return;
     }
+    requeued(scanner, mark);
     const text = scanner.text.slice(mark.index, scanner.index - 1);
-    if (text.endsWith(')') && isBalanced(text.slice(1, -1))) {
-        sink.push(...inner);
-        return;
-    }
-    backTo(scanner, { index: scanner.index, pending: mark.pending });
-    sink.push(...scanList({ text, index: 0, pending: [] }, 'end', places));
+    sink.push(...bothReadings(scanList({ text, index: 0, pending: [] }, 'end', places), arithmetic));
 }
 
 // Reads a `$[...]`, bash's older arithmetic expansion, from its `$`: its substitutions' hits are added to `sink` and
@@ -404,20 +402,24 @@ function readSubscript(scanner: Scanner, chars: Char[], sink: FenceWhat[], place
 }
 
 // Reads an arithmetic command, from its first `(`: the text to the `)` that matches the second `(`, which a second `)`
-// must follow, as bash reads one where a reserved word may stand. Its substitutions' hits are added to `sink`.
-// Returns false, the scan put back where it stood, when no `))` ends it there: bash then reads a subshell in a
-// subshell (`((echo a); git push)`).
-function readArithmeticCommand(scanner: Scanner, sink: FenceWhat[], places: Places): boolean {
+// must follow, as bash reads one where a reserved word may stand. Bash evaluates it as arithmetic; the scan adds to
+// `sink` the hits of that reading, its substitutions', and of a reading as commands too, the text inside the outer
+// pair read as a text of its own (so `((git push))` is a push). An arithmetic for (`isForLoop`) has no reading as
+// commands. Returns false, the scan put back where it stood, when no `))` ends it there: bash then reads a subshell
+// in a subshell (`((echo a); git push)`).
+function readArithmeticCommand(scanner: Scanner, sink: FenceWhat[], places: Places, isForLoop: boolean): boolean {
     const mark = markOf(scanner);
-    const inner: FenceWhat[] = [];
+    const arithmetic: FenceWhat[] = [];
     scanner.index += 2;
-    if (readArithmetic(scanner, '(', inner, places) && charAt(scanner, 0) === ')') {
-        scanner.index += 1;
-        sink.push(...inner);
-        return true;
+    if (!readArithmetic(scanner, '(', arithmetic, places) || charAt(scanner, 0) !== ')') {
+        backTo(scanner, mark);
+        return false;
     }
-    backTo(scanner, mark);
-    return false;
+    scanner.index += 1;
+    const text = scanner.text.slice(mark.index + 1, scanner.index - 1);
+    const commands = isForLoop ? [] : scanList({ text, index: 0, pending: [] }, 'end', places);
+    sink.push(...bothReadings(commands, arithmetic));
+    return true;
 }
 
 // Reads what a `$` starts: a $'...' or $"..." word, a substitution or arithmetic (its hits added to `sink`, its value
@@ -628,12 +630,15 @@ function isAllLeading(words: ReadonlyArray<Word>, isAssignmentKept: boolean): bo
     return true;
 }
 
-// Whether a `((` here opens an arithmetic command: where a reserved word may stand, or after `for` (the arithmetic
-// for).
-function opensArithmetic(command: SimpleCommand): boolean {
+// Where a `((` here opens an arithmetic command: 'command' where a reserved word may stand, 'for' after `for` (the
+// arithmetic for), undefined elsewhere.
+function arithmeticPlace(command: SimpleCommand): 'command' | 'for' | undefined {
     const { words } = command;
     const isFor = literalOf(words.at(-1)) === 'for';
-    return isAllLeading(isFor ? words.slice(0, -1) : words, false);
+    if (!isAllLeading(isFor ? words.slice(0, -1) : words, false)) {
+        return undefined;
+    }
+    return isFor ? 'for' : 'command';
 }
 
 // Reads a list of commands up to `closer` and returns their hits in order, each substitution's before those of the
@@ -668,9 +673,9 @@ function scanList(scanner: Scanner, closer: Closer, places: Places): FenceWhat[]
             finish();
             scanner.index += 1;
         } else if (char === '(') {
-            const isArithmetic = next === '(' && opensArithmetic(command);
+            const place = next === '(' ? arithmeticPlace(command) : undefined;
             finish();
-            if (!isArithmetic || !readArithmeticCommand(scanner, command.inner, places)) {
+            if (place === undefined || !readArithmeticCommand(scanner, command.inner, places, place === 'for')) {
                 open.push('parenthesis');
                 scanner.index += 1;
             }
