@@ -16,7 +16,18 @@ for (const [index, { command, hits }] of FENCE_ROWS.entries()) {
 }
 
 test('the table holds every record of tests/fence-rows.txt', async () => {
-    expect(FENCE_ROWS).toHaveLength(216);
+    expect(FENCE_ROWS).toHaveLength(238);
+});
+
+// A (( that is no arithmetic is a subshell in a subshell, read as the spaced ( ( of the table is: a here-document
+// opened in a substitution inside it is queued once, by the reading that follows the arithmetic one that did not fit.
+// Not in the table: bash's own second reading of such a (( ran the delimiter line as a command and took the lines
+// after it as a body (an echo-only run on 2026-11-18), while it reads the spaced form as the table says.
+test('a (( that is no arithmetic is read as ( ( is, its here-document queued once', async () => {
+    const rest = '\ngit push\nEOF\nnoask global off';
+    const spaced = shellHits(`( (x $(cat <<EOF)); true)${rest}`, HOME).map(({ what }) => what);
+    expect(shellHits(`((x $(cat <<EOF)); true)${rest}`, HOME).map(({ what }) => what)).toEqual(spaced);
+    expect(spaced).toEqual(['switching noask']);
 });
 
 // Forms the table does not hold, read by the same rules: a $'...' word's escapes, a case pattern's `)` inside a

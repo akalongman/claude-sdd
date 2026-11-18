@@ -886,4 +886,115 @@ git push`,
         command: `sed -i s/x/y/ ~/.local/state/sdd/budgets.d/s-1`,
         hits: [],
     },
+    {
+        command: `echo $((1<<2))
+git push`,
+        hits: ['a push'],
+    },
+    {
+        command: `(( x <<= 1 ))
+noask global off`,
+        hits: ['switching noask'],
+    },
+    {
+        command: `echo $[1<<2]
+git push`,
+        hits: ['a push'],
+    },
+    {
+        command: `echo $((1<<2)) <<EOF
+git push
+EOF
+noask global off`,
+        hits: ['switching noask'],
+    },
+    {
+        command: `x=$(echo $((1<<2)))
+git push origin b`,
+        hits: ['a push'],
+    },
+    {
+        command: `echo "$((1<<2))"
+git push`,
+        hits: ['a push'],
+    },
+    {
+        command: `echo \${x:-$((1<<2))}
+git push`,
+        hits: ['a push'],
+    },
+    {
+        command: `if (( 1<<2 )); then :; fi
+git push`,
+        hits: ['a push'],
+    },
+    {
+        command: `time -p (( 1<<2 ))
+noask global off`,
+        hits: ['switching noask'],
+    },
+    {
+        command: `case 4 in 4) (( z = 1<<2 ));; esac
+noask global off`,
+        hits: ['switching noask'],
+    },
+    {
+        command: `for (( i = 1<<2; i < 0; i++ )); do :; done
+git push`,
+        hits: ['a push'],
+    },
+    {
+        command: `echo $(( $(noask global off) ))`,
+        hits: ['switching noask'],
+    },
+    {
+        command: `echo $[ $(noask global off) ]`,
+        hits: ['switching noask'],
+    },
+    {
+        command: `x=$((git push) )`,
+        hits: ['a push'],
+    },
+    {
+        command: `x=$((git push)|(true))`,
+        hits: ['a push'],
+    },
+    {
+        command: `((git push); true)`,
+        hits: ['a push'],
+    },
+    {
+        command: `( (x $(cat <<EOF)); true)
+git push
+EOF
+noask global off`,
+        hits: ['switching noask'],
+    },
+    {
+        command: `((git push))`,
+        hits: [],
+    },
+    {
+        command: `echo $((1<<2)*(3))
+git push`,
+        hits: ['a push'],
+    },
+    {
+        command: `a[1<<2]=x
+git push`,
+        hits: ['a push'],
+    },
+    {
+        command: `declare d[1<<2]=x
+git push
+2]=x`,
+        hits: [],
+    },
+    {
+        command: `let y<<=1
+git push
+=1
+noask global off`,
+        hits: ['switching noask'],
+    },
 ];

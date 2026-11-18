@@ -1137,3 +1137,144 @@ cp -R /tmp/sdd ~/.local/state
 # bash: agrees
 sed -i s/x/y/ ~/.local/state/sdd/budgets.d/s-1
 # end
+
+## Arithmetic: a shift there opens no here-document, as bash reads $((...)),
+## $[...], a (( )) command, an arithmetic for and an array's subscript where
+## an assignment stands, while the substitutions inside are still read. A
+## $(( whose text is no arithmetic is a command substitution of that text,
+## and a (( with no )) to end it is a subshell in a subshell, while one that
+## has it is arithmetic even when it names a command; where no assignment
+## stands, and after let, << opens a here-document.
+
+# hits: a push
+# bash: agrees
+echo $((1<<2))
+git push
+# end
+
+# hits: switching noask
+# bash: agrees
+(( x <<= 1 ))
+noask global off
+# end
+
+# hits: a push
+# bash: agrees
+echo $[1<<2]
+git push
+# end
+
+# hits: switching noask
+# bash: agrees
+echo $((1<<2)) <<EOF
+git push
+EOF
+noask global off
+# end
+
+# hits: a push
+# bash: agrees
+x=$(echo $((1<<2)))
+git push origin b
+# end
+
+# hits: a push
+# bash: agrees
+echo "$((1<<2))"
+git push
+# end
+
+# hits: a push
+# bash: agrees
+echo ${x:-$((1<<2))}
+git push
+# end
+
+# hits: a push
+# bash: agrees
+if (( 1<<2 )); then :; fi
+git push
+# end
+
+# hits: switching noask
+# bash: agrees
+time -p (( 1<<2 ))
+noask global off
+# end
+
+# hits: switching noask
+# bash: agrees
+case 4 in 4) (( z = 1<<2 ));; esac
+noask global off
+# end
+
+# hits: a push
+# bash: agrees
+for (( i = 1<<2; i < 0; i++ )); do :; done
+git push
+# end
+
+# hits: switching noask
+# bash: agrees
+echo $(( $(noask global off) ))
+# end
+
+# hits: switching noask
+# bash: agrees
+echo $[ $(noask global off) ]
+# end
+
+# hits: a push
+# bash: agrees
+x=$((git push) )
+# end
+
+# hits: a push
+# bash: agrees
+x=$((git push)|(true))
+# end
+
+# hits: a push
+# bash: agrees
+((git push); true)
+# end
+
+# hits: switching noask
+# bash: agrees
+( (x $(cat <<EOF)); true)
+git push
+EOF
+noask global off
+# end
+
+# hits: none
+# bash: agrees
+((git push))
+# end
+
+# hits: a push
+# bash: agrees
+echo $((1<<2)*(3))
+git push
+# end
+
+# hits: a push
+# bash: agrees
+a[1<<2]=x
+git push
+# end
+
+# hits: none
+# bash: agrees
+declare d[1<<2]=x
+git push
+2]=x
+# end
+
+# hits: switching noask
+# bash: agrees
+let y<<=1
+git push
+=1
+noask global off
+# end

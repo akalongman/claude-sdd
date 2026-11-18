@@ -1,9 +1,10 @@
 // The fence: what a shell call or an edit names that needs the owner. shellHits reads a shell command as bash cuts it
-// into simple commands, one scan from left to right that keeps track of quotes, comments, here-documents and
-// substitutions, and names each push, pull request and merge request, and each call that switches noask or writes its
-// state directory (tests/fence-rows.txt holds the table this reading is held to, and tests/check-fence-rows.sh holds
-// that table against bash itself). configRoots, stateRoots, placed, spelled, isUnder and startsLikeConfig judge an
-// edit's path, by its spelling and by where it lands. Every file call goes through inTime.
+// into simple commands, one scan from left to right that keeps track of quotes, comments, here-documents,
+// substitutions and arithmetic (where a shift opens no here-document), and names each push, pull request and merge
+// request, and each call that switches noask or writes its state directory (tests/fence-rows.txt holds the table this
+// reading is held to, and tests/check-fence-rows.sh holds that table against bash itself). configRoots, stateRoots,
+// placed, spelled, isUnder and startsLikeConfig judge an edit's path, by its spelling and by where it lands. Every file
+// call goes through inTime.
 import type { EngineInterface, FsStat } from 'claude-code';
 import { inTime } from './marker';
 
@@ -35,6 +36,9 @@ type Pending = { readonly delimiter: string; readonly isTabStripped: boolean };
 // The scan's place in a text, which it moves, and the here-documents waiting for the line's end.
 type Scanner = { readonly text: string; index: number; readonly pending: Pending[] };
 
+// Where the scan stood and the here-documents it waited for, to put it back after a reading that did not fit.
+type Mark = { readonly index: number; readonly pending: ReadonlyArray<Pending> };
+
 // What a list of commands ends at: the text's end, a `)` that closes a substitution, a `}` that closes `${ ...; }`.
 type Closer = 'end' | 'parenthesis' | 'brace';
 
@@ -65,6 +69,7 @@ const WRITING: ReadonlySet<string> = new Set(['>', '>>', '>|', '&>', '&>>', '>&'
 const DESCRIPTOR = /^(?:[0-9]+|\{[A-Za-z_][A-Za-z0-9_]*\})$/;
 const ASSIGNMENT = /^([A-Za-z_][A-Za-z0-9_]*)(?:\[[^\]]*\])?\+?=/;
 const SPECIAL_PARAMETER = /^(?:[A-Za-z_][A-Za-z0-9_]*|[0-9@*#?$!-])/;
+const NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 // The leading words a simple command skips, besides NAME=value words and `time` with its options.
 const LEADING: ReadonlySet<string> = new Set(['!', '{', 'if', 'then', 'elif', 'else', 'while', 'until', 'do']);
@@ -150,6 +155,15 @@ function quoted(text: string): Char[] {
 
 function newCommand(): SimpleCommand {
     return { words: [], redirections: [], inner: [] };
+}
+
+function markOf(scanner: Scanner): Mark {
+    return { index: scanner.index, pending: [...scanner.pending] };
+}
+
+function backTo(scanner: Scanner, mark: Mark): void {
+    scanner.index = mark.index;
+    scanner.pending.splice(0, scanner.pending.length, ...mark.pending);
 }
 
 // A path with `.`, `..` and empty parts folded, absolute.
@@ -266,7 +280,7 @@ function readParameter(scanner: Scanner, chars: Char[], sink: FenceWhat[], place
             readDoubleQuoted(scanner, [], sink, places);
         } else if (char === '`') {
             sink.push(...readBackticks(scanner, false, places));
-        } else if (char === '$' && (next === '(' || next === '{')) {
+        } else if (char === '$' && (next === '(' || next === '{' || next === '[')) {
             readDollar(scanner, [], sink, places, false);
         } else {
             scanner.index += 1;
@@ -275,8 +289,139 @@ function readParameter(scanner: Scanner, chars: Char[], sink: FenceWhat[], place
     chars.push(...quoted(scanner.text.slice(start, scanner.index)));
 }
 
-// Reads what a `$` starts: a $'...' or $"..." word, a substitution (its hits added to `sink`, its value UNKNOWN), a
-// parameter, or a `$` that starts nothing, kept as it stands.
+// Reads arithmetic, from after its opening `(` or `[` to the close that matches it, as bash's parser finds that end:
+// quotes, escapes and substitutions are read, the substitutions' hits added to `sink`, and nothing else is a command,
+// a redirection or a here-document's opener (a shift, `<<`, opens none). Returns whether the close was found; the
+// scan then stands past it.
+function readArithmetic(scanner: Scanner, open: '(' | '[', sink: FenceWhat[], places: Places): boolean {
+    const close = open === '(' ? ')' : ']';
+    let depth = 0;
+    while (scanner.index < scanner.text.length) {
+        const char = charAt(scanner, 0);
+        if (char === close && depth === 0) {
+            scanner.index += 1;
+            return true;
+        }
+        if (char === '\\') {
+            scanner.index += 2;
+        } else if (char === "'") {
+            readSingleQuoted(scanner, []);
+        } else if (char === '"') {
+            readDoubleQuoted(scanner, [], sink, places);
+        } else if (char === '`') {
+            sink.push(...readBackticks(scanner, false, places));
+        } else if (char === '$') {
+            readDollar(scanner, [], sink, places, false);
+        } else {
+            depth += char === open ? 1 : char === close ? -1 : 0;
+            scanner.index += 1;
+        }
+    }
+    return false;
+}
+
+// Whether a text's parentheses balance, none closing before it opens, quoted text and escaped characters aside:
+// bash's test of the inside of a `$((...))` before it evaluates it as arithmetic.
+function isBalanced(text: string): boolean {
+    let depth = 0;
+    for (let index = 0; index < text.length; index += 1) {
+        const char = text.charAt(index);
+        if (char === '\\') {
+            index += 1;
+        } else if (char === "'") {
+            const end = text.indexOf("'", index + 1);
+            index = end < 0 ? text.length : end;
+        } else if (char === '"') {
+            index += 1;
+            while (index < text.length && text.charAt(index) !== '"') {
+                index += text.charAt(index) === '\\' ? 2 : 1;
+            }
+        } else if (char === '(' || char === ')') {
+            depth += char === '(' ? 1 : -1;
+            if (depth < 0) {
+                return false;
+            }
+        }
+    }
+    return depth === 0;
+}
+
+// Reads a `$((`, from its `$`, and adds its hits to `sink`. As bash does, it reads the text from `$(` to the `)` that
+// matches it as a pair, and that text is arithmetic when it ends in `)` and balances inside its outer pair; otherwise
+// it is a command substitution of that text, read as a text of its own (`$((1+2)*(3))`, `$((git push) )`). One that
+// does not close is read as `$(` is.
+function readArithmeticExpansion(scanner: Scanner, sink: FenceWhat[], places: Places): void {
+    scanner.index += 2;
+    const mark = markOf(scanner);
+    const inner: FenceWhat[] = [];
+    if (!readArithmetic(scanner, '(', inner, places)) {
+        backTo(scanner, mark);
+        sink.push(...scanList(scanner, 'parenthesis', places));
+        return;
+    }
+    const text = scanner.text.slice(mark.index, scanner.index - 1);
+    if (text.endsWith(')') && isBalanced(text.slice(1, -1))) {
+        sink.push(...inner);
+        return;
+    }
+    backTo(scanner, { index: scanner.index, pending: mark.pending });
+    sink.push(...scanList({ text, index: 0, pending: [] }, 'end', places));
+}
+
+// Reads a `$[...]`, bash's older arithmetic expansion, from its `$`: its substitutions' hits are added to `sink` and
+// its value is UNKNOWN. A `$[` that does not close leaves its `$` as it stands.
+function readBracketExpansion(scanner: Scanner, chars: Char[], sink: FenceWhat[], places: Places): void {
+    const mark = markOf(scanner);
+    const inner: FenceWhat[] = [];
+    scanner.index += 2;
+    if (readArithmetic(scanner, '[', inner, places)) {
+        sink.push(...inner);
+        chars.push(UNKNOWN);
+        return;
+    }
+    backTo(scanner, mark);
+    chars.push(...quoted('$'));
+    scanner.index += 1;
+}
+
+// Reads a `[` that follows a name where an assignment may stand: an array's subscript, which bash reads as arithmetic
+// (`a[1<<2]=x`), kept in the word as written, its substitutions' hits added to `sink`. A `[` that does not close is
+// one character of the word. Returns whether the subscript holds a `$` or a backtick.
+function readSubscript(scanner: Scanner, chars: Char[], sink: FenceWhat[], places: Places): boolean {
+    const mark = markOf(scanner);
+    const inner: FenceWhat[] = [];
+    scanner.index += 1;
+    if (!readArithmetic(scanner, '[', inner, places)) {
+        backTo(scanner, mark);
+        chars.push({ value: '[', isQuoted: false });
+        scanner.index += 1;
+        return false;
+    }
+    const subscript = scanner.text.slice(mark.index, scanner.index);
+    sink.push(...inner);
+    chars.push(...quoted(subscript));
+    return /[$`]/.test(subscript);
+}
+
+// Reads an arithmetic command, from its first `(`: the text to the `)` that matches the second `(`, which a second `)`
+// must follow, as bash reads one where a reserved word may stand. Its substitutions' hits are added to `sink`.
+// Returns false, the scan put back where it stood, when no `))` ends it there: bash then reads a subshell in a
+// subshell (`((echo a); git push)`).
+function readArithmeticCommand(scanner: Scanner, sink: FenceWhat[], places: Places): boolean {
+    const mark = markOf(scanner);
+    const inner: FenceWhat[] = [];
+    scanner.index += 2;
+    if (readArithmetic(scanner, '(', inner, places) && charAt(scanner, 0) === ')') {
+        scanner.index += 1;
+        sink.push(...inner);
+        return true;
+    }
+    backTo(scanner, mark);
+    return false;
+}
+
+// Reads what a `$` starts: a $'...' or $"..." word, a substitution or arithmetic (its hits added to `sink`, its value
+// UNKNOWN), a parameter, or a `$` that starts nothing, kept as it stands.
 function readDollar(scanner: Scanner, chars: Char[], sink: FenceWhat[], places: Places, isInDouble: boolean): void {
     const next = charAt(scanner, 1);
     const after = charAt(scanner, 2);
@@ -286,6 +431,11 @@ function readDollar(scanner: Scanner, chars: Char[], sink: FenceWhat[], places: 
     } else if (!isInDouble && next === '"') {
         scanner.index += 1;
         readDoubleQuoted(scanner, chars, sink, places);
+    } else if (next === '(' && after === '(') {
+        readArithmeticExpansion(scanner, sink, places);
+        chars.push(UNKNOWN);
+    } else if (next === '[') {
+        readBracketExpansion(scanner, chars, sink, places);
     } else if (next === '(') {
         scanner.index += 2;
         sink.push(...scanList(scanner, 'parenthesis', places));
@@ -342,8 +492,9 @@ function isAtWordEnd(scanner: Scanner): boolean {
     return char === '' || (METACHARACTERS.has(char) && !isProcess);
 }
 
-// Reads one word; the hits of the substitutions in it are added to `sink`.
-function readWord(scanner: Scanner, sink: FenceWhat[], places: Places): Word {
+// Reads one word; the hits of the substitutions in it are added to `sink`. Where an assignment may stand
+// (`isAssignable`), a `[` after a name opens an array's subscript, which bash reads as arithmetic (`a[1<<2]=x`).
+function readWord(scanner: Scanner, sink: FenceWhat[], places: Places, isAssignable = false): Word {
     const start = scanner.index;
     const chars: Char[] = [];
     let isExpanding = false;
@@ -352,6 +503,8 @@ function readWord(scanner: Scanner, sink: FenceWhat[], places: Places): Word {
         const next = charAt(scanner, 1);
         if (char === '\\' && next === '\n') {
             scanner.index += 2;
+        } else if (char === '[' && isAssignable && NAME.test(scanner.text.slice(start, scanner.index))) {
+            isExpanding = readSubscript(scanner, chars, sink, places) || isExpanding;
         } else if (char === '\\') {
             chars.push({ value: next === '' ? char : next, isQuoted: true });
             scanner.index += next === '' ? 1 : 2;
@@ -460,6 +613,29 @@ function isCommandPosition(command: SimpleCommand): boolean {
     return command.words.every((word) => LEADING.has(literalOf(word)));
 }
 
+// Whether every word is a leading word, `time` or one of its options, or, with `isAssignmentKept`, a NAME=value word:
+// what may stand before the place where bash reads a reserved word, or with assignments an assignment.
+function isAllLeading(words: ReadonlyArray<Word>, isAssignmentKept: boolean): boolean {
+    let isAfterTime = false;
+    for (const word of words) {
+        const value = literalOf(word);
+        const isTimeOption: boolean = isAfterTime && value.startsWith('-');
+        if (!LEADING.has(value) && value !== 'time' && !isTimeOption && !(isAssignmentKept && isAssignment(word))) {
+            return false;
+        }
+        isAfterTime = value === 'time' || isTimeOption;
+    }
+    return true;
+}
+
+// Whether a `((` here opens an arithmetic command: where a reserved word may stand, or after `for` (the arithmetic
+// for).
+function opensArithmetic(command: SimpleCommand): boolean {
+    const { words } = command;
+    const isFor = literalOf(words.at(-1)) === 'for';
+    return isAllLeading(isFor ? words.slice(0, -1) : words, false);
+}
+
 // Reads a list of commands up to `closer` and returns their hits in order, each substitution's before those of the
 // command that holds it. `open` holds the parentheses and the case statements opened in the list, innermost last: a
 // `)` closes the innermost parenthesis, ends a pattern of the innermost case, or, with neither open, the list.
@@ -492,9 +668,12 @@ function scanList(scanner: Scanner, closer: Closer, places: Places): FenceWhat[]
             finish();
             scanner.index += 1;
         } else if (char === '(') {
+            const isArithmetic = next === '(' && opensArithmetic(command);
             finish();
-            open.push('parenthesis');
-            scanner.index += 1;
+            if (!isArithmetic || !readArithmeticCommand(scanner, command.inner, places)) {
+                open.push('parenthesis');
+                scanner.index += 1;
+            }
         } else if (char === ')') {
             scanner.index += 1;
             finish();
@@ -505,7 +684,7 @@ function scanList(scanner: Scanner, closer: Closer, places: Places): FenceWhat[]
                 return hits;
             }
         } else {
-            const word = readWord(scanner, command.inner, places);
+            const word = readWord(scanner, command.inner, places, isAllLeading(command.words, true));
             const following = charAt(scanner, 0);
             const isRedirected = (following === '<' || following === '>') && charAt(scanner, 1) !== '(';
             if (isRedirected && DESCRIPTOR.test(word.raw)) {
