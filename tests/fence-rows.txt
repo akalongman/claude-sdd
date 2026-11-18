@@ -1,0 +1,1139 @@
+## The fence's table: the shell commands hooks/fence.ts reads, each with the
+## hits shellHits gives it under the home /home/u. tests/gen-fence-rows.sh
+## prints hooks/fence.rows.ts from this file; tests/check-fence-rows.sh runs
+## each record under bash, with logging stubs in place of the programs the
+## fence names, and holds what ran against the record's hits.
+##
+## A record is a line "# hits: " followed by the hits in order, separated by
+## ", ", or "none"; a line "# bash: agrees", "# bash: differs: <reason>
+## (<detail>)" or "# bash: norun: <why>"; the command's own lines; and a line
+## "# end". A reason is one of: not observed, a role, a prefix, not earned,
+## wrapped. Outside a record only empty lines and lines that start with "##"
+## stand.
+
+## A push, in each place a simple command can stand.
+
+# hits: a push
+# bash: agrees
+git push
+# end
+
+# hits: a push
+# bash: agrees
+git push origin main
+# end
+
+# hits: a push
+# bash: agrees
+cd x && git push
+# end
+
+# hits: a push
+# bash: agrees
+git -C x push
+# end
+
+# hits: a push
+# bash: agrees
+(git push)
+# end
+
+# hits: a push
+# bash: agrees
+{ git push; }
+# end
+
+# hits: a push
+# bash: norun: an absolute path
+/usr/bin/git push
+# end
+
+# hits: a push
+# bash: agrees
+\git push
+# end
+
+# hits: a push
+# bash: agrees
+"git" push
+# end
+
+# hits: a push
+# bash: agrees
+if true; then git push; fi
+# end
+
+# hits: a push
+# bash: agrees
+if git push; then :; fi
+# end
+
+# hits: a push
+# bash: agrees
+while ! git push; do sleep 1; done
+# end
+
+# hits: a push
+# bash: agrees
+until git push; do :; done
+# end
+
+# hits: a push
+# bash: agrees
+time git push
+# end
+
+# hits: a push
+# bash: agrees
+time -p git push
+# end
+
+## A push behind an option, a setting or a prefix command: not plain.
+
+# hits: a push other than a plain one
+# bash: agrees
+git -c a.b=c --git-dir=.git push
+# end
+
+# hits: a push other than a plain one
+# bash: agrees
+git --git-dir .git push
+# end
+
+# hits: a push other than a plain one
+# bash: agrees
+git --no-pager push
+# end
+
+# hits: a push other than a plain one
+# bash: differs: a prefix (a setting before git)
+GIT_SSH_COMMAND=x git push
+# end
+
+# hits: a push other than a plain one
+# bash: differs: a prefix (env)
+env git push
+# end
+
+# hits: a push other than a plain one
+# bash: norun: env empties the environment
+env -i GIT_X=1 git push
+# end
+
+# hits: a push other than a plain one
+# bash: differs: a prefix (command)
+command git push
+# end
+
+# hits: a push other than a plain one
+# bash: differs: a prefix (exec)
+exec git push
+# end
+
+# hits: a push other than a plain one
+# bash: differs: a prefix (nohup)
+nohup git push
+# end
+
+# hits: a push other than a plain one
+# bash: differs: not observed (sudo is not in the stub folder)
+sudo git push
+# end
+
+# hits: a push other than a plain one
+# bash: differs: a prefix (env -u)
+env -u X git push
+# end
+
+# hits: a push other than a plain one
+# bash: differs: a prefix (env --u)
+env --u X git push
+# end
+
+# hits: a push other than a plain one
+# bash: norun: env -a, an option not every env has
+env -a x git push
+# end
+
+# hits: a push other than a plain one
+# bash: norun: an absolute path
+/usr/bin/env git push
+# end
+
+# hits: a push other than a plain one
+# bash: differs: not observed (sudo is not in the stub folder)
+sudo -u bob git push
+# end
+
+## A push inside a substitution, and across a line continuation.
+
+# hits: a push
+# bash: agrees
+out=$(git push 2>&1)
+# end
+
+# hits: a push
+# bash: agrees
+echo "$(git push)"
+# end
+
+# hits: a push
+# bash: agrees
+echo `git push`
+# end
+
+# hits: a push
+# bash: agrees
+git \
+push
+# end
+
+## Pushes that are not plain by what they hold.
+
+# hits: a push other than a plain one
+# bash: agrees
+git push --force
+# end
+
+# hits: a push other than a plain one
+# bash: agrees
+git push -f origin b
+# end
+
+# hits: a push other than a plain one
+# bash: agrees
+git push --force-with-lease
+# end
+
+# hits: a push other than a plain one
+# bash: agrees
+git push --all
+# end
+
+# hits: a push other than a plain one
+# bash: agrees
+git push --mirror
+# end
+
+# hits: a push other than a plain one
+# bash: agrees
+git push --tags
+# end
+
+# hits: a push other than a plain one
+# bash: agrees
+git push origin --delete b
+# end
+
+# hits: a push other than a plain one
+# bash: agrees
+git push origin :b
+# end
+
+# hits: a push other than a plain one
+# bash: agrees
+git push origin +b
+# end
+
+# hits: a push other than a plain one
+# bash: agrees
+git push origin a:b
+# end
+
+# hits: a push other than a plain one
+# bash: agrees
+git push origin a b
+# end
+
+# hits: a push other than a plain one
+# bash: agrees
+git push --branches origin
+# end
+
+# hits: a push other than a plain one
+# bash: agrees
+git push -uf origin b
+# end
+
+# hits: a push other than a plain one
+# bash: agrees
+git push --force-with-lease=b:abc origin b
+# end
+
+# hits: a push other than a plain one
+# bash: agrees
+git push -o ci.skip origin b
+# end
+
+# hits: a push other than a plain one
+# bash: agrees
+git -c remote.origin.mirror=true push origin
+# end
+
+# hits: a push other than a plain one
+# bash: agrees
+git --no-pager push --no-verify
+# end
+
+# hits: a push other than a plain one
+# bash: differs: not earned (a substitution is no literal word; here it made one path)
+git -C "$(pwd)" push
+# end
+
+# hits: a push other than a plain one
+# bash: differs: not earned (a substitution is no literal word; here it made one empty word)
+git push origin "$(git branch --show-current)"
+# end
+
+# hits: a push other than a plain one
+# bash: differs: not earned (a variable is no literal word; here it made none)
+git push origin $b
+# end
+
+# hits: a push other than a plain one
+# bash: agrees
+git push origin [ab]
+# end
+
+# hits: a push other than a plain one
+# bash: agrees
+git push origin b 2&>/dev/null
+# end
+
+# hits: a push other than a plain one
+# bash: agrees
+git push https://example.org/o/r.git main
+# end
+
+# hits: a push other than a plain one
+# bash: agrees
+git push git@example.org:o/r.git main
+# end
+
+## Plain pushes, their output redirected or not.
+
+# hits: a push
+# bash: agrees
+git push
+# end
+
+# hits: a push
+# bash: agrees
+git push origin
+# end
+
+# hits: a push
+# bash: agrees
+git push origin b
+# end
+
+# hits: a push
+# bash: agrees
+git push -u origin b
+# end
+
+# hits: a push
+# bash: agrees
+git push origin b --set-upstream
+# end
+
+# hits: a push
+# bash: agrees
+git -C x push -u origin b
+# end
+
+# hits: a push
+# bash: agrees
+git push origin b 2>&1
+# end
+
+# hits: a push
+# bash: agrees
+git push 2>/dev/null
+# end
+
+# hits: a push
+# bash: agrees
+git push -u origin b > /tmp/log 2>&1
+# end
+
+## More than one hit, in order.
+
+# hits: a push, switching noask
+# bash: agrees
+git push > "$HOME/.local/state/sdd/noask"
+# end
+
+# hits: a push, switching noask
+# bash: agrees
+git push origin b 2>&1 | tee ~/.local/state/sdd/noask
+# end
+
+# hits: a push, switching noask
+# bash: agrees
+git push && noask global off
+# end
+
+# hits: switching noask, a push
+# bash: agrees
+noask global off; git push
+# end
+
+# hits: a push, a pull request
+# bash: agrees
+cd x && git push -u origin b && gh pr create --fill
+# end
+
+## The two requests.
+
+# hits: a pull request
+# bash: agrees
+gh pr create --fill
+# end
+
+# hits: a pull request
+# bash: agrees
+gh -R o/r pr create
+# end
+
+# hits: a pull request
+# bash: agrees
+gh pr new
+# end
+
+# hits: a merge request
+# bash: agrees
+glab mr create
+# end
+
+# hits: a merge request
+# bash: agrees
+glab mr create -f
+# end
+
+# hits: a merge request
+# bash: agrees
+glab -R o/r mr new
+# end
+
+## Switching noask through the command.
+
+# hits: switching noask
+# bash: agrees
+noask global off
+# end
+
+# hits: switching noask
+# bash: agrees
+noask global on 9h
+# end
+
+# hits: switching noask
+# bash: agrees
+noask off
+# end
+
+# hits: switching noask
+# bash: agrees
+noask on
+# end
+
+# hits: switching noask
+# bash: agrees
+noask --session s-1 on
+# end
+
+# hits: switching noask
+# bash: agrees
+~/.local/bin/noask global off
+# end
+
+# hits: switching noask
+# bash: agrees
+env noask global off
+# end
+
+# hits: switching noask
+# bash: agrees
+noask --session s-1 status
+# end
+
+# hits: switching noask
+# bash: agrees
+noask status extra
+# end
+
+# hits: switching noask
+# bash: agrees
+noask count question 6
+# end
+
+# hits: switching noask
+# bash: agrees
+noask --session s-1 count denial 10
+# end
+
+# hits: switching noask
+# bash: agrees
+noask --session s-1 --agent a1 count reset
+# end
+
+# hits: switching noask
+# bash: differs: not earned (a setting before noask is read as switching it)
+FOO=1 noask status
+# end
+
+# hits: switching noask
+# bash: agrees
+env -u X noask global off
+# end
+
+# hits: switching noask
+# bash: norun: env empties the environment
+env -iu X noask off
+# end
+
+# hits: switching noask
+# bash: agrees
+env -C /tmp noask global off
+# end
+
+# hits: switching noask
+# bash: agrees
+env --unset=X noask global off
+# end
+
+# hits: switching noask
+# bash: agrees
+exec -a x noask global off
+# end
+
+# hits: switching noask
+# bash: agrees
+env -uX noask global off
+# end
+
+# hits: switching noask
+# bash: agrees
+env -uC noask global off
+# end
+
+# hits: switching noask
+# bash: agrees
+env -uu noask global off
+# end
+
+# hits: switching noask
+# bash: agrees
+env -C/tmp noask global off
+# end
+
+# hits: switching noask
+# bash: agrees
+exec -ax noask global off
+# end
+
+# hits: switching noask
+# bash: agrees
+exec -cl -a x noask global off
+# end
+
+# hits: switching noask
+# bash: agrees
+env --u X noask global off
+# end
+
+# hits: switching noask
+# bash: agrees
+env --unse X noask global off
+# end
+
+# hits: switching noask
+# bash: norun: env -a, an option not every env has
+env -a x noask global off
+# end
+
+# hits: switching noask
+# bash: norun: env -f, an option not every env has
+env -f /dev/null noask global off
+# end
+
+# hits: switching noask
+# bash: agrees
+env -u gh noask global off
+# end
+
+# hits: switching noask
+# bash: norun: an absolute path
+/usr/bin/env noask global off
+# end
+
+# hits: switching noask
+# bash: differs: not observed (sudo is not in the stub folder)
+sudo -u bob noask global off
+# end
+
+# hits: switching noask
+# bash: agrees
+time -p noask global off
+# end
+
+# hits: switching noask
+# bash: agrees
+no""ask global off
+# end
+
+# hits: switching noask
+# bash: agrees
+n\oask global off
+# end
+
+# hits: switching noask
+# bash: agrees
+{fd}>/dev/null noask global off
+# end
+
+# hits: switching noask
+# bash: agrees
+echo "${ noask global off; }"
+# end
+
+# hits: switching noask
+# bash: agrees
+echo \\
+noask global off
+# end
+
+# hits: switching noask
+# bash: agrees
+cat <<\EOF
+data
+EOF
+noask global off
+# end
+
+## Refusals that were not earned: a name read after a prefix command, a
+## path read whatever the command does with it, a pattern's set.
+
+# hits: switching noask
+# bash: differs: not earned (after a prefix command noask is read as a command; here it is env's argument)
+env -u noask true
+# end
+
+# hits: switching noask
+# bash: differs: not earned (after a prefix command noask is read as a command; here it is grep's argument, and sudo is not in the stub folder)
+sudo grep -rn noask docs
+# end
+
+# hits: switching noask
+# bash: agrees
+cp ~/.local/state/sdd/noask /tmp/snapshot
+# end
+
+# hits: switching noask
+# bash: differs: not earned (a pattern's set is not read)
+rm ~/.local/state/[x]dd/noask
+# end
+
+## Setting a variable of the command's.
+
+# hits: switching noask
+# bash: agrees
+SDD_NOASK_NOW=1 noask status
+# end
+
+# hits: switching noask
+# bash: agrees
+SDD_NOASK_NOW=1 noask
+# end
+
+# hits: switching noask
+# bash: agrees
+env SDD_NOASK_LOCK_WAIT=0 noask
+# end
+
+# hits: switching noask
+# bash: differs: not observed (no stub runs)
+SDD_NOASK_NOW=1 true
+# end
+
+# hits: switching noask
+# bash: differs: not observed (a variable set with no call after it)
+SDD_NOASK_NOW=1
+# end
+
+# hits: switching noask
+# bash: differs: not observed (a variable set with no call after it)
+export SDD_NOASK_NOW=1
+# end
+
+# hits: switching noask
+# bash: differs: not observed (a variable set with no call after it)
+declare -x SDD_NOASK_LOCK_WAIT=0
+# end
+
+## Writing the state directory, or removing or moving a folder above it.
+
+# hits: switching noask
+# bash: agrees
+rm ~/.local/state/sdd/noask
+# end
+
+# hits: switching noask
+# bash: agrees
+rm -f "$HOME/.local/state/sdd/noask.d/s-1"
+# end
+
+# hits: switching noask
+# bash: agrees
+rm -r ${HOME}/.local/state/sdd
+# end
+
+# hits: switching noask
+# bash: agrees
+mv /home/u/.local/state/sdd/noask /tmp/x
+# end
+
+# hits: switching noask
+# bash: agrees
+cp x ~/.local/state/sdd/noask
+# end
+
+# hits: switching noask
+# bash: agrees
+truncate -s 0 ~/.local/state/sdd/noask
+# end
+
+# hits: switching noask
+# bash: agrees
+dd if=/dev/null of=/home/u/.local/state/sdd/noask
+# end
+
+# hits: switching noask
+# bash: agrees
+echo x | tee ~/.local/state/sdd/noask
+# end
+
+# hits: switching noask
+# bash: agrees
+: > ~/.local/state/sdd/noask
+# end
+
+# hits: switching noask
+# bash: agrees
+printf x >> /home/u/.local/state/sdd/../sdd/noask
+# end
+
+# hits: switching noask
+# bash: agrees
+: >| ~/.local/state/sdd/budgets.d/s-1
+# end
+
+# hits: switching noask
+# bash: agrees
+echo x &> ~/.local/state/sdd/noask
+# end
+
+# hits: switching noask
+# bash: agrees
+printf x &>> ~/.local/state/sdd/budgets.d/s-1
+# end
+
+# hits: switching noask
+# bash: agrees
+echo x >& ~/.local/state/sdd/noask
+# end
+
+# hits: switching noask
+# bash: agrees
+: <> ~/.local/state/sdd/noask.d/s-9
+# end
+
+# hits: switching noask
+# bash: agrees
+echo x 2> ~/.local/state/sdd/noask
+# end
+
+# hits: switching noask
+# bash: agrees
+echo x 1>>~/.local/state/sdd/noask
+# end
+
+# hits: switching noask
+# bash: agrees
+rm -r ~/.local/state
+# end
+
+# hits: switching noask
+# bash: agrees
+mv "$HOME/.local/state" /tmp/x
+# end
+
+# hits: switching noask
+# bash: agrees
+mv -t /tmp ~/.local
+# end
+
+# hits: switching noask
+# bash: agrees
+mv ~ /tmp/x
+# end
+
+# hits: switching noask
+# bash: agrees
+rm -rf ~/.local
+# end
+
+# hits: switching noask
+# bash: differs: not observed (sudo is not in the stub folder)
+sudo rm -rf ~/.local/state
+# end
+
+# hits: switching noask
+# bash: norun: env -a, an option not every env has
+env -a x rm ~/.local/state/sdd/noask
+# end
+
+# hits: switching noask
+# bash: agrees
+rm -rf ~/.local/state/*
+# end
+
+# hits: switching noask
+# bash: agrees
+rm ~/.local/state/sd?/noask
+# end
+
+# hits: switching noask
+# bash: agrees
+rm ~/.local/st*/sdd/noask
+# end
+
+# hits: switching noask
+# bash: agrees
+rm ~/.local/state/[rs]dd/noask
+# end
+
+# hits: switching noask
+# bash: norun: an absolute path
+rm -r /home/*/.local/state/sdd
+# end
+
+# hits: switching noask
+# bash: agrees
+rm -rf ~/.local/*
+# end
+
+# hits: switching noask
+# bash: agrees
+rm -rf ~/.*
+# end
+
+# hits: switching noask
+# bash: agrees
+mv ~/.local/state/* /tmp/x
+# end
+
+# hits: switching noask
+# bash: agrees
+: > ~/.local/state/sdd/noas?
+# end
+
+# hits: switching noask
+# bash: differs: not earned (a pattern matches a leading dot, which the shell's * does not)
+rm -rf ~/*
+# end
+
+# hits: switching noask
+# bash: agrees
+rm ~/.local/state/s\dd/noask
+# end
+
+# hits: switching noask
+# bash: agrees
+cp -t/home/u/.local/state/sdd /tmp/noask
+# end
+
+# hits: switching noask
+# bash: agrees
+mv --t /tmp ~/.local
+# end
+
+# hits: switching noask
+# bash: agrees
+mv --target-dir=/tmp ~/.local/state
+# end
+
+# hits: switching noask
+# bash: agrees
+mv -T --exchange /tmp/x ~/.local/state
+# end
+
+# hits: switching noask
+# bash: agrees
+tee >(cat > ~/.local/state/sdd/noask)
+# end
+
+## Nothing the fence names.
+
+# hits: none
+# bash: agrees
+git stash push
+# end
+
+# hits: none
+# bash: agrees
+git -C x stash push
+# end
+
+# hits: none
+# bash: agrees
+git log --grep=push
+# end
+
+# hits: none
+# bash: agrees
+echo "git push"
+# end
+
+# hits: none
+# bash: agrees
+echo 'git push'
+# end
+
+# hits: none
+# bash: agrees
+git commit -m "x; git push"
+# end
+
+# hits: none
+# bash: agrees
+# git push
+# end
+
+# hits: none
+# bash: agrees
+ls # git push
+# end
+
+# hits: none
+# bash: agrees
+sh -c 'git push'
+# end
+
+# hits: none
+# bash: agrees
+bash deploy.sh
+# end
+
+# hits: none
+# bash: agrees
+gh pr view 1
+# end
+
+# hits: none
+# bash: agrees
+glab mr list
+# end
+
+# hits: none
+# bash: agrees
+noask
+# end
+
+# hits: none
+# bash: agrees
+noask status
+# end
+
+# hits: none
+# bash: agrees
+command noask status
+# end
+
+# hits: none
+# bash: agrees
+echo "$SDD_NOASK_NOW"
+# end
+
+# hits: none
+# bash: agrees
+git status 2>&1 | cat
+# end
+
+# hits: none
+# bash: agrees
+env -u X true
+# end
+
+# hits: none
+# bash: agrees
+command -v noask
+# end
+
+# hits: none
+# bash: agrees
+command -v git
+# end
+
+# hits: none
+# bash: agrees
+sudo apt-get install -y git gh
+# end
+
+# hits: none
+# bash: agrees
+sudo grep -rn push .
+# end
+
+# hits: none
+# bash: agrees
+make >| build.log
+# end
+
+# hits: none
+# bash: agrees
+make >&2
+# end
+
+# hits: none
+# bash: agrees
+cat <<< "git push"
+# end
+
+# hits: none
+# bash: agrees
+# end
+
+## Here-documents: the body is data, and only a real opener opens one.
+
+# hits: none
+# bash: agrees
+cat <<'EOF'
+git push
+EOF
+# end
+
+# hits: none
+# bash: agrees
+cat <<EOF
+git push
+EOF
+# end
+
+# hits: a push
+# bash: agrees
+# see <<EOF
+git push
+EOF
+# end
+
+# hits: a push
+# bash: agrees
+echo "<<EOF"
+git push
+# end
+
+# hits: a push
+# bash: agrees
+cat <<-E
+	body
+	E
+git push
+# end
+
+# hits: a push
+# bash: agrees
+cat <<EOF
+it's
+EOF
+git push
+# end
+
+## Reading the state directory, other homes and spellings, and what the
+## fence does not catch.
+
+# hits: none
+# bash: agrees
+cat ~/.local/state/sdd/noask
+# end
+
+# hits: none
+# bash: agrees
+ls ~/.local/state/sdd
+# end
+
+# hits: none
+# bash: agrees
+rm /tmp/h/.local/state/sdd/noask
+# end
+
+# hits: none
+# bash: agrees
+cd ~/.local/state/sdd && rm noask
+# end
+
+# hits: none
+# bash: agrees
+grep -rn .local/state/sdd docs
+# end
+
+# hits: none
+# bash: agrees
+rm ~/.local/state/other/x
+# end
+
+# hits: none
+# bash: agrees
+rm -r ~/.local/share/x
+# end
+
+# hits: none
+# bash: agrees
+cat < ~/.local/state/sdd/noask
+# end
+
+# hits: none
+# bash: differs: a role (the home is mv's destination)
+mv /tmp/report "$HOME"
+# end
+
+# hits: none
+# bash: differs: a role (the home is mv's destination)
+mv x ~
+# end
+
+# hits: none
+# bash: differs: a role (~/.local is mv's destination)
+mv a b ~/.local
+# end
+
+# hits: none
+# bash: differs: a role (the home is mv's destination)
+mv -t "$HOME" /tmp/report
+# end
+
+# hits: none
+# bash: agrees
+rm ~/.local/state/x*
+# end
+
+# hits: none
+# bash: agrees
+rm ~/.local/state/"*"
+# end
+
+# hits: none
+# bash: differs: wrapped (a brace list is not read)
+rm -rf ~/.local/{state,share}
+# end
+
+# hits: none
+# bash: agrees
+cp -R /tmp/sdd ~/.local/state
+# end
+
+# hits: none
+# bash: agrees
+sed -i s/x/y/ ~/.local/state/sdd/budgets.d/s-1
+# end

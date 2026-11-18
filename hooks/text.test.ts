@@ -1,17 +1,34 @@
 import { expect, test } from 'claude-code/testing';
+import type { Counted } from './count';
+import type { FenceWhat } from './fence';
+import type { Reading } from './marker';
+import * as texts from './text';
 import {
     ARGUMENT_HINT,
+    BLOCKED_LINE,
     COMMAND_DESCRIPTION,
+    DONE_LINE,
+    endingText,
     FALLBACK_RULE,
+    fenceText,
     noIdLine,
+    NOTHING_RUNNING_TEXT,
     notRegisteredLine,
     notRunLine,
     notSubmittedLine,
     OWNER_ONLY_LINE,
     PARTIAL_LINE,
+    PLAN_TEXT,
+    QUESTION_PREFIX,
+    SUBAGENT_SPENT_TEXT,
+    SUBAGENT_TEXT,
+    SWITCH_TEXT,
     switchFailedLine,
+    WAITING_LINE,
     WAKE_TEXT,
     wakeText,
+    withCountFailure,
+    withError,
     withPartialLine,
 } from './text';
 
@@ -80,4 +97,102 @@ test("a /noask the owner did not type is refused in the owner's words", async ()
 test("the module's own toasts", async () => {
     expect(notRegisteredLine('taken')).toBe('sdd: could not register /noask: taken');
     expect(notSubmittedLine('a Stop stands')).toBe('sdd: the wake-up turn could not be submitted: a Stop stands');
+});
+
+// The refusals' texts
+
+test("the refusals' fixed texts are the spec's", async () => {
+    expect(QUESTION_PREFIX).toBe('sdd noask: ');
+    expect(PLAN_TEXT).toBe(
+        "noask is on: a plan awaits the owner's review; end this turn on `noask: blocked: plan awaits review`",
+    );
+    expect(SUBAGENT_TEXT).toBe(
+        "noask is on: this action needs the owner and is denied; follow your role's rule for a denied tool",
+    );
+    expect(SUBAGENT_SPENT_TEXT).toBe(
+        "noask is on: this action needs the owner and is denied, and this agent's noask budget is spent; return " +
+            "under your role's rule for a denied tool",
+    );
+    expect(SWITCH_TEXT).toBe(
+        "the noask switch is the owner's: it is typed as /noask in a session or as noask global in a terminal; do " +
+            'not switch it or write its files; `noask` and `noask status` read it',
+    );
+});
+
+test("the end-of-turn lines and the text for a turn that waits on nothing are the spec's", async () => {
+    expect(WAITING_LINE).toBe('noask: waiting:');
+    expect(DONE_LINE).toBe('noask: done');
+    expect(BLOCKED_LINE).toBe('noask: blocked:');
+    expect(NOTHING_RUNNING_TEXT).toBe(
+        'nothing of yours is running or scheduled: `waiting` is for work of yours that will wake you, never for ' +
+            'the owner; act, or end on `noask: done` or `noask: blocked: <why>`',
+    );
+});
+
+test("the fence's text names what needs the owner, twice", async () => {
+    expect(fenceText('a push')).toBe(
+        'noask is on: a push needs the owner; print `blocked: a push` and continue with the next independent item',
+    );
+});
+
+test('the ending text names the budget that ran out', async () => {
+    expect(endingText('question')).toBe(
+        'end this turn with the list Rulings I made and the line `noask: blocked: question budget exhausted`',
+    );
+});
+
+test('an unreadable reading adds its error to the text; every other reading leaves it as it is', async () => {
+    expect(withError('the text', { kind: 'unreadable', error: 'bad level: push' })).toBe(
+        'the text (noask marker unreadable: bad level: push; treated as on)',
+    );
+    const others: ReadonlyArray<Reading> = [
+        { kind: 'off' },
+        { kind: 'expired', until: '2026-11-12T07:30:00+04:00' },
+        {
+            kind: 'on',
+            generation: '2026-11-11T23:00:12.000000000+04:00-00000000',
+            since: '2026-11-11T23:00:12+04:00',
+            until: undefined,
+            level: 'noask',
+        },
+    ];
+    for (const reading of others) {
+        expect(withError('the text', reading), reading.kind).toBe('the text');
+    }
+});
+
+test("a failed count, and a count's note, are added to the text; a count with neither leaves it", async () => {
+    expect(withCountFailure('the text', { kind: 'failed', error: 'noask: the records are busy' })).toBe(
+        'the text (noask count failed: noask: the records are busy)',
+    );
+    const noted: Counted = { kind: 'counted', spent: 'none', note: 'noask: started the record again' };
+    expect(withCountFailure('the text', noted)).toBe('the text (noask count: noask: started the record again)');
+    expect(withCountFailure('the text', { kind: 'counted', spent: 'question', note: undefined })).toBe('the text');
+    expect(withCountFailure('the text', { kind: 'off' })).toBe('the text');
+});
+
+test('no exported text holds an em or en dash', async () => {
+    const whats: ReadonlyArray<FenceWhat> = [
+        'a push',
+        'a pull request',
+        'a merge request',
+        'a push other than a plain one',
+        'switching noask',
+        'an edit under the configuration directory',
+    ];
+    const composed = [
+        ...whats.map((what) => fenceText(what)),
+        endingText('question'),
+        endingText('permission'),
+        endingText('continuation'),
+        withError('x', { kind: 'unreadable', error: 'e' }),
+        withCountFailure('x', { kind: 'failed', error: 'e' }),
+        withCountFailure('x', { kind: 'counted', spent: 'none', note: 'n' }),
+    ];
+    const fixed = Object.values(texts).filter((value): value is string => typeof value === 'string');
+    expect(fixed).toContain(SWITCH_TEXT);
+    expect(fixed.length).toBeGreaterThanOrEqual(15);
+    for (const text of [...fixed, ...composed]) {
+        expect(/[\u2013\u2014]/.test(text), text).toBe(false);
+    }
 });

@@ -1,8 +1,12 @@
 // Every text the sdd module shows the owner or submits to the session, in the spec's words, each listed once: the
 // /noask command as the typeahead lists it, its lines and toasts, the wake-up turn and the rule text that turn
-// carries; OWNER_ONLY_LINE is the owner's ruling, which the spec's next revision takes up. register.tsx composes them;
-// nothing else writes one.
+// carries, and the texts a refused call carries (the question, the plan approval, the fence, the guard on the switch,
+// a spent budget, and what an unreadable marker or a failed count adds); OWNER_ONLY_LINE is the owner's ruling, which
+// the spec's next revision takes up. register.tsx composes them; nothing else writes one.
 import type { EngineInterface } from 'claude-code';
+import type { Counted, Spent } from './count';
+import type { FenceWhat } from './fence';
+import type { Reading } from './marker';
 import { inTime } from './marker';
 
 // The /noask command as the typeahead and /help show it.
@@ -32,6 +36,34 @@ export const PARTIAL_LINE =
 // The text of a /noask other than the bare command and `status` that did not come from the owner's own typing (the
 // prompt or the bridge): nothing is run, submitted or toasted. A count is refused under the same line.
 export const OWNER_ONLY_LINE = 'noask: /noask switches only when the owner types it; nothing changed';
+
+// What a refused question carries before the rule text.
+export const QUESTION_PREFIX = 'sdd noask: ';
+
+// The refused plan approval's text.
+export const PLAN_TEXT =
+    "noask is on: a plan awaits the owner's review; end this turn on `noask: blocked: plan awaits review`";
+
+// A subagent's refusal, under its budget and once the budget is spent.
+export const SUBAGENT_TEXT =
+    "noask is on: this action needs the owner and is denied; follow your role's rule for a denied tool";
+export const SUBAGENT_SPENT_TEXT =
+    "noask is on: this action needs the owner and is denied, and this agent's noask budget is spent; return under " +
+    "your role's rule for a denied tool";
+
+// The guard's text, for a call that switches noask or writes its files while the session is not under noask.
+export const SWITCH_TEXT =
+    "the noask switch is the owner's: it is typed as /noask in a session or as noask global in a terminal; do not " +
+    'switch it or write its files; `noask` and `noask status` read it';
+
+// The three lines a turn under noask ends on, and the text for a turn that ends on waiting with nothing of its own
+// running; step two's Stop entry uses them, and they are held equal to the apply skill's reference from this release.
+export const WAITING_LINE = 'noask: waiting:';
+export const DONE_LINE = 'noask: done';
+export const BLOCKED_LINE = 'noask: blocked:';
+export const NOTHING_RUNNING_TEXT =
+    'nothing of yours is running or scheduled: `waiting` is for work of yours that will wake you, never for the ' +
+    'owner; act, or end on `noask: done` or `noask: blocked: <why>`';
 
 // What a failed switch names when the command printed nothing.
 const NO_OUTPUT = 'no output';
@@ -72,6 +104,40 @@ export function notRegisteredLine(reason: string): string {
 
 export function notSubmittedLine(reason: string): string {
     return `sdd: the wake-up turn could not be submitted: ${reason}`;
+}
+
+// The fence's refusal of a call that needs the owner.
+export function fenceText(what: FenceWhat): string {
+    return (
+        `noask is on: ${what} needs the owner; print \`blocked: ${what}\` and continue with the next ` +
+        'independent item'
+    );
+}
+
+// The main session's text once a budget is spent.
+export function endingText(which: Exclude<Spent, 'none'>): string {
+    return `end this turn with the list Rulings I made and the line \`noask: blocked: ${which} budget exhausted\``;
+}
+
+// `text` with an unreadable reading's error after it; every other reading leaves it as it is.
+export function withError(text: string, reading: Reading): string {
+    return reading.kind === 'unreadable' ? `${text} (noask marker unreadable: ${reading.error}; treated as on)` : text;
+}
+
+// `text` with a failed count's error after it, or a count's note; a count with neither leaves it as it is.
+export function withCountFailure(text: string, counted: Counted): string {
+    switch (counted.kind) {
+        case 'failed':
+            return `${text} (noask count failed: ${counted.error})`;
+        case 'counted':
+            return counted.note === undefined ? text : `${text} (noask count: ${counted.note})`;
+        case 'off':
+            return text;
+        default: {
+            const exhaustive: never = counted;
+            return exhaustive;
+        }
+    }
 }
 
 // The read of the rule file, a rejection when the call throws as it is made.

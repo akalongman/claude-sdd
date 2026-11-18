@@ -1,0 +1,375 @@
+import type { EngineInterface, FsEntry, FsStat, Timer } from 'claude-code';
+import { expect, test } from 'claude-code/testing';
+import type { FenceWhat } from './fence';
+import { configRoots, isPublication, isUnder, placed, shellHits, spelled, startsLikeConfig, stateRoots } from './fence';
+import { FENCE_ROWS } from './fence.rows';
+import { LOOK_TIMEOUT_MS } from './marker';
+
+const HOME = '/home/u';
+
+// shellHits, the table (tests/fence-rows.txt, generated into fence.rows.ts)
+
+for (const [index, { command, hits }] of FENCE_ROWS.entries()) {
+    test(`shellHits, record ${index + 1}: ${JSON.stringify(command)}`, async () => {
+        expect(shellHits(command, HOME).map(({ what }) => what)).toEqual(hits);
+    });
+}
+
+test('the table holds every record of tests/fence-rows.txt', async () => {
+    expect(FENCE_ROWS).toHaveLength(216);
+});
+
+// Forms the table does not hold, read by the same rules: a $'...' word's escapes, a case pattern's `)` inside a
+// substitution (also inside a subshell there), a here-document inside a substitution, two here-documents on one line,
+// bash 5.3's ${| ...; }, a substitution inside a parameter expansion and inside nested backticks, and mv's -t as the
+// last of its short options. All but the first agreed with bash under tests/check-fence-rows.sh on 2026-11-18; its
+// guard does not run a $'...' word.
+const BEYOND_THE_TABLE: ReadonlyArray<readonly [string, ReadonlyArray<FenceWhat>]> = [
+    ["$'\\x67it' push", ['a push other than a plain one']],
+    ['echo $(case a in a) git push;; esac)', ['a push']],
+    ['echo "$( (case a in a) :;; esac); git push )"', ['a push']],
+    ['x=$(cat <<EOF\n)\nEOF\n); git push', ['a push']],
+    ['cat <<A <<B\nx\nA\ngit push\nB\nnoask on', ['switching noask']],
+    ['echo "${ git push; }"; echo ${| noask on; }', ['a push', 'switching noask']],
+    ['echo ${x:-$(git push)}', ['a push']],
+    ['echo `echo \\`git push\\``', ['a push']],
+    ['mv -ft /tmp ~/.local', ['switching noask']],
+];
+
+for (const [command, hits] of BEYOND_THE_TABLE) {
+    test(`shellHits, beyond the table: ${JSON.stringify(command)}`, async () => {
+        expect(shellHits(command, HOME).map(({ what }) => what)).toEqual(hits);
+    });
+}
+
+test('a home written with a final slash is the same home', async () => {
+    expect(shellHits('rm ~/.local/state/sdd/noask', '/home/u/').map(({ what }) => what)).toEqual(['switching noask']);
+});
+
+test('a push, a pull request and a merge request are publications; every other hit is not', async () => {
+    const publications: ReadonlyArray<FenceWhat> = ['a push', 'a pull request', 'a merge request'];
+    const others: ReadonlyArray<FenceWhat> = [
+        'a push other than a plain one',
+        'switching noask',
+        'an edit under the configuration directory',
+    ];
+    for (const what of publications) {
+        expect(isPublication({ what }), what).toBe(true);
+    }
+    for (const what of others) {
+        expect(isPublication({ what }), what).toBe(false);
+    }
+});
+
+// isUnder and spelled
+
+const ROOTS = ['/home/u/.claude', '/home/u/.claude2', '/home/u/.claude-work', '/home/u/.claudex'];
+const CWD = '/home/u/projects/app';
+
+test('a path spelled under a configuration root is under it', async () => {
+    for (const path of [
+        '/home/u/.claude/CLAUDE.md',
+        '/home/u/.claude2/rules/x.md',
+        '/home/u/.claude-work/skills/a/SKILL.md',
+        '~/.claude/x',
+        '/home/u/projects/../.claude/x',
+        '/home/u/.claudex/a',
+    ]) {
+        expect(isUnder(spelled(path, HOME, CWD), ROOTS), path).toBe(true);
+    }
+});
+
+test('a path that only starts like a root, a project folder and another home are not under one', async () => {
+    const outside = ['/home/u/.claudette/x', '/home/u/projects/app/.claude/settings.json', '/home/other/.claude/x'];
+    for (const path of outside) {
+        expect(isUnder(spelled(path, HOME, CWD), ROOTS), path).toBe(false);
+    }
+});
+
+test('a root is under itself', async () => {
+    expect(isUnder('/home/u/.claude', ROOTS)).toBe(true);
+});
+
+test('spelled makes a path absolute, expands ~ and folds . and ..', async () => {
+    expect(spelled('~/.claude/x', HOME, CWD)).toBe('/home/u/.claude/x');
+    expect(spelled('~', HOME, CWD)).toBe('/home/u');
+    expect(spelled('notes/./a/../b.md', HOME, CWD)).toBe('/home/u/projects/app/notes/b.md');
+    expect(spelled('../../.claude/CLAUDE.md', HOME, CWD)).toBe('/home/u/.claude/CLAUDE.md');
+    expect(spelled('/home/u//.claude/', HOME, CWD)).toBe('/home/u/.claude');
+    expect(spelled('~other/x', HOME, CWD)).toBe('/home/u/projects/app/~other/x');
+});
+
+// startsLikeConfig
+
+test('a spelled path whose first part below the home starts with .claude starts like the configuration', async () => {
+    for (const path of ['/home/u/.claude2/rules/x.md', '/home/u/.claude', '/home/u/.claudette/x']) {
+        expect(startsLikeConfig(path, HOME), path).toBe(true);
+    }
+    for (const path of ['/home/u/projects/app/.claude/x', '/home/other/.claude/x', '/home/u/.cache/x']) {
+        expect(startsLikeConfig(path, HOME), path).toBe(false);
+    }
+});
+
+// The file system beneath configRoots, stateRoots and placed
+
+// A member of the engine no test here reaches: calling it fails the test.
+function unused(): never {
+    throw new Error('the test reached an engine member it does not stage');
+}
+
+// A call that never answers, and `made`, which settles once the call has been made.
+function hanging<T>(): { readonly made: Promise<void>; readonly call: () => Promise<T> } {
+    let markMade: () => void = () => undefined;
+    const made = new Promise<void>((resolve) => {
+        markMade = resolve;
+    });
+    return {
+        made,
+        call: () => {
+            markMade();
+            return new Promise<T>(() => undefined);
+        },
+    };
+}
+
+// Lets every answer that is already given reach the code that waits on it.
+async function flush(): Promise<void> {
+    for (let turn = 0; turn < 20; turn += 1) {
+        await Promise.resolve();
+    }
+}
+
+// What the file system answers beneath the module. Absent: HOME is /home/u and nothing exists. `real` maps each path
+// that exists to where it lands. Each override answers its call for a path, or leaves it to `real` when it returns
+// undefined.
+type World = {
+    readonly env?: Readonly<Record<string, string>>;
+    readonly real?: Readonly<Record<string, string>>;
+    readonly entries?: ReadonlyArray<string>;
+    readonly list?: (path: string) => Promise<FsEntry[]> | undefined;
+    readonly stat?: (path: string) => Promise<FsStat> | undefined;
+};
+
+// A timer the module started with `$.clock.after`.
+type StagedTimer = { readonly ms: number; readonly fire: () => void; isCancelled: boolean };
+
+type Stage = {
+    readonly engine: Pick<EngineInterface, 'env' | 'fs' | 'clock'>;
+    readonly calls: ReadonlyArray<string>; // each file call, `<call> <path>`, in order
+    readonly timers: ReadonlyArray<StagedTimer>;
+    readonly fireTimers: () => void; // fires every timer not cancelled
+};
+
+function stage(world: World = {}): Stage {
+    const env = world.env ?? { HOME };
+    const real = world.real ?? {};
+    const calls: string[] = [];
+    const timers: StagedTimer[] = [];
+    const engine: Pick<EngineInterface, 'env' | 'fs' | 'clock'> = {
+        env: {
+            get: async (name: string) => env[name],
+            set: unused,
+        },
+        fs: {
+            read: unused,
+            write: unused,
+            list: (path?: string) => {
+                const directory = path ?? '';
+                calls.push(`list ${directory}`);
+                const entries = (world.entries ?? []).map(
+                    (name): FsEntry => ({ name, kind: 'dir', size: 0, mtimeMs: 0, isLink: false }),
+                );
+                return world.list?.(directory) ?? Promise.resolve(entries);
+            },
+            exists: unused,
+            stat: (path: string) => {
+                calls.push(`stat ${path}`);
+                const landing = real[path];
+                const answer = (): Promise<FsStat> =>
+                    landing === undefined
+                        ? Promise.reject(new Error(`ENOENT: no such file or directory, stat '${path}'`))
+                        : Promise.resolve({
+                              kind: 'dir',
+                              size: 0,
+                              mtimeMs: 0,
+                              isLink: landing !== path,
+                              realPath: landing,
+                          });
+                return world.stat?.(path) ?? answer();
+            },
+            ancestors: unused,
+        },
+        clock: {
+            now: unused,
+            sleep: unused,
+            after: (ms: number, fn: () => void): Timer => {
+                const timer: StagedTimer = { ms, fire: fn, isCancelled: false };
+                timers.push(timer);
+                return {
+                    cancel: () => {
+                        timer.isCancelled = true;
+                    },
+                };
+            },
+            every: unused,
+        },
+    };
+    const fireTimers = (): void => {
+        for (const timer of timers.filter((each) => !each.isCancelled)) {
+            timer.fire();
+        }
+    };
+    return { engine, calls, timers, fireTimers };
+}
+
+// configRoots
+
+// The home of the spec's example: .claude a link into the dotfiles, .claude2 a folder, and the variable's directory a
+// link too, so that a root list shows whether each was resolved.
+const LINKED: World = {
+    env: { HOME, CLAUDE_CONFIG_DIR: '/etc/claude' },
+    entries: ['.claude', '.claude2', '.cache', 'projects'],
+    real: {
+        '/home/u/.claude': '/home/u/dotfiles/claude',
+        '/home/u/.claude2': '/home/u/.claude2',
+        '/home/u/.cache': '/home/u/.cache',
+        '/etc/claude': '/srv/claude',
+    },
+};
+
+test("the roots are the home's entries that start with .claude and the variable, spelled and resolved", async () => {
+    const world = stage(LINKED);
+    expect(await configRoots(world.engine, HOME)).toEqual({
+        roots: ['/home/u/.claude', '/home/u/dotfiles/claude', '/home/u/.claude2', '/etc/claude', '/srv/claude'],
+        isListed: true,
+    });
+    expect(world.calls).not.toContain('stat /home/u/.cache');
+    expect(world.calls).not.toContain('stat /home/u/projects');
+    expect(world.timers).toHaveLength(world.calls.length);
+    expect(world.timers.every((timer) => timer.isCancelled && timer.ms === LOOK_TIMEOUT_MS)).toBe(true);
+});
+
+test('a listing that rejects leaves .claude and the variable, each resolved without it', async () => {
+    const world = stage({ ...LINKED, list: () => Promise.reject(new Error('EACCES: permission denied')) });
+    expect(await configRoots(world.engine, HOME)).toEqual({
+        roots: ['/home/u/.claude', '/home/u/dotfiles/claude', '/etc/claude', '/srv/claude'],
+        isListed: false,
+    });
+});
+
+test('a listing that does not answer in time leaves the same roots, both resolved before its timer', async () => {
+    const listing = hanging<FsEntry[]>();
+    const world = stage({ ...LINKED, list: () => listing.call() });
+    const answer = configRoots(world.engine, HOME);
+    await listing.made;
+    expect(world.calls).toContain('stat /home/u/.claude');
+    expect(world.calls).toContain('stat /etc/claude');
+    await flush();
+    world.fireTimers();
+    expect(await answer).toEqual({
+        roots: ['/home/u/.claude', '/home/u/dotfiles/claude', '/etc/claude', '/srv/claude'],
+        isListed: false,
+    });
+});
+
+test('when .claude cannot be resolved either, it stands as spelled', async () => {
+    const rejected = stage({
+        ...LINKED,
+        list: () => Promise.reject(new Error('EIO: i/o error')),
+        stat: (path) => (path === '/home/u/.claude' ? Promise.reject(new Error('EIO: i/o error')) : undefined),
+    });
+    expect(await configRoots(rejected.engine, HOME)).toEqual({
+        roots: ['/home/u/.claude', '/etc/claude', '/srv/claude'],
+        isListed: false,
+    });
+
+    const listing = hanging<FsEntry[]>();
+    const resolving = hanging<FsStat>();
+    const hung = stage({
+        ...LINKED,
+        list: () => listing.call(),
+        stat: (path) => (path === '/home/u/.claude' ? resolving.call() : undefined),
+    });
+    const answer = configRoots(hung.engine, HOME);
+    await listing.made;
+    await resolving.made;
+    await flush();
+    hung.fireTimers();
+    expect(await answer).toEqual({ roots: ['/home/u/.claude', '/etc/claude', '/srv/claude'], isListed: false });
+});
+
+test('without the variable the roots are the home alone', async () => {
+    const world = stage({ ...LINKED, env: { HOME } });
+    expect(await configRoots(world.engine, HOME)).toEqual({
+        roots: ['/home/u/.claude', '/home/u/dotfiles/claude', '/home/u/.claude2'],
+        isListed: true,
+    });
+});
+
+// stateRoots
+
+test('the state directory as spelled, and where it lands through a link above it', async () => {
+    const plain = stage({ real: { '/home/u/.local/state/sdd': '/home/u/.local/state/sdd' } });
+    expect(await stateRoots(plain.engine, HOME)).toEqual(['/home/u/.local/state/sdd']);
+
+    const linked = stage({ real: { '/home/u/.local/state': '/home/u/elsewhere/state' } });
+    expect(await stateRoots(linked.engine, HOME)).toEqual([
+        '/home/u/.local/state/sdd',
+        '/home/u/elsewhere/state/sdd',
+    ]);
+});
+
+test('a state directory that cannot be placed in time stands as spelled', async () => {
+    const looking = hanging<FsStat>();
+    const world = stage({ stat: () => looking.call() });
+    const answer = stateRoots(world.engine, HOME);
+    await looking.made;
+    world.fireTimers();
+    expect(await answer).toEqual(['/home/u/.local/state/sdd']);
+});
+
+// placed
+
+test('an existing file lands at its own real path', async () => {
+    const world = stage({ real: { '/home/u/.claude/rules/x.md': '/home/u/dotfiles/rules/x.md' } });
+    expect(await placed(world.engine, '/home/u/.claude/rules/x.md')).toBe('/home/u/dotfiles/rules/x.md');
+});
+
+test("a file not there yet lands at its folder's real path plus its name", async () => {
+    const world = stage({ real: { '/home/u/.claude': '/home/u/dotfiles/claude' } });
+    expect(await placed(world.engine, '/home/u/.claude/CLAUDE.md')).toBe('/home/u/dotfiles/claude/CLAUDE.md');
+});
+
+test("a file two folders under a missing folder lands at the nearest existing ancestor's real path", async () => {
+    const world = stage({ real: { '/w': '/real/w' } });
+    expect(await placed(world.engine, '/w/new/dir/file.txt')).toBe('/real/w/new/dir/file.txt');
+    expect(world.calls).toEqual(['stat /w/new/dir/file.txt', 'stat /w/new/dir', 'stat /w/new', 'stat /w']);
+    expect(world.timers.every((timer) => timer.isCancelled && timer.ms === LOOK_TIMEOUT_MS)).toBe(true);
+});
+
+test('a path with no existing ancestor cannot be placed', async () => {
+    const world = stage();
+    expect(await placed(world.engine, '/a/b')).toBeUndefined();
+    expect(world.calls).toEqual(['stat /a/b', 'stat /a', 'stat /']);
+});
+
+test('a call that does not answer in time cannot be placed, and no ancestor is asked after it', async () => {
+    const looking = hanging<FsStat>();
+    const world = stage({
+        real: { '/w': '/real/w' },
+        stat: (path) => (path === '/w/new' ? looking.call() : undefined),
+    });
+    const answer = placed(world.engine, '/w/new/file.txt');
+    await looking.made;
+    await flush();
+    world.fireTimers();
+    expect(await answer).toBeUndefined();
+    expect(world.calls).toEqual(['stat /w/new/file.txt', 'stat /w/new']);
+});
+
+test('a path that stats without a real path cannot be placed', async () => {
+    const world = stage({
+        stat: () => Promise.resolve({ kind: 'other', size: 0, mtimeMs: 0, isLink: true }),
+    });
+    expect(await placed(world.engine, '/w/dangling')).toBeUndefined();
+});
