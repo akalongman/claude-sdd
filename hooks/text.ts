@@ -29,8 +29,8 @@ export const PARTIAL_LINE =
     'noask: this release refuses questions and fences outward calls only; a turn that ends on a question in plain ' +
     "text, a permission prompt and a tool server's question still wait for you";
 
-// The text of a switching /noask that did not come from the owner's own typing (the prompt or the bridge): nothing is
-// run, submitted or toasted.
+// The text of a /noask other than the bare command and `status` that did not come from the owner's own typing (the
+// prompt or the bridge): nothing is run, submitted or toasted. A count is refused under the same line.
 export const OWNER_ONLY_LINE = 'noask: /noask switches only when the owner types it; nothing changed';
 
 // What a failed switch names when the command printed nothing.

@@ -100,7 +100,8 @@ function printed(stdout: string): Reply {
 }
 
 // The noask command as bin/noask answers, by the arguments after the session's own `--session <id>`: a new `on` prints
-// its line, the marker's path, an empty line and the rule text; anything it does not take is a wrong argument.
+// its line, the marker's path, an empty line and the rule text; a count reset prints its counted line; anything it
+// does not take is a wrong argument.
 function noaskReply(args: ReadonlyArray<string>): Reply {
     const words = args[0] === '--session' && args[1] === 's-1' ? args.slice(2) : args;
     const typed = words.join(' ');
@@ -121,6 +122,9 @@ function noaskReply(args: ReadonlyArray<string>): Reply {
     }
     if (typed === 'global off') {
         return printed('noask: off for every session\n');
+    }
+    if (/^(?:--agent [A-Za-z0-9_-]+ )?count reset$/.test(typed)) {
+        return printed('counted none 0 0 0\n');
     }
     return { exitCode: 2, stdout: '', stderr: `${USAGE}\n` };
 }
@@ -788,17 +792,36 @@ test('a status, an off and an on refused with exit 2 do not carry the partial li
     expect(world.toasts).toEqual([]);
 });
 
-// Who typed it: a switch runs only when the owner typed it, at the prompt or through the bridge; from anywhere else the
-// command's text is the one line below, written out here once more, and a status still runs.
+// Who typed it: the bare command and `status`, the one word, run for every origin; every other form, a switch, a count
+// or any other words, runs only when the owner typed it, at the prompt or through the bridge. From anywhere else the
+// command's text is the one line below, written out here once more.
 const OWNER_ONLY = 'noask: /noask switches only when the owner types it; nothing changed';
 const BRIDGE: PromptOrigin = { kind: 'bridge' };
+const THE_OWNER: ReadonlyArray<PromptOrigin> = [AT_PROMPT.origin, BRIDGE];
 const NOT_THE_OWNER: ReadonlyArray<PromptOrigin> = [
     { kind: 'scheduled-trigger' },
     { kind: 'peer' },
     { kind: 'plugin', name: 'other' },
+    { kind: 'slack-ping' },
+    { kind: 'auto-continuation' },
 ];
 
 for (const origin of NOT_THE_OWNER) {
+    test(`every form but the bare command and status from origin ${origin.kind} runs nothing`, async ($, on) => {
+        const world = stage(on);
+        await idle($);
+        const forms = ['count reset', '--agent a1 count reset', 'count read', 'status x', '--session s-2 status', 'x'];
+        const texts: Array<string | undefined> = [];
+        for (const args of forms) {
+            texts.push(await noask($, args, origin));
+        }
+        await world.clock.settle();
+        expect(texts).toEqual(forms.map(() => OWNER_ONLY));
+        expect(world.runs).toEqual([]);
+        expect(world.toasts).toEqual([]);
+        expect(world.submits).toEqual([]);
+    });
+
     test(`a switch from origin ${origin.kind} runs nothing, raises nothing and says so`, async ($, on) => {
         const world = stage(on);
         await idle($);
@@ -819,9 +842,11 @@ for (const origin of NOT_THE_OWNER) {
         await idle($);
         expect(await noask($, '', origin)).toBe('noask: off');
         expect(await noask($, 'status', origin)).toBe('noask: off');
+        expect(await noask($, ' \t status ', origin)).toBe('noask: off');
         await world.clock.settle();
         expect(argsOf(world)).toEqual([
             ['--session', 's-1'],
+            ['--session', 's-1', 'status'],
             ['--session', 's-1', 'status'],
         ]);
         expect(world.toasts).toEqual([]);
@@ -829,11 +854,29 @@ for (const origin of NOT_THE_OWNER) {
     });
 }
 
-test('a switch not typed by the owner is refused before the session id is read', async ($, on) => {
+for (const origin of THE_OWNER) {
+    test(`a count reset from origin ${origin.kind} runs as before`, async ($, on) => {
+        const world = stage(on);
+        await idle($);
+        expect(await noask($, 'count reset', origin)).toBe('counted none 0 0 0');
+        expect(await noask($, '--agent a1 count reset', origin)).toBe('counted none 0 0 0');
+        await world.clock.settle();
+        const root = rootOf(world);
+        expect(world.runs.map((run) => run.argv)).toEqual([
+            [`${root}/bin/noask`, '--session', 's-1', 'count', 'reset'],
+            [`${root}/bin/noask`, '--session', 's-1', '--agent', 'a1', 'count', 'reset'],
+        ]);
+        expect(world.toasts).toEqual([]);
+        expect(world.submits).toEqual([]);
+    });
+}
+
+test('a form not typed by the owner is refused before the session id is read', async ($, on) => {
     const world = stage(on, { id: new Error('no id in this test') });
     await $.session.start(SESSION);
     expect(await noask($, 'on', { kind: 'peer' })).toBe(OWNER_ONLY);
     expect(await noask($, 'global off', { kind: 'scheduled-trigger' })).toBe(OWNER_ONLY);
+    expect(await noask($, 'count reset', { kind: 'plugin', name: 'other' })).toBe(OWNER_ONLY);
     expect(world.runs).toEqual([]);
     expect(world.toasts).toEqual([]);
 });

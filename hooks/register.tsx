@@ -1,7 +1,7 @@
 // The sdd plugin's hooks module. In this step it keeps `sdd.mainTurn`, the main loop's turn as the module last saw
 // it, and serves `/noask`, the session's door to the noask command (bin/noask): registered at every session start, it
-// runs the command by its argument vector and shows its lines, a switch only when the owner typed it, and an `on`
-// typed in an idle session submits the wake-up turn. The markers' reader (marker.ts) and the count's caller
+// runs the command by its argument vector and shows its lines, any form but the status only when the owner typed it,
+// and an `on` typed in an idle session submits the wake-up turn. The markers' reader (marker.ts) and the count's caller
 // (count.ts) are the parts the later hooks are built from; every text the module shows is in text.ts. A subagent's
 // turn changes nothing.
 import type {
@@ -89,9 +89,17 @@ async function runCommand($: Pick<EngineInterface, 'process'>, argv: ReadonlyArr
 }
 
 // Whether the run came from the owner's own typing: Enter at the prompt, or a message through the bridge (the owner's
-// phone or web client). A schedule or a loop, another session, a channel, another plugin and the SDK may not switch.
+// phone or web client). A schedule or a loop, another session, a channel, another plugin, the SDK, a Slack ping and an
+// automatic continuation may run only what every origin may.
 function isTypedByOwner(origin: PromptOrigin): boolean {
     return origin.kind === 'composer' || origin.kind === 'bridge';
+}
+
+// What every origin may run: the bare command and `status`, the one word, which read the markers and write nothing.
+// Every other form, a switch, a count or any other words, runs only when the owner typed it.
+function isOpenToEveryOrigin(words: ReadonlyArray<string>): boolean {
+    const [first, ...rest] = words;
+    return first === undefined || (first === 'status' && rest.length === 0);
 }
 
 // The transcript, a rejection when the call throws as it is made.
@@ -157,17 +165,17 @@ async function submitWakeUp(
     }
 }
 
-// `/noask <args>`: a switch that the owner did not type runs nothing and says so in OWNER_ONLY_LINE, before the
-// session's id is read; a status runs whoever asked. Otherwise the command runs with the words typed after
-// `--session <the session's id>`, or after nothing for a global command in a session with no usable id, where a
-// session's command runs nothing: without `--session` the command would read a status for the id in the host
-// process's environment, and refuse a switch. A failed switch, its exit neither 0 nor 2, and a run that rejects are
-// said twice, in the text and in a toast, and wake nothing; an `on` that exited 0 ends on the partial line, and a
+// `/noask <args>`: any form but the bare command and `status` that the owner did not type runs nothing and says so in
+// OWNER_ONLY_LINE, before the session's id is read; those two run whoever asked. Otherwise the command runs with the
+// words typed after `--session <the session's id>`, or after nothing for a global command in a session with no usable
+// id, where a session's command runs nothing: without `--session` the command would read a status for the id in the
+// host process's environment, and refuse a switch. A failed switch, its exit neither 0 nor 2, and a run that rejects
+// are said twice, in the text and in a toast, and wake nothing; an `on` that exited 0 ends on the partial line, and a
 // session idle with a history when it was typed gets the wake-up turn once the text is shown.
 async function noask($: EngineInterface, args: string, origin: PromptOrigin): Promise<CommandRunResult> {
     const words = args.split(WHITE_SPACE).filter((word) => word !== '');
     const switching = switchingOf(words);
-    if (switching !== 'none' && !isTypedByOwner(origin)) {
+    if (!isOpenToEveryOrigin(words) && !isTypedByOwner(origin)) {
         return { text: OWNER_ONLY_LINE };
     }
     const session = await sessionIdOf($);

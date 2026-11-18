@@ -73,7 +73,7 @@ test("the command's failure lines", async () => {
     );
 });
 
-test("a switch the owner did not type is refused in the owner's words", async () => {
+test("a /noask the owner did not type is refused in the owner's words", async () => {
     expect(OWNER_ONLY_LINE).toBe('noask: /noask switches only when the owner types it; nothing changed');
 });
 
