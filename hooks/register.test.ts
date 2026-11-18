@@ -1,16 +1,34 @@
 import type {
     CommandSpec,
+    FsEntry,
+    FsStat,
     On,
     ProcessRunInit,
     PromptOrigin,
     PromptSubmitInput,
     SessionMessage,
+    ToolCallResult,
     TurnCompleteInput,
     TurnStartInput,
 } from 'claude-code';
 import type { Engine, MockClock, Plugin } from 'claude-code/testing';
 import { expect, mock, test } from 'claude-code/testing';
-import { FALLBACK_RULE, PARTIAL_LINE, WAKE_TEXT } from './text';
+import type { FenceWhat } from './fence';
+import { LOOK_TIMEOUT_MS } from './marker';
+import { MARKER_HANDSOFF, MARKER_ON, MARKER_ON_UNTIL, MARKER_SESSION } from './marker.fixtures';
+import { ASKING_TOOLS } from './register';
+import {
+    endingText,
+    FALLBACK_RULE,
+    fenceText,
+    PARTIAL_LINE,
+    PLAN_TEXT,
+    QUESTION_PREFIX,
+    SUBAGENT_SPENT_TEXT,
+    SUBAGENT_TEXT,
+    SWITCH_TEXT,
+    WAKE_TEXT,
+} from './text';
 
 // A plugin beside sdd that reads `sdd.mainTurn` as a later hook does, and answers a run of /main-turn with what it
 // read: the value, or `undefined` for a value never written.
@@ -240,14 +258,14 @@ function stage(on: On, world: World = {}): Stage {
 
 // The plugin's root, as the module wrote it before `/bin/noask` in the first run: the kit loads the plugin from its
 // folder, a path the tests do not write down.
-function rootOf(world: Stage): string {
+function rootOf(world: { readonly runs: ReadonlyArray<Run> }): string {
     const program = world.runs[0]?.argv[0] ?? '';
     expect(program).toMatch(/^\/.+\/bin\/noask$/);
     return program.slice(0, -'/bin/noask'.length);
 }
 
 // The arguments of each run after the program.
-function argsOf(world: Stage): ReadonlyArray<ReadonlyArray<string>> {
+function argsOf(world: { readonly runs: ReadonlyArray<Run> }): ReadonlyArray<ReadonlyArray<string>> {
     return world.runs.map((run) => run.argv.slice(1));
 }
 
@@ -895,4 +913,800 @@ test('a switch typed through the bridge runs as one typed at the prompt', async 
         ['--session', 's-1', 'global', 'off'],
     ]);
     expect(world.toasts).toEqual([]);
+});
+
+// Tool calls: the question refusal, the fence and the guard on the switch. The markers lie in a file system in
+// memory beneath the plugin, each test's as its name says, and the count's run answers `counted none 1 0 0` unless the
+// test says otherwise.
+
+const HOME = '/home/u';
+const GLOBAL = `${STATE}/noask`;
+const OWN = `${STATE}/noask.d/s-1`;
+const OTHER = `${STATE}/noask.d/s-2`;
+const RECORD = `${STATE}/budgets.d/s-1`;
+const CONFIG_FILE = `${HOME}/.claude/CLAUDE.md`;
+
+// The clock: NOW, at which every marker of marker.fixtures.ts reads on (2026-11-11T23:00:12+04:00), and LATE, past the
+// until of MARKER_SESSION, MARKER_HANDSOFF and MARKER_ON_UNTIL (2026-11-12T08:00:00+04:00).
+const NOW = 1_794_423_612_000;
+const LATE = 1_794_456_000_000;
+
+// A marker the command does not write, one line where four are expected, and what an unreadable reading adds.
+const BAD_MARKER = 'x\n';
+const BAD_SUFFIX = ' (noask marker unreadable: 4 lines expected, found 1; treated as on)';
+
+const COUNTED = printed('counted none 1 0 0\n');
+const LOCKED = 'noask: the records are locked by another noask command';
+const NOTE = `noask: the record ${RECORD} did not parse (2 lines, not 4); started again`;
+
+type Input = Parameters<Engine['tool']['call']>[0];
+
+const QUESTION: Input = {
+    tool: 'AskUserQuestion',
+    questions: [
+        {
+            question: 'Should the old importer stay as a fallback?',
+            header: 'Importer',
+            options: [
+                { label: 'Keep it', description: 'The old importer stays beside the new one.' },
+                { label: 'Remove it', description: 'The new importer replaces it.' },
+            ],
+            multiSelect: false,
+        },
+    ],
+};
+const PLAN: Input = { tool: 'ExitPlanMode' };
+
+function shell(command: string): Input {
+    return { tool: 'Bash', command };
+}
+
+function edit(path: string): Input {
+    return { tool: 'Edit', file_path: path, old_string: 'a', new_string: 'b' };
+}
+
+function write(path: string): Input {
+    return { tool: 'Write', file_path: path, content: 'x' };
+}
+
+function notebook(path: string): Input {
+    return { tool: 'NotebookEdit', notebook_path: path, new_source: 'x' };
+}
+
+// What the tool beneath answers a call that reaches it, and the answer of a refused call.
+const REACHED = { result: 'ran' };
+
+function denied(text: string): { readonly deny: string } {
+    return { deny: text };
+}
+
+function fenced(what: FenceWhat): { readonly deny: string } {
+    return denied(fenceText(what));
+}
+
+const QUESTION_TEXT = `${QUESTION_PREFIX}${RULE}`;
+const CONFIG_EDIT = fenced('an edit under the configuration directory');
+
+// The call as the main agent makes it, or with `agentId` as that subagent does.
+async function call($: Engine, input: Input, agentId?: string): Promise<ToolCallResult> {
+    return $.tool.call(agentId === undefined ? input : { ...input, agentId });
+}
+
+// What the world beneath the plugin holds for a tool call. `files` maps each file to its text and `links` each link to
+// its target; `dirs` names folders that hold nothing named, `<home>/.claude` when it is absent; every folder above a
+// named path exists, and so do the session's directory and /tmp. HOME is /home/u, the session's directory SESSION.cwd
+// unless `cwd` says otherwise, the session's id s-1 unless `id` does, and `env` holds the other variables. The clock
+// reads NOW unless `now` says otherwise. A file call named in `hang` (`<call> <path>`, the call one of exists, read,
+// list and stat) never answers, and one named in `refuse` rejects. The count's run answers `count`, by default
+// COUNTED. The rule file reads RULE_FILE_TEXT; with `rule: 'deny'` every read of it is refused, and with `rule: 'bytes
+// once'` its first read answers bytes, which the module does not expect, so the hook's own code throws. The read of
+// HOME numbered `refusedHomeRead` is refused. The tool beneath answers REACHED, or with `tool: 'reject'` fails.
+type Scene = {
+    readonly files?: Readonly<Record<string, string>>;
+    readonly links?: Readonly<Record<string, string>>;
+    readonly dirs?: ReadonlyArray<string>;
+    readonly env?: Readonly<Record<string, string>>;
+    readonly cwd?: string;
+    readonly id?: string | Error;
+    readonly now?: number;
+    readonly hang?: ReadonlyArray<string>;
+    readonly refuse?: ReadonlyArray<string>;
+    readonly count?: Reply;
+    readonly rule?: 'deny' | 'bytes once';
+    readonly refusedHomeRead?: number;
+    readonly tool?: 'reject';
+};
+
+// What a scene saw: the clock, each run of the command, and each call that reached the tool beneath.
+type Seen = { readonly clock: MockClock; readonly runs: Run[]; readonly reached: string[] };
+
+type Tree = {
+    readonly files: ReadonlyMap<string, string>;
+    readonly links: ReadonlyMap<string, string>;
+    readonly dirs: ReadonlySet<string>;
+};
+
+function parentOf(path: string): string {
+    const cut = path.lastIndexOf('/');
+    return cut <= 0 ? '/' : path.slice(0, cut);
+}
+
+function treeOf(scene: Scene): Tree {
+    const files = new Map(Object.entries(scene.files ?? {}));
+    const links = new Map(Object.entries(scene.links ?? {}));
+    const dirs = new Set<string>(['/']);
+    const folders = [...(scene.dirs ?? [`${HOME}/.claude`]), SESSION.cwd, '/tmp'];
+    for (const path of [...files.keys(), ...links.keys(), ...folders]) {
+        for (let folder = parentOf(path); !dirs.has(folder); folder = parentOf(folder)) {
+            dirs.add(folder);
+        }
+    }
+    for (const folder of folders) {
+        dirs.add(folder);
+    }
+    return { files, links, dirs };
+}
+
+// Where a path lands in the tree, every link on the way followed, or undefined when it leads nowhere.
+function landing(tree: Tree, path: string, depth = 0): string | undefined {
+    let current = '/';
+    for (const part of path.split('/').filter((each) => each !== '')) {
+        const next = current === '/' ? `/${part}` : `${current}/${part}`;
+        const target = tree.links.get(next);
+        if (target !== undefined) {
+            const real = depth < 8 ? landing(tree, target, depth + 1) : undefined;
+            if (real === undefined) {
+                return undefined;
+            }
+            current = real;
+        } else if (tree.files.has(next) || tree.dirs.has(next)) {
+            current = next;
+        } else {
+            return undefined;
+        }
+    }
+    return current;
+}
+
+// The entries of a folder, by the names of the paths directly in it.
+function entriesOf(tree: Tree, folder: string): FsEntry[] {
+    const entries = new Map<string, FsEntry>();
+    for (const path of [...tree.files.keys(), ...tree.links.keys(), ...tree.dirs]) {
+        if (path !== folder && parentOf(path) === folder) {
+            const isLink = tree.links.has(path);
+            const kind = isLink ? 'other' : tree.files.has(path) ? 'file' : 'dir';
+            entries.set(path, { name: path.slice(path.lastIndexOf('/') + 1), kind, size: 0, mtimeMs: 0, isLink });
+        }
+    }
+    return [...entries.values()];
+}
+
+function described(
+    e: { readonly tool: string } & Partial<Record<'command' | 'file_path' | 'notebook_path', unknown>>,
+): string {
+    const what = e.command ?? e.file_path ?? e.notebook_path;
+    return typeof what === 'string' ? `${e.tool} ${what}` : e.tool;
+}
+
+function missing(path: string): { readonly deny: string } {
+    return { deny: `ENOENT: no such file or directory, '${path}'` };
+}
+
+function never(): Promise<never> {
+    return new Promise<never>(() => undefined);
+}
+
+function scene(on: On, world: Scene = {}): Seen {
+    const seen: Seen = { clock: mock.clock(on, { now: world.now ?? NOW }), runs: [], reached: [] };
+    const tree = treeOf(world);
+    const isNamed = (list: ReadonlyArray<string> | undefined, name: string): boolean => list?.includes(name) ?? false;
+    const held = (call: string, path: string): Promise<never> | { readonly deny: string } | undefined => {
+        if (isNamed(world.hang, `${call} ${path}`)) {
+            return never();
+        }
+        return isNamed(world.refuse, `${call} ${path}`) ? { deny: `EACCES: permission denied, '${path}'` } : undefined;
+    };
+    let ruleReads = 0;
+    let homeReads = 0;
+    on('fs.exists', (_$, e) => held('exists', e.path) ?? { value: landing(tree, e.path) !== undefined });
+    on('fs.read', (_$, e) => {
+        if (e.path.endsWith('/scripts/noask-rule.md')) {
+            ruleReads += 1;
+            if (world.rule === 'deny') {
+                return { deny: 'no such file in this test' };
+            }
+            return world.rule === 'bytes once' && ruleReads === 1
+                ? { value: { base64: 'eA==' } }
+                : { value: RULE_FILE_TEXT };
+        }
+        const real = landing(tree, e.path);
+        const text = real === undefined ? undefined : tree.files.get(real);
+        return held('read', e.path) ?? (text === undefined ? missing(e.path) : { value: text });
+    });
+    on('fs.list', (_$, e) => {
+        const real = landing(tree, e.path);
+        const isFolder = real !== undefined && tree.dirs.has(real);
+        return held('list', e.path) ?? (isFolder ? { value: entriesOf(tree, real) } : missing(e.path));
+    });
+    on('fs.stat', (_$, e) => {
+        const real = landing(tree, e.path);
+        if (real === undefined) {
+            return held('stat', e.path) ?? missing(e.path);
+        }
+        const kind = tree.files.has(real) ? 'file' : 'dir';
+        const stat: FsStat = { kind, size: 0, mtimeMs: 0, isLink: tree.links.has(e.path) };
+        return held('stat', e.path) ?? { value: e.resolve ? { ...stat, realPath: real } : stat };
+    });
+    on('env.get', (_$, e) => {
+        if (e.name !== 'HOME') {
+            return { value: world.env?.[e.name] };
+        }
+        homeReads += 1;
+        return homeReads === world.refusedHomeRead ? { deny: 'the test refuses this read of HOME' } : { value: HOME };
+    });
+    on('session.id', () => (world.id instanceof Error ? { deny: world.id.message } : { value: world.id ?? 's-1' }));
+    on('session.cwd', () => ({ value: world.cwd ?? SESSION.cwd }));
+    on('process.run', (_$, e) => {
+        seen.runs.push({ argv: [...e.argv], init: e.init });
+        const reply = world.count ?? COUNTED;
+        return reply instanceof Error
+            ? { deny: reply.message }
+            : { value: { ...reply, isStdoutTruncated: false, isStderrTruncated: false } };
+    });
+    on('tool.call', (_$, e) => {
+        seen.reached.push(described(e));
+        if (world.tool === 'reject') {
+            throw new Error('the tool failed in this test');
+        }
+        return REACHED;
+    });
+    return seen;
+}
+
+// The count's run of a denial, of a refused question, and of each by a subagent.
+const DENIAL_RUN = ['--session', 's-1', 'count', 'denial', '10'];
+const QUESTION_RUN = ['--session', 's-1', 'count', 'question', '6'];
+const AGENT_DENIAL_RUN = ['--session', 's-1', '--agent', 'a1', 'count', 'denial', '10'];
+
+// The owner's word to publish: the session's own switch at handsoff.
+
+const PUBLISHING = [
+    'git push -u origin b',
+    'gh pr create --fill',
+    'glab mr create',
+    'cd x && git push && gh pr create --fill',
+];
+const AT_HANDSOFF: ReadonlyArray<readonly [string, Scene]> = [
+    ['the global marker off', { files: { [OWN]: MARKER_HANDSOFF } }],
+    ['the global marker on', { files: { [OWN]: MARKER_HANDSOFF, [GLOBAL]: MARKER_ON } }],
+];
+
+for (const [name, world] of AT_HANDSOFF) {
+    test(`at handsoff, ${name}: the main agent's push and requests reach the engine, uncounted`, async ($, on) => {
+        const seen = scene(on, world);
+        for (const command of PUBLISHING) {
+            expect(await call($, shell(command)), command).toEqual(REACHED);
+        }
+        expect(seen.reached).toEqual(PUBLISHING.map((command) => `Bash ${command}`));
+        expect(seen.runs).toEqual([]);
+    });
+
+    test(`at handsoff, ${name}: what the owner's word does not cover is still denied`, async ($, on) => {
+        const seen = scene(on, world);
+        for (const command of PUBLISHING) {
+            expect(await call($, shell(command), 'a1'), command).toEqual(denied(SUBAGENT_TEXT));
+        }
+        expect(await call($, shell('git push --force'))).toEqual(fenced('a push other than a plain one'));
+        expect(await call($, shell('git push origin a:b'))).toEqual(fenced('a push other than a plain one'));
+        expect(await call($, shell('git push && noask global off'))).toEqual(fenced('switching noask'));
+        expect(await call($, shell('noask global off; git push'))).toEqual(fenced('switching noask'));
+        expect(await call($, edit(GLOBAL))).toEqual(fenced('switching noask'));
+        expect(await call($, edit(CONFIG_FILE))).toEqual(CONFIG_EDIT);
+        expect(seen.reached).toEqual([]);
+        expect(argsOf(seen)).toEqual([
+            ...PUBLISHING.map(() => AGENT_DENIAL_RUN),
+            ...[1, 2, 3, 4, 5, 6].map(() => DENIAL_RUN),
+        ]);
+    });
+}
+
+test('a hit that is no publication denies the whole call with its own text, wherever it stands', async ($, on) => {
+    const seen = scene(on, { files: { [OWN]: MARKER_HANDSOFF, [GLOBAL]: MARKER_ON } });
+    const forced = fenced('a push other than a plain one');
+    expect(await call($, shell('git push -u origin b && git push --force origin b'))).toEqual(forced);
+    expect(await call($, shell('gh pr create --fill; git push origin a:b'))).toEqual(forced);
+    expect(argsOf(seen)).toEqual([DENIAL_RUN, DENIAL_RUN]);
+    expect(seen.reached).toEqual([]);
+});
+
+test('at handsoff a push redirected into the state directory is switching noask, counted once', async ($, on) => {
+    const seen = scene(on, { files: { [OWN]: MARKER_HANDSOFF } });
+    expect(await call($, shell('git push > "$HOME/.local/state/sdd/noask"'))).toEqual(fenced('switching noask'));
+    expect(argsOf(seen)).toEqual([DENIAL_RUN]);
+    expect(seen.reached).toEqual([]);
+});
+
+const NOT_THE_WORD: ReadonlyArray<readonly [string, Scene]> = [
+    ["the session's own switch at plain noask", { files: { [OWN]: MARKER_SESSION } }],
+    [
+        "only another session's marker at handsoff, the global marker on",
+        { files: { [OTHER]: MARKER_HANDSOFF, [GLOBAL]: MARKER_ON } },
+    ],
+    [
+        "the session's handsoff marker past its until, the global marker on",
+        { files: { [OWN]: MARKER_HANDSOFF, [GLOBAL]: MARKER_ON }, now: LATE },
+    ],
+];
+
+for (const [name, world] of NOT_THE_WORD) {
+    test(`the word is the session's own and current: with ${name} a push is denied`, async ($, on) => {
+        const seen = scene(on, world);
+        expect(await call($, shell('git push'))).toEqual(fenced('a push'));
+        expect(argsOf(seen)).toEqual([DENIAL_RUN]);
+    });
+}
+
+// Without noask every hook but the guard lets the call through and runs nothing.
+
+const INERT: ReadonlyArray<readonly [string, Scene]> = [
+    ['no marker', {}],
+    ['the global marker expired', { files: { [GLOBAL]: MARKER_ON_UNTIL }, now: LATE }],
+    ["only another session's marker on", { files: { [OTHER]: MARKER_SESSION } }],
+];
+
+for (const [name, world] of INERT) {
+    test(`with ${name} the question, the plan, a push and a configuration edit reach the engine`, async ($, on) => {
+        const seen = scene(on, world);
+        for (const input of [QUESTION, PLAN, shell('git push'), edit(CONFIG_FILE)]) {
+            expect(await call($, input), input.tool).toEqual(REACHED);
+        }
+        expect(seen.reached).toEqual(['AskUserQuestion', 'ExitPlanMode', 'Bash git push', `Edit ${CONFIG_FILE}`]);
+        expect(seen.runs).toEqual([]);
+    });
+}
+
+// The guard on the switch: in every session, whatever the marker reads.
+
+const SWITCHING_COMMANDS = [
+    'noask --session s-9 on handsoff',
+    'noask --session s-1 on',
+    'noask global on',
+    'noask global off',
+    'noask --session s-1 count reset',
+    'noask --session s-1 status',
+    'SDD_NOASK_NOW=1 noask status',
+    'export SDD_NOASK_NOW=1',
+    'env -u X noask global off',
+    'env -uu noask global off',
+    'env --u X noask global off',
+    'env -a x noask global off',
+    'time -p noask global off',
+    'no""ask global off',
+    'echo "${ noask global off; }"',
+    'rm ~/.local/state/sdd/noask',
+    'rm ~/.local/state/sdd/budgets.d/s-1',
+    'rm -r ~/.local/state',
+    'rm -rf ~/.local/state/*',
+    ': > ~/.local/state/sdd/noask.d/s-9',
+    ': >| ~/.local/state/sdd/budgets.d/s-1',
+    'printf x &>> ~/.local/state/sdd/budgets.d/s-1',
+    ': <> ~/.local/state/sdd/noask',
+];
+const SWITCHING_PATHS = [`${STATE}/noask.d/s-9`, RECORD];
+const SWITCHING_EDITS = SWITCHING_PATHS.flatMap((path) => [edit(path), write(path)]);
+const READING_COMMANDS = ['noask', 'noask status', 'cat ~/.local/state/sdd/noask', 'mv /tmp/report "$HOME"'];
+
+test("outside noask every door to the switch is denied with the guard's text, uncounted", async ($, on) => {
+    const seen = scene(on);
+    for (const command of SWITCHING_COMMANDS) {
+        expect(await call($, shell(command)), command).toEqual(denied(SWITCH_TEXT));
+    }
+    for (const input of SWITCHING_EDITS) {
+        expect(await call($, input), described(input)).toEqual(denied(SWITCH_TEXT));
+    }
+    for (const command of READING_COMMANDS) {
+        expect(await call($, shell(command)), command).toEqual(REACHED);
+    }
+    expect(seen.reached).toEqual(READING_COMMANDS.map((command) => `Bash ${command}`));
+    expect(seen.runs).toEqual([]);
+});
+
+test('an edit of a marker by where the state directory lands is denied the same way', async ($, on) => {
+    const seen = scene(on, {
+        links: { [STATE]: `${HOME}/state/sdd` },
+        dirs: [`${HOME}/state/sdd/noask.d`, `${HOME}/.claude`],
+    });
+    expect(await call($, edit(`${HOME}/state/sdd/noask.d/s-1`))).toEqual(denied(SWITCH_TEXT));
+    expect(await call($, edit(`${HOME}/state/other`))).toEqual(REACHED);
+    expect(seen.runs).toEqual([]);
+});
+
+test("under noask every door to the switch is denied with the fence's text, each counted", async ($, on) => {
+    const seen = scene(on, { files: { [GLOBAL]: MARKER_ON } });
+    for (const command of SWITCHING_COMMANDS) {
+        expect(await call($, shell(command)), command).toEqual(fenced('switching noask'));
+    }
+    for (const input of SWITCHING_EDITS) {
+        expect(await call($, input), described(input)).toEqual(fenced('switching noask'));
+    }
+    for (const command of READING_COMMANDS) {
+        expect(await call($, shell(command)), command).toEqual(REACHED);
+    }
+    expect(argsOf(seen)).toEqual([...SWITCHING_COMMANDS, ...SWITCHING_EDITS].map(() => DENIAL_RUN));
+    expect(seen.reached).toEqual(READING_COMMANDS.map((command) => `Bash ${command}`));
+});
+
+for (const [name, files] of [
+    ["the session's own marker alone", { [OWN]: MARKER_SESSION }],
+    ['the global marker', { [GLOBAL]: MARKER_ON }],
+] as const) {
+    test(`${name} is noask through every registration`, async ($, on) => {
+        const seen = scene(on, { files });
+        expect(await call($, QUESTION)).toEqual(denied(QUESTION_TEXT));
+        expect(await call($, PLAN)).toEqual(denied(PLAN_TEXT));
+        expect(await call($, shell('git push'))).toEqual(fenced('a push'));
+        expect(await call($, edit(CONFIG_FILE))).toEqual(CONFIG_EDIT);
+        expect(await call($, edit(GLOBAL))).toEqual(fenced('switching noask'));
+        expect(argsOf(seen)).toEqual([QUESTION_RUN, DENIAL_RUN, DENIAL_RUN, DENIAL_RUN]);
+        expect(seen.reached).toEqual([]);
+    });
+}
+
+// The question refusal and the count.
+
+test('the question is denied with the rule and counted; the plan approval is not counted', async ($, on) => {
+    const seen = scene(on, { files: { [GLOBAL]: MARKER_ON } });
+    expect(ASKING_TOOLS).toEqual([QUESTION.tool]);
+    expect(await call($, QUESTION)).toEqual(denied(QUESTION_TEXT));
+    expect(await call($, PLAN)).toEqual(denied(PLAN_TEXT));
+    const root = rootOf(seen);
+    expect(seen.runs.map((run) => run.argv)).toEqual([[`${root}/bin/noask`, ...QUESTION_RUN]]);
+    expect(seen.runs[0]?.init).toStrictEqual({ timeoutMs: 5_000, env: { SDD_NOASK_NOW: '', SDD_NOASK_LOCK_WAIT: '' } });
+});
+
+test("the question budget is the option's", { options: { questionBudget: 3 } }, async ($, on) => {
+    const seen = scene(on, { files: { [GLOBAL]: MARKER_ON } });
+    expect(await call($, QUESTION)).toEqual(denied(QUESTION_TEXT));
+    expect(argsOf(seen)).toEqual([['--session', 's-1', 'count', 'question', '3']]);
+});
+
+test('an unreadable marker denies the question, the text ending on the error', async ($, on) => {
+    const seen = scene(on, { files: { [GLOBAL]: BAD_MARKER } });
+    expect(await call($, QUESTION)).toEqual(denied(`${QUESTION_TEXT}${BAD_SUFFIX}`));
+    expect(argsOf(seen)).toEqual([QUESTION_RUN]);
+});
+
+test('a spent question budget ends the turn; the plan approval keeps its text', async ($, on) => {
+    scene(on, { files: { [GLOBAL]: MARKER_ON }, count: printed('counted question 6 0 0\n') });
+    expect(await call($, QUESTION)).toEqual(denied(endingText('question')));
+    expect(await call($, PLAN)).toEqual(denied(PLAN_TEXT));
+});
+
+test('a spent denial budget ends the turn on a push', async ($, on) => {
+    scene(on, { files: { [GLOBAL]: MARKER_ON }, count: printed('counted permission 0 10 0\n') });
+    expect(await call($, shell('git push'))).toEqual(denied(endingText('permission')));
+});
+
+test("a count that answers off still denies with the under-budget text, on the hook's own reading", async ($, on) => {
+    scene(on, { files: { [GLOBAL]: MARKER_ON }, count: printed('off\n') });
+    expect(await call($, QUESTION)).toEqual(denied(QUESTION_TEXT));
+    expect(await call($, shell('git push'))).toEqual(fenced('a push'));
+});
+
+const FAILED_COUNTS: ReadonlyArray<readonly [string, Reply, string]> = [
+    ["the records' lock busy", { exitCode: 1, stdout: '', stderr: `${LOCKED}\n` }, LOCKED],
+    ['a run that rejects', new Error('command still running after 5000 ms'), 'command still running after 5000 ms'],
+    ['a line that does not parse', printed('counted maybe\n'), 'the count printed "counted maybe\\n"'],
+];
+
+for (const [name, count, error] of FAILED_COUNTS) {
+    test(`a count that fails (${name}) still denies, the failure named`, async ($, on) => {
+        const seen = scene(on, { files: { [GLOBAL]: MARKER_ON }, count });
+        const question = await call($, QUESTION);
+        expect(question.deny).toStartWith(`${QUESTION_TEXT} (noask count failed: `);
+        expect(question.deny).toEndWith(`${error})`);
+        const push = await call($, shell('git push'));
+        expect(push.deny).toStartWith(`${fenceText('a push')} (noask count failed: `);
+        expect(push.deny).toEndWith(`${error})`);
+        expect(seen.runs).toHaveLength(2);
+        expect(seen.reached).toEqual([]);
+    });
+}
+
+test('a session with no usable id under noask is denied, the count naming the missing id', async ($, on) => {
+    const seen = scene(on, { id: new Error('no id in this test'), files: { [OTHER]: MARKER_SESSION } });
+    const answer = await call($, QUESTION);
+    expect(answer.deny).toStartWith(
+        `${QUESTION_TEXT} (noask count failed: no session id: this session's id could not be read (`,
+    );
+    expect(answer.deny).toContain('no id in this test)) (noask marker unreadable: ');
+    expect(answer.deny).toEndWith("while a session's own switch is on; treated as on)");
+    expect(seen.runs).toEqual([]);
+});
+
+test('two refusals at once each make their own count run; the module counts nothing itself', async ($, on) => {
+    const seen = scene(on, { files: { [GLOBAL]: MARKER_ON } });
+    const answers = await Promise.all([call($, QUESTION), call($, QUESTION)]);
+    expect(answers).toEqual([denied(QUESTION_TEXT), denied(QUESTION_TEXT)]);
+    expect(argsOf(seen)).toEqual([QUESTION_RUN, QUESTION_RUN]);
+    for (let refusal = 3; refusal <= 9; refusal += 1) {
+        expect(await call($, QUESTION), `refusal ${refusal}`).toEqual(denied(QUESTION_TEXT));
+    }
+    expect(seen.runs).toHaveLength(9);
+});
+
+// The fence.
+
+test('a push is fenced and counted as a denial; a wrapped one reaches the engine', async ($, on) => {
+    const seen = scene(on, { files: { [GLOBAL]: MARKER_ON } });
+    expect(await call($, shell('git push'))).toEqual(fenced('a push'));
+    expect(await call($, shell("sh -c 'git push'"))).toEqual(REACHED);
+    expect(argsOf(seen)).toEqual([DENIAL_RUN]);
+    expect(seen.reached).toEqual(["Bash sh -c 'git push'"]);
+});
+
+test(
+    'with the fence off a push reaches the engine, a question is still refused and the guard still denies',
+    { options: { fence: false } },
+    async ($, on) => {
+        const seen = scene(on, { files: { [GLOBAL]: MARKER_ON } });
+        expect(await call($, shell('git push'))).toEqual(REACHED);
+        expect(await call($, edit(CONFIG_FILE))).toEqual(REACHED);
+        expect(await call($, QUESTION)).toEqual(denied(QUESTION_TEXT));
+        expect(await call($, shell('noask global off'))).toEqual(denied(SWITCH_TEXT));
+        expect(argsOf(seen)).toEqual([QUESTION_RUN]);
+    },
+);
+
+test(
+    'with the fence off and the marker unreadable the guard still denies, with the error',
+    { options: { fence: false } },
+    async ($, on) => {
+        const seen = scene(on, { files: { [GLOBAL]: BAD_MARKER } });
+        expect(await call($, edit(GLOBAL))).toEqual(denied(`${SWITCH_TEXT}${BAD_SUFFIX}`));
+        expect(seen.runs).toEqual([]);
+    },
+);
+
+test('an edit, a write and a notebook edit under the configuration directory are fenced', async ($, on) => {
+    const seen = scene(on, { files: { [GLOBAL]: MARKER_ON, [CONFIG_FILE]: '# rules\n' } });
+    expect(await call($, edit(CONFIG_FILE))).toEqual(CONFIG_EDIT);
+    expect(await call($, write(`${HOME}/.claude/settings.json`))).toEqual(CONFIG_EDIT);
+    expect(await call($, notebook(`${HOME}/.claude/notes/x.ipynb`))).toEqual(CONFIG_EDIT);
+    expect(await call($, edit(`${SESSION.cwd}/README.md`))).toEqual(REACHED);
+    expect(argsOf(seen)).toEqual([DENIAL_RUN, DENIAL_RUN, DENIAL_RUN]);
+});
+
+test('an instruction file linked out of the configuration directory is fenced by its spelling', async ($, on) => {
+    scene(on, {
+        files: { [GLOBAL]: MARKER_ON, [`${HOME}/dotfiles/rules/x.md`]: '# rule\n' },
+        links: { [`${HOME}/.claude/rules/x.md`]: `${HOME}/dotfiles/rules/x.md` },
+    });
+    expect(await call($, edit(`${HOME}/.claude/rules/x.md`))).toEqual(CONFIG_EDIT);
+});
+
+test('with the configuration directory a link, a file edited by its path in the checkout is fenced', async ($, on) => {
+    scene(on, {
+        files: { [GLOBAL]: MARKER_ON, [`${HOME}/dotfiles/claude/CLAUDE.md`]: '# rules\n' },
+        links: { [`${HOME}/.claude`]: `${HOME}/dotfiles/claude` },
+        dirs: [],
+    });
+    expect(await call($, edit(`${HOME}/dotfiles/claude/CLAUDE.md`))).toEqual(CONFIG_EDIT);
+    expect(await call($, edit(`${HOME}/dotfiles/README.md`))).toEqual(REACHED);
+});
+
+test('a path elsewhere whose real path is under the configuration directory is fenced', async ($, on) => {
+    scene(on, {
+        files: { [GLOBAL]: MARKER_ON, [CONFIG_FILE]: '# rules\n' },
+        links: { [`${SESSION.cwd}/CLAUDE.md`]: CONFIG_FILE },
+    });
+    expect(await call($, edit(`${SESSION.cwd}/CLAUDE.md`))).toEqual(CONFIG_EDIT);
+});
+
+test('an edit under CLAUDE_CONFIG_DIR is fenced', async ($, on) => {
+    scene(on, {
+        files: { [GLOBAL]: MARKER_ON },
+        dirs: ['/etc/claude', `${HOME}/.claude`],
+        env: { CLAUDE_CONFIG_DIR: '/etc/claude' },
+    });
+    expect(await call($, edit('/etc/claude/settings.json'))).toEqual(CONFIG_EDIT);
+    expect(await call($, edit('/etc/hosts'))).toEqual(REACHED);
+});
+
+test('with the home unlisted a path that starts like the configuration is fenced by its spelling', async ($, on) => {
+    scene(on, {
+        files: { [GLOBAL]: MARKER_ON },
+        dirs: [`${HOME}/.claude`, `${HOME}/.claude2/rules`],
+        refuse: [`list ${HOME}`],
+    });
+    expect(await call($, edit(`${HOME}/.claude2/rules/x.md`))).toEqual(CONFIG_EDIT);
+});
+
+// A second profile linked out of the home, which only the listing finds.
+const SECOND_PROFILE: Scene = {
+    files: { [GLOBAL]: MARKER_ON, [`${HOME}/dotfiles/second-profile/rules/x.md`]: '# rule\n' },
+    links: { [`${HOME}/.claude2`]: `${HOME}/dotfiles/second-profile` },
+};
+
+test("a second profile's far side is fenced while the home is listed", async ($, on) => {
+    scene(on, SECOND_PROFILE);
+    expect(await call($, edit(`${HOME}/dotfiles/second-profile/rules/x.md`))).toEqual(CONFIG_EDIT);
+});
+
+test("with the home unlisted a second profile's far side reaches the engine, the stated limit", async ($, on) => {
+    const seen = scene(on, { ...SECOND_PROFILE, refuse: [`list ${HOME}`] });
+    expect(await call($, edit(`${HOME}/dotfiles/second-profile/rules/x.md`))).toEqual(REACHED);
+    expect(seen.runs).toEqual([]);
+});
+
+test('with the home listing refused the far side of a linked .claude is still fenced', async ($, on) => {
+    scene(on, {
+        files: { [GLOBAL]: MARKER_ON, [`${HOME}/dotfiles/claude/CLAUDE.md`]: '# rules\n' },
+        links: { [`${HOME}/.claude`]: `${HOME}/dotfiles/claude` },
+        dirs: [],
+        refuse: [`list ${HOME}`],
+    });
+    expect(await call($, edit(`${HOME}/dotfiles/claude/CLAUDE.md`))).toEqual(CONFIG_EDIT);
+});
+
+test("a relative path is read against the session's directory", async ($, on) => {
+    scene(on, { files: { [GLOBAL]: MARKER_ON }, cwd: HOME });
+    expect(await call($, edit('.claude/CLAUDE.md'))).toEqual(CONFIG_EDIT);
+    expect(await call($, edit('projects/x.md'))).toEqual(REACHED);
+});
+
+test("a relative path under a project's own .claude reaches the engine", async ($, on) => {
+    scene(on, { files: { [GLOBAL]: MARKER_ON } });
+    expect(await call($, edit('.claude/CLAUDE.md'))).toEqual(REACHED);
+});
+
+test('a write under folders not there yet lands where its nearest folder does', async ($, on) => {
+    const seen = scene(on, {
+        files: { [GLOBAL]: MARKER_ON },
+        links: { [`${SESSION.cwd}/link`]: `${HOME}/.claude` },
+    });
+    expect(await call($, write(`${SESSION.cwd}/new/dir/file.txt`))).toEqual(REACHED);
+    expect(await call($, write(`${SESSION.cwd}/link/new/file.md`))).toEqual(CONFIG_EDIT);
+    expect(argsOf(seen)).toEqual([DENIAL_RUN]);
+});
+
+test('an edit or a write of a marker or a record, and an rm of a marker, are counted denials', async ($, on) => {
+    const seen = scene(on, { files: { [GLOBAL]: MARKER_ON, [OWN]: MARKER_SESSION, [RECORD]: 'x\n' } });
+    const inputs = [GLOBAL, OWN, RECORD].flatMap((path) => [edit(path), write(path)]);
+    for (const input of [...inputs, shell('rm ~/.local/state/sdd/noask')]) {
+        expect(await call($, input), described(input)).toEqual(fenced('switching noask'));
+    }
+    expect(argsOf(seen)).toEqual([...inputs, 'rm'].map(() => DENIAL_RUN));
+});
+
+// A subagent's refusals.
+
+test("a subagent's push is denied with the role's text and counted on its own record", async ($, on) => {
+    const seen = scene(on, { files: { [GLOBAL]: MARKER_ON } });
+    expect(await call($, shell('git push'), 'a1')).toEqual(denied(SUBAGENT_TEXT));
+    expect(argsOf(seen)).toEqual([AGENT_DENIAL_RUN]);
+});
+
+const AGENT_COUNTS: ReadonlyArray<readonly [string, Reply, string]> = [
+    ['a spent budget', printed('counted permission 0 10 0\n'), SUBAGENT_SPENT_TEXT],
+    ['a count that answers off', printed('off\n'), SUBAGENT_TEXT],
+    [
+        'a failed count',
+        { exitCode: 1, stdout: '', stderr: `${LOCKED}\n` },
+        `${SUBAGENT_TEXT} (noask count failed: ${LOCKED})`,
+    ],
+];
+
+for (const [name, count, text] of AGENT_COUNTS) {
+    test(`a subagent's push with ${name}`, async ($, on) => {
+        scene(on, { files: { [GLOBAL]: MARKER_ON }, count });
+        expect(await call($, shell('git push'), 'a1')).toEqual(denied(text));
+    });
+}
+
+test("a count's note follows the main session's text", async ($, on) => {
+    scene(on, {
+        files: { [GLOBAL]: MARKER_ON },
+        count: { exitCode: 0, stdout: 'counted none 1 0 0\n', stderr: `${NOTE}\n` },
+    });
+    expect(await call($, shell('git push'))).toEqual(denied(`${fenceText('a push')} (noask count: ${NOTE})`));
+});
+
+// A hook that fails: its .catch handler.
+
+const HOOK_FAILED = ' (noask hook failed: ';
+
+test('a question hook that throws after an on reading is denied with the rule and the failure', async ($, on) => {
+    const seen = scene(on, { files: { [GLOBAL]: MARKER_ON }, rule: 'bytes once' });
+    const answer = await call($, QUESTION);
+    expect(answer.deny).toStartWith(`${RULE}${HOOK_FAILED}`);
+    expect(answer.deny).toContain('replace');
+    expect(seen.runs).toEqual([]);
+    expect(seen.reached).toEqual([]);
+});
+
+// The engine names the failed call before the reason the test gave.
+const REFUSED_HOME = 'the test refuses this read of HOME)';
+
+test('a shell hook that throws after an on reading is denied with the rule and the failure', async ($, on) => {
+    const seen = scene(on, { files: { [GLOBAL]: MARKER_ON }, refusedHomeRead: 2 });
+    const answer = await call($, shell('git push'));
+    expect(answer.deny).toStartWith(`${RULE}${HOOK_FAILED}`);
+    expect(answer.deny).toEndWith(REFUSED_HOME);
+    expect(seen.runs).toEqual([]);
+    expect(seen.reached).toEqual([]);
+});
+
+test("a subagent's hook that throws is denied with the role's text and the failure", async ($, on) => {
+    const seen = scene(on, { files: { [GLOBAL]: MARKER_ON }, refusedHomeRead: 2 });
+    const answer = await call($, shell('git push'), 'a1');
+    expect(answer.deny).toStartWith(`${SUBAGENT_TEXT}${HOOK_FAILED}`);
+    expect(answer.deny).toEndWith(REFUSED_HOME);
+    expect(seen.runs).toEqual([]);
+});
+
+test("a subagent's question hook that throws is denied with the role's text and the failure", async ($, on) => {
+    scene(on, { files: { [GLOBAL]: MARKER_ON }, rule: 'bytes once' });
+    const answer = await call($, QUESTION, 'a1');
+    expect(answer.deny).toStartWith(`${SUBAGENT_TEXT}${HOOK_FAILED}`);
+});
+
+test('with the marker off a shell hook that throws lets the call through', async ($, on) => {
+    const seen = scene(on, { refusedHomeRead: 2 });
+    expect(await call($, shell('git push'))).toEqual(REACHED);
+    expect(seen.reached).toEqual(['Bash git push']);
+    expect(seen.runs).toEqual([]);
+});
+
+// The guard needs no marker, so the handler denies what it names with the switch's own text, whatever the marker
+// reads, and counts nothing. Each test makes one call: the hook's own read of HOME, after the reading's, is refused.
+const NAMED_BY_THE_GUARD: ReadonlyArray<readonly [string, Input]> = [
+    ['noask global on', shell('noask global on')],
+    ['an edit of the global marker', edit(GLOBAL)],
+    ['a write of a session marker spelled with ~', write('~/.local/state/sdd/noask.d/s-1')],
+];
+
+for (const [name, input] of NAMED_BY_THE_GUARD) {
+    for (const [marker, files] of [
+        ['off', {}],
+        ['on', { [GLOBAL]: MARKER_ON }],
+    ] as const) {
+        test(`with the marker ${marker} a hook that throws on ${name} gets the guard's text`, async ($, on) => {
+            const seen = scene(on, { files, refusedHomeRead: 2 });
+            expect(await call($, input)).toEqual(denied(SWITCH_TEXT));
+            expect(seen.runs).toEqual([]);
+            expect(seen.reached).toEqual([]);
+        });
+    }
+}
+
+test('with the marker file never answering, the handler denies once the timer fires', async ($, on) => {
+    const seen = scene(on, { hang: [`exists ${GLOBAL}`], rule: 'bytes once' });
+    let answer: ToolCallResult | undefined;
+    const pending = call($, QUESTION).then((settled) => {
+        answer = settled;
+    });
+    await seen.clock.advance(LOOK_TIMEOUT_MS - 1);
+    expect(answer).toBeUndefined();
+    await seen.clock.advance(1);
+    expect(answer).toBeUndefined();
+    await seen.clock.advance(LOOK_TIMEOUT_MS);
+    await pending;
+    expect(answer?.deny).toStartWith(`${RULE}${HOOK_FAILED}`);
+    expect(answer?.deny).toEndWith(' (noask marker unreadable: marker read timed out; treated as on)');
+    expect(seen.reached).toEqual([]);
+});
+
+test("a failure after the call ran hands back the call's own outcome and denies nothing", async ($, on) => {
+    const seen = scene(on, { files: { [OWN]: MARKER_HANDSOFF }, tool: 'reject' });
+    await expect(call($, shell('git push'))).rejects.toThrow('no implementation for tool.call');
+    expect(seen.reached).toEqual(['Bash git push']);
+    expect(seen.runs).toEqual([]);
+});
+
+test('with the rule file unreadable the question carries the fallback rule', async ($, on) => {
+    scene(on, { files: { [GLOBAL]: MARKER_ON }, rule: 'deny' });
+    const answer = await call($, QUESTION);
+    expect(answer.deny).toStartWith(`${QUESTION_PREFIX}${FALLBACK_RULE} (rule file unreadable: `);
+    expect(answer.deny).toEndWith('no such file in this test)');
 });

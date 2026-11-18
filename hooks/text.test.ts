@@ -29,6 +29,7 @@ import {
     wakeText,
     withCountFailure,
     withError,
+    withHookFailure,
     withPartialLine,
 } from './text';
 
@@ -171,6 +172,15 @@ test("a failed count, and a count's note, are added to the text; a count with ne
     expect(withCountFailure('the text', { kind: 'off' })).toBe('the text');
 });
 
+test("a failed hook's message is added to the text its handler denies with, or its kind when it has none", async () => {
+    expect(withHookFailure('the rule', { kind: 'throw', message: 'x is not a function', budget: 1_000 })).toBe(
+        'the rule (noask hook failed: x is not a function)',
+    );
+    expect(withHookFailure('the rule', { kind: 'timeout', budget: 1_000 })).toBe(
+        'the rule (noask hook failed: timeout)',
+    );
+});
+
 test('no exported text holds an em or en dash', async () => {
     const whats: ReadonlyArray<FenceWhat> = [
         'a push',
@@ -188,6 +198,7 @@ test('no exported text holds an em or en dash', async () => {
         withError('x', { kind: 'unreadable', error: 'e' }),
         withCountFailure('x', { kind: 'failed', error: 'e' }),
         withCountFailure('x', { kind: 'counted', spent: 'none', note: 'n' }),
+        withHookFailure('x', { kind: 'timeout', budget: 1_000 }),
     ];
     const fixed = Object.values(texts).filter((value): value is string => typeof value === 'string');
     expect(fixed).toContain(SWITCH_TEXT);

@@ -1,9 +1,9 @@
 // Every text the sdd module shows the owner or submits to the session, in the spec's words, each listed once: the
 // /noask command as the typeahead lists it, its lines and toasts, the wake-up turn and the rule text that turn
 // carries, and the texts a refused call carries (the question, the plan approval, the fence, the guard on the switch,
-// a spent budget, and what an unreadable marker or a failed count adds); OWNER_ONLY_LINE is the owner's ruling, which
-// the spec's next revision takes up. register.tsx composes them; nothing else writes one.
-import type { EngineInterface } from 'claude-code';
+// a spent budget, and what an unreadable marker, a failed count or a failed hook adds); OWNER_ONLY_LINE is the owner's
+// ruling, which the spec's next revision takes up. register.tsx composes them; nothing else writes one.
+import type { EngineInterface, HookFailure } from 'claude-code';
 import type { Counted, Spent } from './count';
 import type { FenceWhat } from './fence';
 import type { Reading } from './marker';
@@ -138,6 +138,12 @@ export function withCountFailure(text: string, counted: Counted): string {
             return exhaustive;
         }
     }
+}
+
+// `text` with why a hook failed, for the call its `.catch` handler denies: the failure's message, or its kind when it
+// carries none (a hook that ran out of time with nothing rejected).
+export function withHookFailure(text: string, failure: HookFailure): string {
+    return `${text} (noask hook failed: ${failure.message ?? failure.kind})`;
 }
 
 // The read of the rule file, a rejection when the call throws as it is made.

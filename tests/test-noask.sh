@@ -13,9 +13,10 @@
 # (<reason>)" for a case that cannot run; exits 1 when any case fails. Cases
 # 1 to 30 are those of the phase 2 plan (a local working document), Task 2;
 # cases 31 to 45 those of the plan of noask's first step, a local working
-# document, Tasks 1 (31 to 36), 2 (37 to 44) and 4 (45). Case 45 runs
+# document, Tasks 1 (31 to 36), 2 (37 to 44), 4 and 6 (45). Case 45 runs
 # tests/gen-marker-fixtures.sh on SCRIPT, which makes its own temporary
-# HOMEs.
+# HOMEs, and reads hooks/text.ts and skills/apply/references/noask.md beside
+# this script's directory.
 #
 # Usage: bash tests/test-noask.sh [SCRIPT]
 #   Default SCRIPT: bin/noask in the plugin root, the parent of this script's
@@ -1199,12 +1200,36 @@ verdict 44
 [ -z "$as_root" ] || echo 'note 44 (the noask.d mode sub-cases need a user that file modes bind)'
 
 # 45. The module's marker fixtures are the command's own: the generator's
-#     output on SCRIPT is hooks/marker.fixtures.ts, byte for byte.
+#     output on SCRIPT is hooks/marker.fixtures.ts, byte for byte. And the
+#     module's end-of-turn lines are the apply skill's: WAITING_LINE,
+#     DONE_LINE and BLOCKED_LINE as hooks/text.ts spells them are each found
+#     in skills/apply/references/noask.md, read with its line ends folded to
+#     spaces, and so is the phrase the reference quotes, which
+#     NOTHING_RUNNING_TEXT starts with. A text that came out empty fails.
 rc=0
 out=$(timeout 120 bash "$here/gen-marker-fixtures.sh" "$script" 2> "$tmp/gen.err" |
   cmp - "$here/../hooks/marker.fixtures.ts" 2>&1) || rc=$?
 err=$(cat -- "$tmp/gen.err")
 { [ "$rc" -eq 0 ] && [ -z "$out" ] && [ -z "$err" ]; } || broken+=" fixtures"
+texts=$here/../hooks/text.ts
+reference=$(tr '\n' ' ' < "$here/../skills/apply/references/noask.md")
+phrase='nothing of yours is running'
+# spelled NAME: the value of `export const NAME = '...';` in hooks/text.ts.
+spelled() { sed -n "s/^export const $1 = '\\([^']*\\)';\$/\\1/p" -- "$texts"; }
+# The first quoted piece of NOTHING_RUNNING_TEXT, written on the line after its name.
+nothing=$(sed -n "/^export const NOTHING_RUNNING_TEXT =\$/{n;s/^ *'\\([^']*\\)'.*\$/\\1/p;}" -- "$texts")
+for needle in "$(spelled WAITING_LINE)" "$(spelled DONE_LINE)" "$(spelled BLOCKED_LINE)" "$phrase"; do
+  if [ -z "$needle" ]; then
+    broken+=' empty-text'
+  elif [[ $reference != *"$needle"* ]]; then
+    broken+=" reference-lacks:\"$needle\""
+  fi
+done
+if [ -z "$nothing" ]; then
+  broken+=' empty-NOTHING_RUNNING_TEXT'
+elif [[ $nothing != "$phrase"* ]]; then
+  broken+=" NOTHING_RUNNING_TEXT-starts:\"$nothing\""
+fi
 verdict 45
 
 exit "$fail"
