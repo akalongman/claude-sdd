@@ -16,7 +16,7 @@ for (const [index, { command, hits }] of FENCE_ROWS.entries()) {
 }
 
 test('the table holds every record of tests/fence-rows.txt', async () => {
-    expect(FENCE_ROWS).toHaveLength(253);
+    expect(FENCE_ROWS).toHaveLength(267);
 });
 
 // The scan's work. Each nested text is read once per reading, and a command whose reading passes the scan's work limit
@@ -118,15 +118,132 @@ test('a long ordinary script, here-document and all, is read to its end', async 
     expect(script.ms).toBeLessThan(TIME_BOUND_MS);
 });
 
-// A (( that is no arithmetic is a subshell in a subshell, read as the spaced ( ( of the table is: a here-document
-// opened in a substitution inside it is queued once, by the reading that follows the arithmetic one that did not fit.
-// Not in the table: bash's own second reading of such a (( ran the delimiter line as a command and took the lines
-// after it as a body (an echo-only run on 2026-11-18), while it reads the spaced form as the table says.
-test('a (( that is no arithmetic is read as ( ( is, its here-document queued once', async () => {
-    const rest = '\ngit push\nEOF\nnoask global off';
-    const spaced = shellHits(`( (x $(cat <<EOF)); true)${rest}`, HOME).map(({ what }) => what);
-    expect(shellHits(`((x $(cat <<EOF)); true)${rest}`, HOME).map(({ what }) => what)).toEqual(spaced);
-    expect(spaced).toEqual(['switching noask']);
+// Judging a command's arguments is counted by the work it does: the home's characters for each argument spelled from
+// the home, each candidate an argument holds, each part matched. After a prefix command every `rm` is read with every
+// word after it, and a short argument spelled from the home is judged several times over; counted by its characters
+// alone, such a command took half a second to refuse. The first five are the review's (the first one the calibration
+// row, quick before too); the last two put a path part's pattern and a deep home under the same count. Each is refused
+// in time, and so are the hook's scan and its .catch handler's second scan of the same command together.
+const HOME_LONGER = '/home/longman';
+const HOME_DEEP = `/${'h'.repeat(60)}/${'u'.repeat(60)}/${'x'.repeat(60)}`;
+const JUDGED: ReadonlyArray<readonly [string, string, string]> = [
+    ['sudo, 805 rm and a path', `sudo ${'rm '.repeat(805)}/home/u/.local/state/x`, HOME],
+    ['sudo, rm -=~/a 600 times', `sudo ${'rm -=~/a '.repeat(600)}`, HOME],
+    ['sudo, 150 rm, -=~/a 600 times', `sudo ${'rm '.repeat(150)}${'-=~/a '.repeat(600)}`, HOME_LONGER],
+    ['sudo, 16 rm, -=~/a 4,500 times', `sudo ${'rm '.repeat(16)}${'-=~/a '.repeat(4_500)}`, HOME_LONGER],
+    ['sudo, 8 rm, -=~/a 8,000 times', `sudo ${'rm '.repeat(8)}${'-=~/a '.repeat(8_000)}`, HOME_LONGER],
+    ['sudo, 60 cp, a pattern 600 times', `sudo ${'cp '.repeat(60)}${'~/.l*/s*/s*x '.repeat(600)}`, HOME_LONGER],
+    ['sudo, 16 rm, -=~/a 4,500 times, a deep home', `sudo ${'rm '.repeat(16)}${'-=~/a '.repeat(4_500)}`, HOME_DEEP],
+];
+
+for (const [name, command, home] of JUDGED) {
+    test(`judging is counted by its work: ${name} is refused in time, twice over too`, async () => {
+        const start = performance.now();
+        const first = shellHits(command, home).map(({ what }) => what);
+        const firstMs = performance.now() - start;
+        const second = shellHits(command, home).map(({ what }) => what);
+        const bothMs = performance.now() - start;
+        expect(first).toEqual(TOO_COMPLEX);
+        expect(second).toEqual(TOO_COMPLEX);
+        expect(firstMs).toBeLessThan(TIME_BOUND_MS);
+        expect(bothMs).toBeLessThan(2 * TIME_BOUND_MS);
+    });
+}
+
+// The count leaves an ordinary command its room: a file program with 1,500 paths is judged to its end, and names the
+// one path among them that the fence protects.
+test('a long list of paths is judged to its end', async () => {
+    const paths = '/home/u/projects/app/build/out.o '.repeat(1_500);
+    const read = timed(`rm -f ${paths}`);
+    expect(read.hits).toEqual([]);
+    expect(read.ms).toBeLessThan(TIME_BOUND_MS);
+    expect(timed(`rm -f ${paths}~/.local/state/sdd/noask`).hits).toEqual(['switching noask']);
+    expect(timed(`sudo rm -f ${paths}~/.local/state/sdd/noask`).hits).toEqual(['switching noask']);
+});
+
+// A here-document left open by a substitution. A substitution that closes on a here-document it opened, its body not
+// read, makes bash take that body from the lines after the close, before the bodies of the line's own here-documents.
+// The scan does not follow that order and refuses to read the command: one hit of its own, alone, whatever else the
+// command holds. (tests/fence-rows.txt holds the shapes bash was run on; these are the forms beside them.)
+const LEFT_OPEN: ReadonlyArray<FenceWhat> = ['a here-document left open by a substitution'];
+const LEFT_OPEN_FORMS: ReadonlyArray<readonly [string, string]> = [
+    ['a command substitution', 'x=$(cat <<B)'],
+    ['an input process substitution', 'diff <(cat <<B) a'],
+    ['an output process substitution', 'tee >(cat <<B)'],
+    ['a ${ ...; } substitution', 'x=${ cat <<B; }'],
+    ['a ${| ...; } substitution', 'x=${| cat <<B; }'],
+    ['a substitution in double quotes', 'x="$(cat <<B)"'],
+    ['a substitution in a parameter expansion', 'x=${y:-$(cat <<B)}'],
+    ['a substitution in a substitution, the inner one', 'x=$(echo $(cat <<B) )'],
+    ['a substitution in a substitution, the outer one', 'x=$(cat <<B; echo $(true) )'],
+    ['a substitution in a $((', 'x=$(( $(cat <<B) 1 ))'],
+    ['a substitution in a (( where a command stands', '(( $(cat <<B) 1 ))'],
+    ['a substitution in an arithmetic for', 'for (( i = $(cat <<B); i < 1; i++ )); do :; done'],
+    ['a substitution in a $[', 'x=$[ $(cat <<B) 1 ]'],
+    ['a substitution in a subscript', 'a[$(cat <<B)]=x'],
+    ['a substitution in a here-document delimiter', 'cat <<"$(cat <<B)"'],
+    ['a <<- opener', 'x=$(cat <<-B)'],
+    ['a substitution that read one body and left another open', 'x=$(cat <<A\na\nA\ncat <<B)'],
+    ['one opened after a line end inside', 'x=$(true\ncat <<B)'],
+];
+
+for (const [name, opening] of LEFT_OPEN_FORMS) {
+    test(`a here-document left open by ${name} is refused, whatever else the command holds`, async () => {
+        for (const rest of ['', '\ngit push\nB\nnoask global off', '; git push', '\nB\ngit push']) {
+            for (const command of [`${opening}${rest}`, `noask global off; ${opening}${rest}`]) {
+                expect(timed(command).hits, command).toEqual(LEFT_OPEN);
+            }
+        }
+    });
+}
+
+// What is no refusal, each with the hits it had before: a here-document opened outside the substitution, which is the
+// line's own, also when the substitution spans the line's end; one whose body the substitution holds; one left open in
+// a text read as a text of its own, a backtick substitution's, which ends with that text in bash too; a shift of an
+// arithmetic text, an opener only in that text's reading as commands, also where a comparison before it reads there
+// as a process substitution; a here-string; and a substitution that the command's end cuts short.
+const NOT_LEFT_OPEN: ReadonlyArray<readonly [string, ReadonlyArray<FenceWhat>]> = [
+    [': <<A; x=$(echo hi)\ngit push\nA\nnoask global off', ['switching noask']],
+    ['cat <<A <<B; x=$(echo hi)\ngit push\nA\ngit push\nB\nnoask global off', ['switching noask']],
+    [': <<A; x=$(true\nA\n)\ngit push', ['a push']],
+    ['x=$(cat <<B\ngit push\nB\n); noask global off', ['switching noask']],
+    ['git commit -m "$(cat <<\'EOF\'\nA title\n\nIts body.\nEOF\n)"\ngit push', ['a push']],
+    ['x=`cat <<B`\ngit push', ['a push']],
+    ['x=`echo $(cat <<B)`\ngit push', ['a push']],
+    ['echo "`echo $(cat <<B)`"\ngit push', ['a push']],
+    ['echo $((1<<2))\ngit push', ['a push']],
+    ['x=$(( n<(1<<10) ))\ngit push', ['a push']],
+    ['x=$(( n>(1<<10) ))\ngit push', ['a push']],
+    ['if (( n<(1<<10) )); then git push; fi', ['a push']],
+    ['for (( i = 0; i<(1<<n); i++ )); do git push; done', ['a push']],
+    ['y=$(echo $(( i<(1<<n) )))\ngit push', ['a push']],
+    ['x=$((echo 1<<2) )\ngit push', ['a push']],
+    ['a[n<(1<<2)]=x\ngit push', ['a push']],
+    ['x=$(grep a <<<"$y"); git push', ['a push']],
+    ['x=$(cat <<B\ngit push', []],
+    ['cat <<B\ngit push', []],
+];
+
+for (const [command, hits] of NOT_LEFT_OPEN) {
+    test(`no here-document is left open by a substitution in ${JSON.stringify(command)}`, async () => {
+        expect(shellHits(command, HOME).map(({ what }) => what)).toEqual(hits);
+    });
+}
+
+// A (( that is no arithmetic is a subshell in a subshell, read as the spaced ( ( is. The arithmetic reading that did
+// not fit read the line's here-document at the line end inside its substitution; the reading that follows finds that
+// here-document waiting again, and reads it there as the spaced form does, so the line with the odd quote is a body in
+// both and the push after it is read. Not in the table: bash does not read a here-document's body inside a
+// substitution that spans a line end (the table's notes on a `$(` that shares the queue), so it differs on both forms.
+// A here-document that the substitution itself opens and leaves open is a refusal in both forms alike.
+test('a (( that is no arithmetic is read as ( ( is, the here-document it read put back', async () => {
+    const rest = "\nit's\nEOF\n)); true)\ngit push";
+    const spaced = shellHits(`: <<EOF; ( (x $(true${rest}`, HOME).map(({ what }) => what);
+    expect(shellHits(`: <<EOF; ((x $(true${rest}`, HOME).map(({ what }) => what)).toEqual(spaced);
+    expect(spaced).toEqual(['a push']);
+    const open = '\ngit push\nEOF\nnoask global off';
+    expect(shellHits(`( (x $(cat <<EOF)); true)${open}`, HOME).map(({ what }) => what)).toEqual(LEFT_OPEN);
+    expect(shellHits(`((x $(cat <<EOF)); true)${open}`, HOME).map(({ what }) => what)).toEqual(LEFT_OPEN);
 });
 
 // Forms the table does not hold, read by the same rules: a $'...' word's escapes, a case pattern's `)` inside a
@@ -163,6 +280,7 @@ test('a push, a pull request and a merge request are publications; every other h
         'switching noask',
         'an edit under the configuration directory',
         'a command too complex to read',
+        'a here-document left open by a substitution',
     ];
     for (const what of publications) {
         expect(isPublication({ what }), what).toBe(true);

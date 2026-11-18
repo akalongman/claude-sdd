@@ -4,8 +4,9 @@
 // `on` typed in an idle session submits the wake-up turn. Under noask it refuses the question and the plan approval,
 // and fences the shell's and the file tools' calls that need the owner (fence.ts names them), each refusal counted by
 // the command (count.ts) but the plan approval's; in every session it guards the switch, denying a call that switches
-// noask or writes its files, and a shell command too complex for the fence's scan to read to its end. Each of those
-// registrations carries a `.catch` handler that denies in the hook's place.
+// noask or writes its files, and a shell command the fence's scan refuses to read: one too complex to read to its end,
+// and one in which a substitution leaves a here-document open. Each of those registrations carries a `.catch` handler
+// that denies in the hook's place.
 // The markers are read by marker.ts; every text the module shows is in text.ts. A subagent's turn changes nothing.
 import type {
     CommandRunResult,
@@ -28,6 +29,7 @@ import {
     COMMAND_DESCRIPTION,
     endingText,
     fenceText,
+    LEFT_OPEN_TEXT,
     noIdLine,
     notRegisteredLine,
     notRunLine,
@@ -61,8 +63,10 @@ const STATE_DIRECTORY = '.local/state/sdd';
 type Fence = { readonly budgets: Budgets; readonly isFenced: boolean };
 
 // What the guard denies in every session, whatever the marker reads and whatever the fence option says: a call that
-// switches noask or writes its files, and a shell command the fence's scan could not read to its end.
-type Guarded = Extract<FenceWhat, 'switching noask' | 'a command too complex to read'>;
+// switches noask or writes its files, and a shell command the fence's scan refuses to read (Unread): one it could not
+// read to its end, and one in which a substitution leaves a here-document open.
+type Unread = Extract<FenceWhat, 'a command too complex to read' | 'a here-document left open by a substitution'>;
+type Guarded = Extract<FenceWhat, 'switching noask'> | Unread;
 
 // What the typed words ask, after an optional `global`: to switch a marker on or off, or anything else (the status,
 // the bare command, a wrong argument), which the command answers with its own lines whatever its exit.
@@ -293,7 +297,11 @@ async function directoryFor($: Pick<EngineInterface, 'session'>, path: string): 
 // The first hit the guard denies, if any.
 function guardedOf(hits: ReadonlyArray<FenceHit>): Guarded | undefined {
     for (const { what } of hits) {
-        if (what === 'switching noask' || what === 'a command too complex to read') {
+        if (
+            what === 'switching noask' ||
+            what === 'a command too complex to read' ||
+            what === 'a here-document left open by a substitution'
+        ) {
             return what;
         }
     }
@@ -302,7 +310,18 @@ function guardedOf(hits: ReadonlyArray<FenceHit>): Guarded | undefined {
 
 // The guard's own text for what it denies, where the fence's text is not the one given.
 function guardText(what: Guarded): string {
-    return what === 'switching noask' ? SWITCH_TEXT : TOO_COMPLEX_TEXT;
+    switch (what) {
+        case 'switching noask':
+            return SWITCH_TEXT;
+        case 'a command too complex to read':
+            return TOO_COMPLEX_TEXT;
+        case 'a here-document left open by a substitution':
+            return LEFT_OPEN_TEXT;
+        default: {
+            const exhaustive: never = what;
+            return exhaustive;
+        }
+    }
 }
 
 // Under noask the question is refused with the rule text, prefixed, and counted against the question budget.
@@ -339,9 +358,9 @@ async function guardDenial(
         : withError(guardText(what), reading);
 }
 
-// A shell call: the guard first, on a call one of whose hits switches noask or that the scan could not read to its end;
-// then, under noask with the fence on, a hit that is no publication denies the whole call with its text, and a call
-// whose hits are all publications passes, uncounted, for the main agent of a session at handsoff and is denied with its
+// A shell call: the guard first, on a call one of whose hits switches noask or that the scan refuses to read; then,
+// under noask with the fence on, a hit that is no publication denies the whole call with its text, and a call whose
+// hits are all publications passes, uncounted, for the main agent of a session at handsoff and is denied with its
 // first hit's text otherwise.
 async function shellDenial(
     $: EngineInterface,
@@ -396,18 +415,34 @@ async function editDenial(
     return answerFor($, fence.budgets, reading, agentId, 'denial', fenceText(what));
 }
 
+// HOME as a `.catch` handler reads it: undefined when the read is refused.
+async function homeIfRead($: Pick<EngineInterface, 'env'>): Promise<string | undefined> {
+    try {
+        return await homeOf($);
+    } catch {
+        return undefined;
+    }
+}
+
 // What the guard names by its words alone, with no file call and no read of a marker: a shell command one of whose
-// hits switches noask or that the scan could not read to its end, or a path spelled under the state directory as
-// spelled. Undefined when HOME or the session's directory cannot be read; the handler then goes on to its own reading.
+// hits switches noask or that the scan refuses to read, or a path spelled under the state directory as spelled. A
+// command the scan refuses to read is named whether HOME can be read or not, since that refusal does not rest on the
+// home: with HOME refused the command is scanned against an empty home, and only that refusal is taken from the scan.
+// A switch is judged against the home, so with HOME refused, or the session's directory for a path, it is undefined;
+// the handler then goes on to its own reading.
 async function namedByGuard(
     $: Pick<EngineInterface, 'env' | 'session'>,
     call: { readonly command: string } | { readonly path: string },
 ): Promise<Guarded | undefined> {
+    const home = await homeIfRead($);
+    if ('command' in call) {
+        const guarded = guardedOf(shellHits(call.command, home ?? ''));
+        return home === undefined && guarded === 'switching noask' ? undefined : guarded;
+    }
+    if (home === undefined) {
+        return undefined;
+    }
     try {
-        const home = await homeOf($);
-        if ('command' in call) {
-            return guardedOf(shellHits(call.command, home));
-        }
         const spelledPath = spelled(call.path, home, await directoryFor($, call.path));
         return isUnder(spelledPath, [spelled(STATE_DIRECTORY, home, home)]) ? 'switching noask' : undefined;
     } catch {

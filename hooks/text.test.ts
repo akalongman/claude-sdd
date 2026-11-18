@@ -11,6 +11,7 @@ import {
     endingText,
     FALLBACK_RULE,
     fenceText,
+    LEFT_OPEN_TEXT,
     noIdLine,
     NOTHING_RUNNING_TEXT,
     notRegisteredLine,
@@ -128,6 +129,18 @@ test("the guard's text for a command too complex to read is the owner's", async 
     );
 });
 
+test("the guard's text for a here-document left open by a substitution is the owner's", async () => {
+    expect(LEFT_OPEN_TEXT).toBe(
+        'the noask guard does not read this command: a substitution in it closes while a here-document opened ' +
+            "inside it is still open; put the here-document's body and its delimiter line before the " +
+            "substitution's close",
+    );
+    expect(fenceText('a here-document left open by a substitution')).toBe(
+        'noask is on: a here-document left open by a substitution needs the owner; print ' +
+            '`blocked: a here-document left open by a substitution` and continue with the next independent item',
+    );
+});
+
 test("the end-of-turn lines and the text for a turn that waits on nothing are the spec's", async () => {
     expect(WAITING_LINE).toBe('noask: waiting:');
     expect(DONE_LINE).toBe('noask: done');
@@ -198,6 +211,7 @@ test('no exported text holds an em or en dash', async () => {
         'switching noask',
         'an edit under the configuration directory',
         'a command too complex to read',
+        'a here-document left open by a substitution',
     ];
     const composed = [
         ...whats.map((what) => fenceText(what)),
@@ -212,6 +226,7 @@ test('no exported text holds an em or en dash', async () => {
     const fixed = Object.values(texts).filter((value): value is string => typeof value === 'string');
     expect(fixed).toContain(SWITCH_TEXT);
     expect(fixed).toContain(TOO_COMPLEX_TEXT);
+    expect(fixed).toContain(LEFT_OPEN_TEXT);
     expect(fixed.length).toBeGreaterThanOrEqual(15);
     for (const text of [...fixed, ...composed]) {
         expect(/[\u2013\u2014]/.test(text), text).toBe(false);

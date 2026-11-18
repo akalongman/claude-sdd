@@ -21,6 +21,7 @@ import {
     endingText,
     FALLBACK_RULE,
     fenceText,
+    LEFT_OPEN_TEXT,
     PARTIAL_LINE,
     PLAN_TEXT,
     QUESTION_PREFIX,
@@ -1001,7 +1002,8 @@ async function call($: Engine, input: Input, agentId?: string): Promise<ToolCall
 // list and stat) never answers, and one named in `refuse` rejects. The count's run answers `count`, by default
 // COUNTED. The rule file reads RULE_FILE_TEXT; with `rule: 'deny'` every read of it is refused, and with `rule: 'bytes
 // once'` its first read answers bytes, which the module does not expect, so the hook's own code throws. The read of
-// HOME numbered `refusedHomeRead` is refused. The tool beneath answers REACHED, or with `tool: 'reject'` fails.
+// HOME numbered `refusedHomeRead`, or each of them when it is a list, is refused. The tool beneath answers REACHED, or
+// with `tool: 'reject'` fails.
 type Scene = {
     readonly files?: Readonly<Record<string, string>>;
     readonly links?: Readonly<Record<string, string>>;
@@ -1014,7 +1016,7 @@ type Scene = {
     readonly refuse?: ReadonlyArray<string>;
     readonly count?: Reply;
     readonly rule?: 'deny' | 'bytes once';
-    readonly refusedHomeRead?: number;
+    readonly refusedHomeRead?: number | ReadonlyArray<number>;
     readonly tool?: 'reject';
 };
 
@@ -1143,7 +1145,8 @@ function scene(on: On, world: Scene = {}): Seen {
             return { value: world.env?.[e.name] };
         }
         homeReads += 1;
-        return homeReads === world.refusedHomeRead ? { deny: 'the test refuses this read of HOME' } : { value: HOME };
+        const isRefused = [world.refusedHomeRead ?? []].flat().includes(homeReads);
+        return isRefused ? { deny: 'the test refuses this read of HOME' } : { value: HOME };
     });
     on('session.id', () => (world.id instanceof Error ? { deny: world.id.message } : { value: world.id ?? 's-1' }));
     on('session.cwd', () => ({ value: world.cwd ?? SESSION.cwd }));
@@ -1337,34 +1340,51 @@ test("under noask every door to the switch is denied with the fence's text, each
     expect(seen.reached).toEqual(READING_COMMANDS.map((command) => `Bash ${command}`));
 });
 
-// A command the fence's scan cannot read to its end, a push inside 200,000 nested `$(`, deeper than the scan follows
-// within its work limit or its stack: the guard denies it in every session, as it denies a switch, with a text of its
-// own outside noask and the fence's under it. (hooks/fence.test.ts holds the nested `$((` of the review to the limit.)
+// The commands the fence's scan refuses to read. One it cannot read to its end, a push inside 200,000 nested `$(`,
+// deeper than the scan follows within its work limit or its stack (hooks/fence.test.ts holds the nested `$((` of the
+// review to the limit). And one in which a substitution closes on a here-document it opened and left open, which
+// bash reads from the lines after the close in an order the scan does not follow. The guard denies each in every
+// session, as it denies a switch, with a text of its own outside noask and the fence's under it.
 const TOO_DEEP = `echo ${'$('.repeat(200_000)}git push${')'.repeat(200_000)}`;
+const LEFT_OPEN = 'x=$(cat <<EOF); echo "$x"\nnoask global off\nEOF\ngit push';
+const UNREAD: ReadonlyArray<readonly [FenceWhat, string, string]> = [
+    ['a command too complex to read', TOO_DEEP, TOO_COMPLEX_TEXT],
+    ['a here-document left open by a substitution', LEFT_OPEN, LEFT_OPEN_TEXT],
+];
 
-test("outside noask a command too complex to read is denied with the guard's own text, uncounted", async ($, on) => {
-    const seen = scene(on);
-    expect(await call($, shell(TOO_DEEP))).toEqual(denied(TOO_COMPLEX_TEXT));
-    expect(seen.runs).toEqual([]);
-    expect(seen.reached).toEqual([]);
-});
-
-test("under noask a command too complex to read is denied with the fence's text, counted once", async ($, on) => {
-    const seen = scene(on, { files: { [GLOBAL]: MARKER_ON } });
-    expect(await call($, shell(TOO_DEEP))).toEqual(fenced('a command too complex to read'));
-    expect(argsOf(seen)).toEqual([DENIAL_RUN]);
-    expect(seen.reached).toEqual([]);
-});
-
-test(
-    "with the fence off a command too complex to read is denied with the guard's own text, uncounted",
-    { options: { fence: false } },
-    async ($, on) => {
-        const seen = scene(on, { files: { [GLOBAL]: MARKER_ON } });
-        expect(await call($, shell(TOO_DEEP))).toEqual(denied(TOO_COMPLEX_TEXT));
+for (const [what, command, text] of UNREAD) {
+    test(`outside noask ${what} is denied with the guard's own text, uncounted`, async ($, on) => {
+        const seen = scene(on);
+        expect(await call($, shell(command))).toEqual(denied(text));
         expect(seen.runs).toEqual([]);
-    },
-);
+        expect(seen.reached).toEqual([]);
+    });
+
+    test(`under noask ${what} is denied with the fence's text, counted once`, async ($, on) => {
+        const seen = scene(on, { files: { [GLOBAL]: MARKER_ON } });
+        expect(await call($, shell(command))).toEqual(fenced(what));
+        expect(argsOf(seen)).toEqual([DENIAL_RUN]);
+        expect(seen.reached).toEqual([]);
+    });
+
+    test(
+        `with the fence off ${what} is denied with the guard's own text, uncounted`,
+        { options: { fence: false } },
+        async ($, on) => {
+            const seen = scene(on, { files: { [GLOBAL]: MARKER_ON } });
+            expect(await call($, shell(command))).toEqual(denied(text));
+            expect(seen.runs).toEqual([]);
+            expect(seen.reached).toEqual([]);
+        },
+    );
+
+    test(`at handsoff ${what} is denied all the same, counted once`, async ($, on) => {
+        const seen = scene(on, { files: { [OWN]: MARKER_HANDSOFF } });
+        expect(await call($, shell(command))).toEqual(fenced(what));
+        expect(argsOf(seen)).toEqual([DENIAL_RUN]);
+        expect(seen.reached).toEqual([]);
+    });
+}
 
 for (const [name, files] of [
     ["the session's own marker alone", { [OWN]: MARKER_SESSION }],
@@ -1710,17 +1730,46 @@ for (const [name, input] of NAMED_BY_THE_GUARD) {
     }
 }
 
-for (const [marker, files] of [
-    ['off', {}],
-    ['on', { [GLOBAL]: MARKER_ON }],
-] as const) {
-    test(`with the marker ${marker} a hook that throws on a command too complex to read gets it`, async ($, on) => {
-        const seen = scene(on, { files, refusedHomeRead: 2 });
-        expect(await call($, shell(TOO_DEEP))).toEqual(denied(TOO_COMPLEX_TEXT));
-        expect(seen.runs).toEqual([]);
-        expect(seen.reached).toEqual([]);
-    });
+// A command the scan refuses to read is named by the handler whether or not it can read HOME, since that refusal does
+// not rest on the home: `[2, 3]` refuses the hook's read of HOME and the handler's own after it, and leaves the read
+// of the handler's marker reading, the fourth, answered, so that with the marker off nothing else denies the call.
+for (const [what, command, text] of UNREAD) {
+    for (const [marker, files] of [
+        ['off', {}],
+        ['on', { [GLOBAL]: MARKER_ON }],
+    ] as const) {
+        test(`with the marker ${marker} a hook that throws on ${what} gets it`, async ($, on) => {
+            const seen = scene(on, { files, refusedHomeRead: 2 });
+            expect(await call($, shell(command))).toEqual(denied(text));
+            expect(seen.runs).toEqual([]);
+            expect(seen.reached).toEqual([]);
+        });
+
+        test(`with the marker ${marker} and HOME refused to the handler too, ${what} gets it`, async ($, on) => {
+            const seen = scene(on, { files, refusedHomeRead: [2, 3] });
+            expect(await call($, shell(command))).toEqual(denied(text));
+            expect(seen.runs).toEqual([]);
+            expect(seen.reached).toEqual([]);
+        });
+    }
 }
+
+// A switch is judged against the home, so a handler that cannot read HOME does not name it and goes on to its own
+// reading, as it did before: with the marker off the call runs, and with it on the rule denies it.
+test('with HOME refused to the handler too, a switch is left to the reading of the marker', async ($, on) => {
+    const seen = scene(on, { refusedHomeRead: [2, 3] });
+    expect(await call($, shell('noask global on'))).toEqual(REACHED);
+    expect(seen.reached).toEqual(['Bash noask global on']);
+    expect(seen.runs).toEqual([]);
+});
+
+test('with HOME refused to the handler too and the marker on, a switch is denied with the rule', async ($, on) => {
+    const seen = scene(on, { files: { [GLOBAL]: MARKER_ON }, refusedHomeRead: [2, 3] });
+    const answer = await call($, shell('noask global on'));
+    expect(answer.deny).toStartWith(`${RULE}${HOOK_FAILED}`);
+    expect(seen.reached).toEqual([]);
+    expect(seen.runs).toEqual([]);
+});
 
 test('with the marker file never answering, the handler denies once the timer fires', async ($, on) => {
     const seen = scene(on, { hang: [`exists ${GLOBAL}`], rule: 'bytes once' });

@@ -8,8 +8,13 @@
 ## ", ", or "none"; a line "# bash: agrees", "# bash: differs: <reason>
 ## (<detail>)" or "# bash: norun: <why>"; the command's own lines; and a line
 ## "# end". A reason is one of: not observed, a role, a prefix, not earned,
-## wrapped. Outside a record only empty lines and lines that start with "##"
-## stand.
+## wrapped, not read. Outside a record only empty lines and lines that start
+## with "##" stand.
+##
+## A record whose hit is "a here-document left open by a substitution" is a
+## command the scan refuses to read: that hit stands alone, whatever else
+## the command holds. Bash never runs a refusal, so such a record always
+## differs, with the reason "not read", and its detail says what bash ran.
 
 ## A push, in each place a simple command can stand.
 
@@ -1240,8 +1245,8 @@ x=$((git push)|(true))
 ((git push); true)
 # end
 
-# hits: switching noask
-# bash: agrees
+# hits: a here-document left open by a substitution
+# bash: differs: not read (a substitution leaves a here-document open; bash ran the switch)
 ( (x $(cat <<EOF)); true)
 git push
 EOF
@@ -1288,10 +1293,11 @@ noask global off
 ## commands is a text of its own, so a << in it opens no here-document for
 ## the lines after. Whichever reading bash takes, it keeps the
 ## here-documents of the line around a $(( or a (( apart from those of a
-## substitution inside it, and reads their bodies in this order: first
-## those that substitutions left open, in the order they were opened (bash
-## reads each as its substitution ends), then those that waited on the
-## line, after the line. An arithmetic for has no reading as commands.
+## substitution inside it, and reads the bodies of the line's own after
+## the line. A here-document that a substitution inside leaves open is
+## read before them, as that substitution ends; the scan does not follow
+## that order and refuses to read such a command (the last section). An
+## arithmetic for has no reading as commands.
 
 # hits: a push
 # bash: agrees
@@ -1320,8 +1326,8 @@ git push
 EOF
 # end
 
-# hits: none
-# bash: agrees
+# hits: a here-document left open by a substitution
+# bash: differs: not read (a substitution leaves a here-document open; bash ran nothing)
 x=$(( $(: <<EOF) ) ; (true) )
 git push
 EOF
@@ -1343,8 +1349,8 @@ $(noask global off) ))
 for ((git push; 0; )); do :; done
 # end
 
-# hits: a push
-# bash: agrees
+# hits: a here-document left open by a substitution
+# bash: differs: not read (a substitution leaves a here-document open; bash ran the push)
 : <<A; x=$(( $(: <<B) 1 ))
 echo L1
 B
@@ -1355,8 +1361,8 @@ B
 echo L4
 # end
 
-# hits: switching noask
-# bash: agrees
+# hits: a here-document left open by a substitution
+# bash: differs: not read (a substitution leaves a here-document open; bash ran the switch)
 : <<A; x=$(( $(: <<B) 1 ))
 echo L1
 B
@@ -1367,8 +1373,8 @@ B
 echo L4
 # end
 
-# hits: a push
-# bash: agrees
+# hits: a here-document left open by a substitution
+# bash: differs: not read (a substitution leaves a here-document open; bash ran the push)
 : <<A; x=$(( $(true
 A
 : <<B) 1 ))
@@ -1381,8 +1387,8 @@ B
 echo L4
 # end
 
-# hits: none
-# bash: agrees
+# hits: a here-document left open by a substitution
+# bash: differs: not read (a substitution leaves a here-document open; bash ran nothing)
 : <<A; x=$(( $(: <<B) 1 ))
 echo L1
 A
@@ -1391,8 +1397,8 @@ B
 git push
 # end
 
-# hits: a push
-# bash: agrees
+# hits: a here-document left open by a substitution
+# bash: differs: not read (a substitution leaves a here-document open; bash ran the push)
 : <<A; x=$(( $(: <<B) ) ; (true) )
 echo L1
 B
@@ -1403,8 +1409,8 @@ B
 echo L4
 # end
 
-# hits: a push
-# bash: agrees
+# hits: a here-document left open by a substitution
+# bash: differs: not read (a substitution leaves a here-document open; bash ran the push)
 : <<A; x=$(( $(: <<B) 1 )); y=$(( $(: <<C) 1 ))
 echo P1
 B
@@ -1429,4 +1435,133 @@ EOF
 it's
 EOF
 git push
+# end
+
+## A here-document left open by a substitution. When a $( ), a <( ), a >( )
+## or a ${ ...; } closes on a here-document that was opened inside it and
+## whose body it has not read, bash warns ("unterminated here-document") and
+## takes that body from the lines after the close, before the bodies of the
+## line's own here-documents. The scan does not follow that order: it
+## refuses to read such a command, whatever bash goes on to run. No refusal:
+## a here-document opened outside the substitution, which is the line's
+## own; one whose body the substitution holds; one left open in a backtick
+## substitution, which ends with the backtick's text in bash too; and a
+## shift of an arithmetic text, which is an opener only in that text's
+## reading as commands.
+
+# hits: a here-document left open by a substitution
+# bash: differs: not read (a substitution leaves a here-document open; bash ran the switch)
+x=$(: <<B); echo "$x"
+git push
+B
+noask global off
+# end
+
+# hits: a here-document left open by a substitution
+# bash: differs: not read (a substitution leaves a here-document open; bash ran the push)
+x=$(: <<B); y=$(( $(: <<C) 1 ))
+echo L1
+B
+echo L2
+C
+git push
+# end
+
+# hits: a here-document left open by a substitution
+# bash: differs: not read (a substitution leaves a here-document open; bash ran the push)
+x=$(: <<B); (( $(: <<C) 1 ))
+echo L1
+B
+echo L2
+C
+git push
+# end
+
+# hits: a here-document left open by a substitution
+# bash: differs: not read (a substitution leaves a here-document open; bash ran the push)
+: <(: <<B); y=$(( $(: <<C) 1 ))
+echo L1
+B
+echo L2
+C
+git push
+# end
+
+# hits: a here-document left open by a substitution
+# bash: differs: not read (a substitution leaves a here-document open; bash ran nothing)
+x=$(: <<B); y=$(( $(: <<C) 1 ))
+echo L1
+C
+echo L2
+B
+git push
+# end
+
+# hits: a here-document left open by a substitution
+# bash: differs: not read (a substitution leaves a here-document open; bash ran the push)
+x=$(( $(: <<B) 1 )); y=$(( $(true
+B
+) 1 ))
+git push
+B
+echo L5
+# end
+
+# hits: a here-document left open by a substitution
+# bash: differs: not read (a substitution leaves a here-document open; bash ran the push)
+: <<A; x=$( $(: <<B) )
+echo L1
+B
+echo L2
+A
+git push
+B
+echo L4
+# end
+
+# hits: a here-document left open by a substitution
+# bash: differs: not read (a substitution leaves a here-document open; bash ran the switch)
+x=${ : <<B; }; git push
+echo L1
+B
+noask global off
+# end
+
+# hits: switching noask
+# bash: agrees
+: <<A; x=$(echo hi)
+git push
+A
+noask global off
+# end
+
+# hits: switching noask
+# bash: agrees
+x=$(: <<B
+git push
+B
+); noask global off
+# end
+
+# hits: a push
+# bash: agrees
+x=`: <<B`
+git push
+# end
+
+# hits: a push
+# bash: agrees
+x=`echo $(: <<B)`
+git push
+# end
+
+# hits: a push
+# bash: agrees
+x=$(( n<(1<<10) ))
+git push
+# end
+
+# hits: a push
+# bash: agrees
+if (( n<(1<<10) )); then git push; fi
 # end

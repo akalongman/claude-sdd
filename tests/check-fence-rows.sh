@@ -40,7 +40,10 @@
 # with - or + nor holding a ":") and "a push other than a plain one"
 # otherwise; gh pr create or new and glab mr create or new are "a pull
 # request" and "a merge request". The kinds are compared with the record's
-# hits as sets.
+# hits as sets. A record whose hit is the scan's refusal to read a command
+# ("a here-document left open by a substitution") names nothing bash runs,
+# so it never agrees: it is marked differs, and its detail says what bash
+# ran, read off this script's own message when the record is marked agrees.
 #
 # Guards, which keep the run harmless: a record is not run, whatever its
 # marking says, when its text, after the two replacements, holds an

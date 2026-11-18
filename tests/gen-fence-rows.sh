@@ -6,9 +6,12 @@
 # A record of the table is a line "# hits: <hits>" (the hits in order,
 # separated by ", ", or "none"), a line "# bash: agrees", "# bash: differs:
 # <reason> (<detail>)" or "# bash: norun: <why>" (the reason one of not
-# observed, a role, a prefix, not earned and wrapped), the command's own
-# lines, and a line "# end". Outside a record only empty lines and lines
-# that start with "##" stand. A command holds printable ASCII and tabs.
+# observed, a role, a prefix, not earned, wrapped and not read), the
+# command's own lines, and a line "# end". Outside a record only empty lines
+# and lines that start with "##" stand. A command holds printable ASCII and
+# tabs. A hit is one of the kinds the shell's simple commands have, or "a
+# here-document left open by a substitution", the scan's refusal to read a
+# command, which stands alone and always differs from what bash ran.
 #
 # Usage: bash tests/gen-fence-rows.sh [--records] [ROWS] > hooks/fence.rows.ts
 #   Default ROWS: fence-rows.txt beside this script. With --records it prints
@@ -28,7 +31,8 @@ fi
 rows=${1:-$here/fence-rows.txt}
 nl=$'\n' tab=$'\t'
 kinds='a push|a push other than a plain one|a pull request|a merge request|switching noask'
-reasons='not observed|a role|a prefix|not earned|wrapped'
+kinds+='|a here-document left open by a substitution'
+reasons='not observed|a role|a prefix|not earned|wrapped|not read'
 
 die() {
   printf 'gen-fence-rows: %s\n' "$1" >&2

@@ -968,7 +968,7 @@ git push`,
 git push
 EOF
 noask global off`,
-        hits: ['switching noask'],
+        hits: ['a here-document left open by a substitution'],
     },
     {
         command: `((git push))`,
@@ -1024,7 +1024,7 @@ EOF`,
         command: `x=$(( $(: <<EOF) ) ; (true) )
 git push
 EOF`,
-        hits: [],
+        hits: ['a here-document left open by a substitution'],
     },
     {
         command: `echo $(( 1 <<X
@@ -1048,7 +1048,7 @@ A
 git push
 B
 echo L4`,
-        hits: ['a push'],
+        hits: ['a here-document left open by a substitution'],
     },
     {
         command: `: <<A; x=$(( $(: <<B) 1 ))
@@ -1059,7 +1059,7 @@ A
 noask global off
 B
 echo L4`,
-        hits: ['switching noask'],
+        hits: ['a here-document left open by a substitution'],
     },
     {
         command: `: <<A; x=$(( $(true
@@ -1072,7 +1072,7 @@ A
 git push
 B
 echo L4`,
-        hits: ['a push'],
+        hits: ['a here-document left open by a substitution'],
     },
     {
         command: `: <<A; x=$(( $(: <<B) 1 ))
@@ -1081,7 +1081,7 @@ A
 echo L2
 B
 git push`,
-        hits: [],
+        hits: ['a here-document left open by a substitution'],
     },
     {
         command: `: <<A; x=$(( $(: <<B) ) ; (true) )
@@ -1092,7 +1092,7 @@ A
 git push
 B
 echo L4`,
-        hits: ['a push'],
+        hits: ['a here-document left open by a substitution'],
     },
     {
         command: `: <<A; x=$(( $(: <<B) 1 )); y=$(( $(: <<C) 1 ))
@@ -1109,7 +1109,7 @@ B
 echo P6
 A
 echo P7`,
-        hits: ['a push'],
+        hits: ['a here-document left open by a substitution'],
     },
     {
         command: `: <<EOF; (( $(true
@@ -1118,6 +1118,109 @@ EOF
 it's
 EOF
 git push`,
+        hits: ['a push'],
+    },
+    {
+        command: `x=$(: <<B); echo "$x"
+git push
+B
+noask global off`,
+        hits: ['a here-document left open by a substitution'],
+    },
+    {
+        command: `x=$(: <<B); y=$(( $(: <<C) 1 ))
+echo L1
+B
+echo L2
+C
+git push`,
+        hits: ['a here-document left open by a substitution'],
+    },
+    {
+        command: `x=$(: <<B); (( $(: <<C) 1 ))
+echo L1
+B
+echo L2
+C
+git push`,
+        hits: ['a here-document left open by a substitution'],
+    },
+    {
+        command: `: <(: <<B); y=$(( $(: <<C) 1 ))
+echo L1
+B
+echo L2
+C
+git push`,
+        hits: ['a here-document left open by a substitution'],
+    },
+    {
+        command: `x=$(: <<B); y=$(( $(: <<C) 1 ))
+echo L1
+C
+echo L2
+B
+git push`,
+        hits: ['a here-document left open by a substitution'],
+    },
+    {
+        command: `x=$(( $(: <<B) 1 )); y=$(( $(true
+B
+) 1 ))
+git push
+B
+echo L5`,
+        hits: ['a here-document left open by a substitution'],
+    },
+    {
+        command: `: <<A; x=$( $(: <<B) )
+echo L1
+B
+echo L2
+A
+git push
+B
+echo L4`,
+        hits: ['a here-document left open by a substitution'],
+    },
+    {
+        command: `x=\${ : <<B; }; git push
+echo L1
+B
+noask global off`,
+        hits: ['a here-document left open by a substitution'],
+    },
+    {
+        command: `: <<A; x=$(echo hi)
+git push
+A
+noask global off`,
+        hits: ['switching noask'],
+    },
+    {
+        command: `x=$(: <<B
+git push
+B
+); noask global off`,
+        hits: ['switching noask'],
+    },
+    {
+        command: `x=\`: <<B\`
+git push`,
+        hits: ['a push'],
+    },
+    {
+        command: `x=\`echo $(: <<B)\`
+git push`,
+        hits: ['a push'],
+    },
+    {
+        command: `x=$(( n<(1<<10) ))
+git push`,
+        hits: ['a push'],
+    },
+    {
+        command: `if (( n<(1<<10) )); then git push; fi`,
         hits: ['a push'],
     },
 ];
