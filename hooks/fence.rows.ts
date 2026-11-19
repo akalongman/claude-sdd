@@ -1287,4 +1287,30 @@ echo P7
 ) )`,
         hits: ['a push'],
     },
+    {
+        command: `x=$((echo a <<E
+it's
+E
+x=$(: <<B); y=$(( $(: <<C) 1 ))
+echo L1
+B
+echo L2
+C
+git push
+# it's
+) )`,
+        hits: [],
+    },
+    {
+        command: `x=$((: <<A; echo <(: <<B)
+echo L1
+B
+echo L2
+A
+noask global off
+B
+echo L4
+) )`,
+        hits: [],
+    },
 ];

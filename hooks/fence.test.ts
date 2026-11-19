@@ -16,7 +16,7 @@ for (const [index, { command, hits }] of FENCE_ROWS.entries()) {
 }
 
 test('the table holds every record of tests/fence-rows.txt', async () => {
-    expect(FENCE_ROWS).toHaveLength(273);
+    expect(FENCE_ROWS).toHaveLength(275);
 });
 
 // The scan's work. Each nested text is read once per reading, and a command whose reading passes the scan's work limit
@@ -295,13 +295,14 @@ test("a text read unwatched is read again, watched, where it is a backtick subst
 });
 
 // The text of a double parenthesis read as commands stays unwatched, and a here-document that a substitution leaves
-// open in it is kept, never dropped: after a $(( or a (( inside that text the queue is put in bash's order, first the
-// here-documents that substitutions left open, in the order they were opened, then those that waited on the line.
-// Each command is a $(( that bash runs as a command substitution, its inside hidden from the arithmetic reading by the
-// apostrophes of two bodies. Bash ran the push of the first two (tests/fence-rows.txt holds them against it) and of
-// the third, the second without the line's own here-document; the fourth is a backtick substitution inside such a
-// text, which is unwatched with it (the backtick in the comment pairs with the substitution's last one in the
-// arithmetic reading, where the first stands inside the quote).
+// open in it is kept, never dropped: after a $(( or a (( inside that text the queue holds first the here-documents
+// that a double parenthesis left open, in the order they were opened, then the others that waited on the line. In
+// these layouts that is bash's order; in others it is not, the stated limit that the next test and a section of its
+// own in tests/fence-rows.txt pin. Each command is a $(( that bash runs as a command substitution, its inside hidden
+// from the arithmetic reading by the apostrophes of two bodies. Bash ran the push of the first two
+// (tests/fence-rows.txt holds them against it) and of the third, the second without the line's own here-document; the
+// fourth is a backtick substitution inside such a text, which is unwatched with it (the backtick in the comment pairs
+// with the substitution's last one in the arithmetic reading, where the first stands inside the quote).
 test('in a double parenthesis read as commands a here-document left open is kept, in its order', async () => {
     const open = "x=$((echo a <<E\nit's\nE\n";
     expect(timed(`${open}y=$(( $(: <<C) 1 ))\nit's\nC\ngit push\n) )`).hits).toEqual(['a push']);

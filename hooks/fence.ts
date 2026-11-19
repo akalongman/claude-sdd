@@ -116,11 +116,13 @@ const HOME_PREFIX_LENGTH = 8;
 // here-document's body or of a comment, which the scan skips without reading its characters one by one, is a step and
 // one more for each 32 characters (SKIPPED_SHIFT). Judging an argument as a path is counted where it is done: the
 // argument's characters for the candidates it holds, each candidate's path by its characters, the home's among them
-// when it is spelled from the home, each part matched by its characters, and each turn of the match. Set so that the
-// slowest command found ends in 80 to 125 ms in the plugin kit's runtime, the longer time as the first heavy call of
-// its process; a hook's scan and its .catch handler's second scan of the same command then took 150 to 235 ms
-// together, well inside the 1 second the handler has. A plain script of some 190 KB, a here-document's body of some
-// 14 MB, or a file program with some 2,000 paths, is read to its end.
+// when it is spelled from the home, each part matched by its characters, and each turn of the match. Measured with
+// this limit in the plugin kit's runtime on the slowest commands found, the largest scan of a run took 124 to 155 ms
+// with the commands read one after another in one process (three runs), and 137 to 223 ms with each command alone in
+// its process, its first heavy call (six runs); the largest of a hook's scan and its .catch handler's second scan of
+// the same command together was 218 to 227 ms a run the first way, and the second way 237 to 254 ms in five runs and
+// 347 ms in the sixth: well inside the 1 second the handler has. A plain script of some 190 KB, a here-document's
+// body of some 14 MB, or a file program with some 2,000 paths, is read to its end.
 const WORK_LIMIT = 500_000;
 const SKIPPED_SHIFT = 5;
 
@@ -490,14 +492,21 @@ function bothReadings(commands: ReadonlyArray<FenceWhat>, arithmetic: ReadonlyAr
     return [...commands, ...added];
 }
 
-// After a reading of a double parenthesis on the scan's own place, puts the queue in bash's order: the here-documents
-// that a double parenthesis before it on the line left open, then those this one left open, then the line's own that
-// waited before it. Bash reads the body of a here-document that a substitution left open as that substitution ends,
-// and the line's own after the line. The scan's substitutions share the queue, and one inside the double parenthesis
-// that spans a line end has read the line's bodies there: those are put back. A here-document opened inside is opened
-// by a substitution there and is never dropped. In a watched text it makes the call a refusal (scanList), whatever
-// the queue holds; in the text of a double parenthesis read as commands it is none, and when bash runs that text as
-// commands it takes the body from the text's next lines, so the scan must as well.
+// After a reading of a double parenthesis on the scan's own place, orders the queue: the here-documents that a double
+// parenthesis before it on the line left open (marked `isLeftOpen`), then those this one left open, marked so, then
+// every other that waited before it, in the queue's order. The scan's substitutions share the queue, and one inside
+// the double parenthesis that spans a line end has read there the bodies of those that waited: each is put back all
+// the same and read again at the line's end, where bash reads the bodies of the line's own. A here-document opened
+// inside is opened by a substitution there and is never dropped. In a watched text it makes the call a refusal
+// (scanList), whatever the queue holds; in the text of a double parenthesis read as commands it is none, and the scan
+// takes its body from the text's next lines, in this order. That order is not bash's everywhere there. Bash reads the
+// body of a here-document that a substitution left open as that substitution ends, before the line's own. The scan
+// does not mark one that a plain `$(`, `<(`, `>(` or `${ ...; }` left open: it keeps its place among the line's own,
+// in the order they were opened, after those that a later double parenthesis leaves open. And it puts a marked one
+// back after a later double parenthesis whose substitution has read its body, so that body is read twice. So in the
+// text of a double parenthesis read as commands the scan may take a line that bash runs for a body and miss a push or
+// a switch on it: a stated limit of the fence and the guard, as a wrapped command is (tests/fence-rows.txt pins it in
+// a section of its own).
 function requeued(scanner: Scanner, mark: Mark): void {
     if (mark.pending.length === 0 && scanner.pending.length === 0) {
         return;
@@ -572,8 +581,9 @@ function readSubscript(scanner: Scanner, chars: Char[], sink: FenceWhat[], place
 // must follow, as bash reads one where a reserved word may stand. Bash evaluates it as arithmetic; the scan adds to
 // `sink` the hits of that reading, its substitutions', and of a reading as commands too, the text inside the outer
 // pair read as a text of its own, unwatched (so `((git push))` is a push). An arithmetic for (`isForLoop`) has no
-// reading as commands. The queue is then put in bash's order, as after a `$((`. Returns false, the scan put back where
-// it stood, when no `))` ends it there: bash then reads a subshell in a subshell (`((echo a); git push)`).
+// reading as commands. The queue is then ordered by `requeued`, as after a `$((`, which is not bash's order everywhere
+// (the limit `requeued` states). Returns false, the scan put back where it stood, when no `))` ends it there: bash
+// then reads a subshell in a subshell (`((echo a); git push)`).
 function readArithmeticCommand(scanner: Scanner, sink: FenceWhat[], places: Places, isForLoop: boolean): boolean {
     const mark = markOf(scanner);
     const arithmetic: FenceWhat[] = [];
@@ -841,7 +851,7 @@ function arithmeticPlace(command: SimpleCommand, run: Run): 'command' | 'for' | 
 // line's own and is no mark; neither is one in a substitution that the text's end cuts short, nor one that a text read
 // as a text of its own leaves open at its end. In the text of a double parenthesis read as commands nothing is
 // watched: the here-document stays in the queue, in the order it was opened in (after a double parenthesis inside
-// that text, in the order `requeued` gives).
+// that text, in the order `requeued` gives), which is not bash's order everywhere (the limit `requeued` states).
 function scanList(scanner: Scanner, closer: Closer, places: Places): FenceWhat[] {
     const hits: FenceWhat[] = [];
     const open: Array<'parenthesis' | 'case'> = [];

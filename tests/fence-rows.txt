@@ -1296,7 +1296,7 @@ noask global off
 ## substitution inside it, and reads the bodies of the line's own after
 ## the line. A here-document that a substitution inside leaves open is
 ## read before them, as that substitution ends; the scan does not follow
-## that order and refuses to read such a command (the last section). An
+## that order and refuses to read such a command (the next section). An
 ## arithmetic for has no reading as commands.
 
 # hits: a push
@@ -1453,9 +1453,10 @@ git push
 ## commands. Nothing is refused inside a text read that way, a $(( that
 ## bash runs as a command substitution included. There the scan keeps a
 ## here-document that a substitution leaves open, and after a $(( or a ((
-## inside that text it reads the bodies in bash's order: first those that
-## substitutions left open, in the order they were opened, then those that
-## waited on the line (the last two records).
+## inside that text it reads first those that a double parenthesis left
+## open, in the order they were opened, then the others that waited on the
+## line: bash's order in the two records that end this section, and not in
+## every layout, which is the limit the next section states.
 
 # hits: a here-document left open by a substitution
 # bash: differs: not read (a substitution leaves a here-document open; bash ran the switch)
@@ -1641,5 +1642,50 @@ B
 echo P6
 A
 echo P7
+) )
+# end
+
+## A stated limit: a here-document left open inside a double parenthesis
+## read as commands. There nothing is refused, and the scan reads the
+## bodies in the order its queue holds them: a here-document that a plain
+## $( ), <( ), >( ) or ${ ...; } leaves open keeps its place among the
+## line's own, in the order they were opened, after those that a later
+## double parenthesis leaves open; and one that a double parenthesis left
+## open is put back after a later one even when a substitution in that one
+## has read its body. Bash reads such a body as its substitution ends,
+## before the bodies of the line's own, so there the scan may take a line
+## that bash runs for a body and miss a push or a switch on it, as it
+## misses a wrapped command: the reason "wrapped" stands for this limit
+## too. The two records pin the first layout. Each is a $(( that bash runs
+## as a command substitution, its inside hidden from the arithmetic
+## reading of the command's own text (by the apostrophes of a body and of
+## a comment in the first; in the second because that reading reads no
+## <( ), and bash warns "unterminated here-document" on each.
+
+# hits: none
+# bash: differs: wrapped (bash read B's body before C's and ran the push; the scan reads C's first and the push as B's body: the stated limit of a double parenthesis read as commands)
+x=$((echo a <<E
+it's
+E
+x=$(: <<B); y=$(( $(: <<C) 1 ))
+echo L1
+B
+echo L2
+C
+git push
+# it's
+) )
+# end
+
+# hits: none
+# bash: differs: wrapped (bash read B's body before A's and ran the switch; the scan reads A's first and the switch as B's body: the stated limit of a double parenthesis read as commands)
+x=$((: <<A; echo <(: <<B)
+echo L1
+B
+echo L2
+A
+noask global off
+B
+echo L4
 ) )
 # end
