@@ -329,6 +329,10 @@ without: each command, ledger line and phrase the rules name must be in
 the file, and a forced removal, a forced branch deletion, the old launch
 word `hands-off` and a commit of the source must not be; it prints
 `missing: <string>` or `present: <string>` for each miss and exits 1 on any.
+`check-noask-reference.sh` checks `skills/apply/references/noask.md`, the
+driver's rules while noask is on: each ledger line, message and phrase the
+rules name must be in the file, read with its line ends as spaces; it
+prints `missing: <name>` for each miss and exits 1 on any.
 `test-sdd-checkpoint.sh` tests the checkpoint script, `bin/sdd-checkpoint`,
 in two temporary git repositories and prints `ok <n>` or `FAIL <n>` for each
 of fourteen cases (decision 22). `test-named-paths.sh` tests the
@@ -356,7 +360,15 @@ uncommitted, and prints `ok <n>` or `FAIL <n>` for each of six cases: the
 copy into a new worktree, its content and the executable bit, the launch
 checkout left as it was, the undo that lets the unforced worktree removal
 succeed, bad calls that copy nothing, and the copy into a plain folder
-outside every repository. `test-run-archive.sh` tests the `Sub-skill:`
+outside every repository. `test-noask.sh` tests `bin/noask`, the noask
+switch and its count entry, and the rule text `scripts/noask-rule.md`,
+each command under a temporary home and a fixed clock, so no case touches
+the real switches or records, and prints `ok <n>` or
+`FAIL <n> (<broken parts>)` for each of forty-five cases; the last holds
+the module's marker fixtures, `hooks/marker.fixtures.ts`, to the command's
+own readings and the module's end-of-turn lines to the apply skill's
+noask reference.
+`test-run-archive.sh` tests the `Sub-skill:`
 line (decision 23), the park step (the record repository's
 `docs/superpowers/specs/2026-10-27-handed-items-design.md`), the
 `Skill:` line, whose two hashes must be those of `skills/apply/SKILL.md`
@@ -410,3 +422,11 @@ and prints `ok <n>` or `FAIL <n>` for each of five cases: the skip when
 `sub-skill-check --dir` exits 2, the test run on any other status, the test
 run with its failure counted when `sub-skill-check` is missing, and all
 three counts of the totals line at once, with exit 1 when any test failed.
+`check-fence-rows.sh`, which the runner does not run and CI runs as a
+step of its own, holds the fence's table, `tests/fence-rows.txt`, against
+bash: it compares `tests/gen-fence-rows.sh`'s output with
+`hooks/fence.rows.ts`, then runs each row under bash with logging stubs in
+place of `git`, `gh`, `glab`, `noask` and the file programs the guard
+reads, so no row can reach a program that removes, moves or writes a file,
+or a path outside its temporary folders, and holds what ran against the
+row's hits; it prints `ok <n> rows, <m> not run`.

@@ -1,4 +1,4 @@
 {
-  "description": "Loads the sdd hooks module, which keeps the main loop's turn state for the noask hooks",
+  "description": "Loads the sdd hooks module: it keeps the main loop's turn state, serves /noask, refuses the question and the plan approval and fences the calls that need the owner while noask is on, and in every session guards the noask switch and refuses a shell command it cannot read",
   "modules": ["./register.tsx"]
 }

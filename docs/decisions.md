@@ -2296,3 +2296,624 @@ entry 4.
 - Transcript calls: new start 0 messages; after a clear 2 at the first turn's start, the clear's record and the prompt (so 1 before it, inferred); at a resume and a fork the kept history, last message the assistant's
 - `$.ui.log` at a resume and at a fork: shown, headed by the plugin's name; `session.start` runs again at a plugin reload
 - A plugin option at its default: no `CLAUDE_PLUGIN_OPTION_<KEY>` in a hook's process
+
+## 7. Ship noask's guard, fence and question refusal (2026-11-20)
+
+On 2026-11-20 the plugin moved to version 0.3.0 with the first step of
+noask, the switch under which a session rules for itself instead of
+asking the owner, as the design
+`docs/superpowers/specs/2026-10-30-sdd-plugin-design.md` describes it at
+revision 20 (`c7163e4`), which this build did not edit. The build
+followed the plan of noask's first step, a local working document, in
+seven tasks: sixteen commits on the base `c7163e4`, `2b4fa2d` to
+`2f0e8a4`, and this entry's commit. The command `bin/noask` and its rule
+text `scripts/noask-rule.md` predate the build; this step adds the count
+entry to the command, the hooks module that reads the markers, `/noask`
+in a session with its wake-up turn, the refusal of a question and of a
+plan approval under noask, the fence on the calls that need the owner,
+and the guard on the switch in every session.
+
+### What was built
+
+- Task 1, `2b4fa2d`: five of the six review leftovers below, and the
+  platform test. With a bash older than 5, without `flock`, or with a
+  `date` that does not read `-d @0`, as off Linux, `status` prints `off`,
+  the bare command `noask: off`, and every other form exits 1 with
+  `noask: this command needs Linux with bash 5, GNU coreutils and flock; noask is not available here`.
+  A session's `on` beside an unreadable global marker says that marker
+  holds every session. A marker's offset is `[+-]HH:MM` from `00:00` to
+  `14:00`, and a marker longer than 4096 bytes is unreadable.
+- Task 2, `da23cb5` and `a24152e`: the count entry,
+  `noask --session <id> [--agent <agent id>] count question|denial|continuation <budget>`,
+  `count reset` and `count read`, which charges the session's record
+  `budgets.d/<id>`, or a subagent's `budgets.d/<id>.<agent id>`, under
+  the records' lock, and the switching commands' sweep of the records.
+  A record that does not parse is started again, with a line on standard
+  error. `a24152e`, from the task's review: a record that is there and
+  cannot be read makes the count fail (exit 1) and stays as it is, since
+  starting it again would clear a spent budget inside its generation.
+- Task 3, `14971ee`: the rule text keys the word to publish on the last
+  word of the `noask` command's status line, and the unit controller's
+  overrides make a step outside the worktree (a push, a message to a
+  person, a deploy, a write to a database the run does not own) no
+  ruling: without `Mode: handsoff` the controller returns `needs-ruling`,
+  with it the unit is parked.
+- Task 4, `a8fcf16`: the module's reader of the markers,
+  `hooks/marker.ts`, which refuses the texts the command refuses; the
+  caller of the count entry, `hooks/count.ts`; the manifest's three
+  options and `hooks/hooks.json`; the main loop's turn state,
+  `sdd.mainTurn`; and `inTime`, which bounds every file call a hook waits
+  on to 2 seconds.
+- Task 5, `ab9b82d`, `6ea10f3` and `9e1f185`: `/noask`, registered at
+  every session start. It runs the command by its argument vector with
+  the session's id, shows its lines, ends every accepted `on` on the line
+  that says what this release does not do yet, and submits the wake-up
+  turn to an idle session that holds a message. `6ea10f3` takes the
+  wake-up's looks (the transcript, the rule text, the turn) in the hook,
+  each bounded, before it answers, and submits once it has answered;
+  `6ea10f3` and `9e1f185` carry the origin rule (R9 and R10 below).
+- Task 6, `8067b62` to `2f0e8a4`: the fence's scan of a shell command,
+  `hooks/fence.ts`, held to the table `tests/fence-rows.txt`, which
+  `tests/gen-fence-rows.sh` prints as `hooks/fence.rows.ts` and
+  `tests/check-fence-rows.sh` runs under bash; and, in `51e9a5d`, six
+  tool-call registrations in `hooks/register.tsx`, each with a `.catch`
+  handler that denies in the hook's place: the question tool and the plan
+  approval, refused under noask; the shell and the three file tools,
+  fenced under noask and guarded in every session. The later commits came
+  from the task's review rounds: `3cd3213` reads arithmetic as the shell
+  does, where a shift opens no here-document; `c9e9113` keeps both
+  readings of a double parenthesis (R13); `599f4bd` bounds the scan's
+  work and orders the bodies of the here-documents (R14); `3861ecd`
+  refuses a here-document that a substitution leaves open (R15) and
+  charges the judging of a command's arguments to the work; `a63b29f`
+  watches the substitutions inside a backtick substitution's text;
+  `2f0e8a4` states the limit inside a double parenthesis read as
+  commands (R17) and pins it with two records.
+- Task 7, this entry's commit: the README's Noask section and its lines in
+  Requirements, Develop and Uninstall; the sentences on the three noask
+  tests in `tools/README.md`; CI's pin of Claude Code 2.1.325, its steps
+  `claude plugin test .` and `bash tests/check-fence-rows.sh`, and
+  `bin/noask` on its shellcheck line; the description in
+  `hooks/hooks.json`; and version 0.3.0.
+
+### What waits for the next release
+
+The next step has a plan of its own. A permission prompt and an MCP
+server's question still wait for the owner; the next release denies them
+by command hooks in `hooks/hooks.json`, which entry 6 saw run. A turn that
+ends without an end-of-turn line still ends; the next release continues
+it at Stop, where it also resets the counters (the `count reset` of this
+step has no caller yet) and charges the continuation budget, whose option
+is the next step's. A session's start prints no line, and the command is
+not linked into `~/.local/bin`. Until then every `on` the command accepts
+in a session ends on
+`noask: this release refuses questions and fences outward calls only; a turn that ends on a question in plain text, a permission prompt and a tool server's question still wait for you`,
+and the README asks the owner not to leave sessions to noask overnight.
+
+### The plan's decisions
+
+Where the spec leaves the shape to the builder, the plan decided:
+
+1. The count entry's words, its one line and its exits. The words are
+   above. The module hands over the budget from its options, so the
+   command reads no settings. A count prints one line on standard output,
+   `off` when the session is not under noask, else
+   `counted <spent> <refusals> <denials> <continuations>`, the record as
+   it then stands, which the module reads with one pattern; any other
+   line, and any exit but 0, is a failed count, and the refused call is
+   refused all the same, the failure named in its text. The exits are 0
+   for both lines, 1 for a failure (the records' directory, its lock, or
+   the record's read, write or read-back), and 2 for a wrong argument.
+2. The records' one lock, `budgets.d/.lock`: every count that finds the
+   session under noask waits up to 2 seconds for it, never for the
+   switch's lock, and a switching command's sweep of the records takes it
+   after its own lock, without waiting, and leaves the records alone when
+   it is busy. One lock for all the records serialises a sweep's look at
+   a record and its removal against a count's read, write and rename, and
+   the order is always the switch's lock, then the records'.
+3. The record's five lines, `generation=`, `refusals=`, `denials=`,
+   `continuations=` and `spent=`, the third counter and the spent value
+   `continuation` already there for the next step. A count under an
+   unreadable marker, which has no generation to match, keeps the record
+   and its generation, an empty one for a new record; such a record
+   matches no reading, so the sweep removes no record while a marker is
+   unreadable, which would start a spent budget again.
+4. The reserved words: a session id is none of the command's own words
+   (`status`, `on`, `off`, `global`, `handsoff`, `until`, `count`,
+   `reset`, `read`, `question`, `denial`, `continuation`), so
+   `--session on` is a wrong argument whatever follows, and the module
+   reads such an id as no usable id.
+5. The repeated hour: `until HH:MM` in an hour that a clock change
+   repeats takes the earlier of its two passes still ahead, so the switch
+   ends the first time the clock shows that time.
+6. The narrowing line: a switching command narrows to the owner, under
+   its lock, each of the state directory, `noask.d` and `budgets.d` that
+   grants its group or others any bit (`chmod go-rwx`; a mode with no such
+   bit, 500 included, is left as it is), and says so after its own lines,
+   `noask: narrowed <path> to the owner (it was <octal mode>)`, so that
+   a directory a wide umask made is put right where the owner sees it.
+7. The guard's reading of a shell command, rules 9 and 11 of the plan's
+   twelve. Rule 9: after `noask`, any argument but one `status` alone is a
+   switch, and so is `noask` or `noask status` after a `NAME=value` word
+   of its simple command. Rule 11: a simple command that sets a variable
+   whose name starts with `SDD_NOASK_` is a switch, by a leading
+   `NAME=value` word, alone or before any command, or by `export`,
+   `declare`, `typeset`, `readonly` or `local`; a word that only reads one
+   is none. The two reading forms pass because a session reads the status
+   with them before a ruling, and the apply skill before it publishes.
+   The settings are refused because the command's test seams move its
+   clock (`SDD_NOASK_NOW`) and its lock wait (`SDD_NOASK_LOCK_WAIT`):
+   `SDD_NOASK_NOW=<a time after the expiry> noask status` would read a
+   switch that is on as expired.
+8. The wake-up turn for every session with a message: an `on` that
+   exited 0, in a session whose main loop is idle and whose transcript
+   holds a message, submits one turn as the owner's words, which tells
+   the session to answer its own last question under the rule or to end
+   its turn; a new session's empty transcript has nothing to answer.
+   Entry 6 found that a cleared session's transcript is not empty, and a
+   resumed, forked or compacted one may end on a question, so the history
+   decides, not how the session started.
+
+### What the reviews of the plan added
+
+Each review was written into the design as a revision, 18 to 20.
+
+The review of 2026-11-16 added:
+
+- The budgets of this step, per activation: with no Stop entry to reset
+  them, a budget counts every refusal since the switch went on, and only
+  a new generation starts the counts again.
+- The guard's two texts: under noask with the fence on, the fence's text,
+  counted as a denial; otherwise `SWITCH_TEXT`, counted nowhere.
+- The records' lock around the sweep, and no sweep of the records under
+  an unreadable marker.
+- A count after an `off` and an `on`, charged to the new generation: a
+  record of another generation is started again under the reading's.
+- The offset's grammar and the times that must read back: an offset past
+  14 hours or with 60 minutes, a time that is no calendar time (30
+  February, 24:00) and a marker without its final newline are unreadable
+  to both readers.
+- `BAD_MARKERS`: `hooks/marker.fixtures.ts` holds the command's own
+  reading of each text that is not as the command writes it, printed by
+  `tests/gen-marker-fixtures.sh` and held to its output by case 45 of
+  `tests/test-noask.sh`, and the module's tests read every one the same.
+- The option values of `env` and `exec`: an option that takes the next
+  word as its value no longer hid the command behind it. The next day's
+  run of the rules as commands replaced this reading (below).
+- The ancestors in the removal rule: `rm` or `rmdir` of the home,
+  `~/.local` or `~/.local/state`, and a move of one of them away, are
+  refused as the removal of a marker is.
+- The listing that fails: while the home cannot be listed, a path whose
+  first part below the home starts with `.claude` counts as one under a
+  configuration directory.
+- A session without an id beside an unreadable session marker: a
+  session with no usable id reads the global marker, unless a marker in
+  `noask.d` reads on or unreadable, or `noask.d` cannot be listed; then
+  its reading is unreadable, which holds it under noask.
+
+The second check of 2026-11-17 added:
+
+- A redirection read once, for the cut into simple commands, for the
+  plain push and for the guard: its target is no word of the command, and
+  `&>>`, `>& file` and `<>` write as `>` does.
+- `mv`'s sources and not its destination: a move is judged by what it
+  moves, so a file moved into the home is no switch.
+- One offset form, to `14:00`, in a generation as in a time.
+- The sweep's moment: it reads the markers as they stand after its own
+  command's switch; and no sweep of the records under a `noask.d` that
+  cannot be listed.
+- `budgets.d` made by a count alone: a switching command never makes it,
+  and with none it has nothing to sweep and takes no second lock.
+- What a failed listing of the home leaves open is a stated limit: a
+  configuration directory that is a link, other than `~/.claude` and the
+  one `CLAUDE_CONFIG_DIR` names, is guarded by its name and not by where
+  it points. Every edit is not denied then, since one listing that hangs
+  would spend a night's denial budget.
+
+Running the rewritten rules as commands added, the same day:
+
+- No option of a prefix command read for a value: after `env`,
+  `command`, `exec`, `nohup` or `sudo`, every later word that names a
+  command the fence reads (`git`, `gh`, `glab`, `noask` and the thirteen
+  file programs) is read as that command, since two `env` programs
+  disagree on which options take a value and a list of them was wrong
+  twice. What that refuses beyond need, a line where such a name is
+  another command's argument (`sudo grep -rn noask docs`), the README
+  states.
+- `time -p`: `time` and its options are leading words.
+- A pattern in a path matched part by part, so `rm -rf ~/.local/state/*`
+  is the removal it is; a brace list is not read, a stated limit.
+- `<home>/.claude` and the directory `CLAUDE_CONFIG_DIR` names resolved
+  without the listing, by calls started beside it, so the limit above is
+  of the other entries.
+
+The third check added:
+
+- A substitution no cut of the command that holds it:
+  `git -C "$(pwd)" push` is a push, one other than a plain one.
+- A word's literal value by quote removal, wherever its quotes and
+  backslashes stand, for a command's name, a path and a here-document's
+  delimiter.
+- No descriptor before `&>`.
+- A plain push of literal words and a remote's name: a pattern, a
+  variable, a substitution, or a remote given as a URL makes a push other
+  than a plain one.
+- `mv`'s destination option in its short spellings (`-t`, alone or as the
+  last of a word's short options) as in its long ones, down to `--t`, and
+  `--exchange`, down to `--e`, which moves both paths.
+- The pattern match a little wider than the shell's: a set stands for any
+  one character, and a leading dot is matched like any other.
+- A `noask.d` that cannot be searched holds the sweep of the records back
+  as one that cannot be listed.
+- Two limits, named in the README: a copy that brings a folder named
+  `sdd` into the folder above the state directory, and a spelling built
+  to hide a command from the scan, which passes as a wrapped one does.
+- The table run under bash with stubs: `tests/check-fence-rows.sh` runs
+  every record of the table under bash, with logging stubs in place of
+  the programs the fence names, and holds what ran against the record's
+  hits. With that the owner ended the review rounds on spellings
+  (2026-11-17).
+
+### The six review leftovers
+
+The minor findings that the reviews of the build of `bin/noask`
+(2026-11-15) left to this step, and where each landed:
+
+1. The command took its own words as session ids: Task 1, `2b4fa2d`
+   (the reserved words, decision 4).
+2. `until HH:MM` in the repeated hour of a fall-back day: Task 1,
+   `2b4fa2d` (decision 5).
+3. The state directory took the umask's mode: Task 1, `2b4fa2d` (made at
+   700, and the narrowing line, decision 6).
+4. Misleading parser reasons: Task 1, `2b4fa2d`.
+5. Unpinned test behaviours (the reason given for a FIFO, an empty
+   `HOME`, the silent skip as root): Task 1, `2b4fa2d`.
+6. `bin/noask` missing from the shellcheck lines, and `tools/README.md`
+   without the two noask tests: Task 7, this entry's commit.
+
+### Rulings during the run
+
+The run's own rulings that changed what was built beyond the plan's
+text, by the run's numbers, each with what it would cost if it were
+wrong. The sentences that R9 and R10, R14, R15 and R17 add to the spec,
+and the texts `OWNER_ONLY_LINE`, `TOO_COMPLEX_TEXT` and `LEFT_OPEN_TEXT`
+in `hooks/text.ts`, wait for the spec's revision 21, where the owner
+confirms them.
+
+- R2. The plan tested for GNU `date` by `date --version`, which here
+  names uutils coreutils, where the command works; the platform test is
+  what the command needs from `date`, that `date -d @0 +%s` prints `0`
+  (BSD's fails there). Cost if wrong: a `date` that passes the probe and
+  differs from both GNU's and uutils' elsewhere is let in.
+- R3. The two `date` programs answer a wall time that occurs twice with
+  different passes (uutils' the first, GNU's the second), so the command
+  looks at the hour before and after its answer and takes the earliest
+  pass after now. Cost if wrong: none seen; case 32's three expected
+  values pin it under both programs.
+- R9 and R10 (the owner, 2026-11-18, and the driver's correction to the
+  owner's answer the same day). Only the bare `/noask` and
+  `/noask status` run for every origin; every other form runs only when
+  the owner typed it, at the prompt (`composer`) or through the Remote
+  Control bridge (`bridge`). From any other origin nothing is run,
+  submitted or toasted, and the text is
+  `noask: /noask switches only when the owner types it; nothing changed`.
+  Cost if wrong: an owner's route that is neither (`claude -p`, a
+  scheduled prompt of the owner's own) cannot switch noask or run a count
+  form through `/noask`, and uses the terminal instead.
+- R13 (the owner, 2026-11-18). Wherever the scan chooses between an
+  arithmetic reading and a command reading of one text (`$((...))`, and
+  a `((...))` where a command stands), it keeps the hits of both
+  readings; `$[...]` and an arithmetic `for` have no command reading.
+  Cost if wrong: a text bash runs as arithmetic that reads as a command
+  the fence names is refused (`((git push))`); the table's records whose
+  hits changed say why bash and the scan differ.
+- R14 (the owner, 2026-11-18). Each nested text is read once for each
+  reading, and the scan counts its work; once its limit is spent the
+  command is 'a command too complex to read', which the guard denies in
+  every session with `TOO_COMPLEX_TEXT`, uncounted, and the fence under
+  noask with its text, counted. A command the scan cannot read to its end
+  is refused, never passed. The limit is set so that a hook's scan and
+  its `.catch` handler's second scan of the same command end well inside
+  the handler's 1 second. Cost if wrong: a long or deeply nested command
+  that bash would run harmlessly is refused in every session; the README
+  states the room the limit leaves.
+- R15 (the owner, 2026-11-18). A command in which a substitution closes
+  while a here-document opened inside it is still open is 'a
+  here-document left open by a substitution', denied as R14's kind is,
+  with `LEFT_OPEN_TEXT` outside noask; not inside the text of a double
+  parenthesis read as commands (or every shift, `$((1<<2))`, would be
+  refused), and not for a here-document opened outside the substitution.
+  The same round charged the judging of a command's arguments to the
+  scan's work, and the `.catch` handler names both refusals without
+  reading `HOME`. Cost if wrong: a command that bash runs with a warning
+  (`x=$(cat <<B)`, its body on the lines after) is refused in every
+  session.
+- R17 (the owner, 2026-11-20). Inside the text of a double parenthesis
+  read as commands, a here-document that a substitution leaves open is a
+  stated limit of the fence and the guard: the scan may read the lines
+  after it in an order that is not bash's, and miss a push or a switch
+  there, or refuse a line that bash reads as a body. No further review
+  round; records 274 and 275 of the table pin it. Cost if wrong: the
+  guard misses these layouts in every session; a later fix is one
+  commit.
+
+### Not covered
+
+- No session ran with the plugin loaded during the build: the module is
+  proven by `claude plugin test .`, the command under a temporary home.
+  So the wake-up turn's submission after the hook has answered, which the
+  test kit refuses while the hook is in flight, is unchecked on the live
+  engine; a refused submission raises a toast.
+- The gates ran on the local Claude Code, 2.1.329. Whether CI's pinned
+  2.1.325 accepts the module is unchecked until the first push.
+
+### Gates
+
+At the repository root, in the working tree before this entry's commit
+and with this entry's text in place, the gates of this task, run one after
+another. The output is whole but for one cut: of `claude plugin test .`
+the command line and its closing lines are quoted, and the 636 lines
+`(pass) <test> [<time>]` under the names of its five test files are left
+out. Only the home directory is written as `~`:
+
+```
+$ /bin/grep -nP '[\x{2014}\x{2013}]' README.md tools/README.md
+$ /bin/grep -c 'AskUserQuestion\|ExitPlanMode\|TodoWrite\|ProposeGoal\|subagent_type' README.md
+0
+$ /bin/grep -nP '[\x{2014}\x{2013}]' docs/decisions.md .github/workflows/test.yml .claude-plugin/plugin.json hooks/hooks.json
+$ jq . .claude-plugin/plugin.json hooks/hooks.json > /dev/null
+$ claude --version
+2.1.329 (Claude Code)
+$ claude plugin validate . --strict
+Validating plugin manifest: ~/projects/akalongman/claude-sdd/.claude-plugin/plugin.json
+
+  ❯ types ./types/index.d.ts declares on $: nothing (no EngineInterface member)
+  ❯ types ./types/index.d.ts declares state: sdd.mainTurn
+
+Validating hooks: ~/projects/akalongman/claude-sdd/hooks/hooks.json
+
+  ❯ ./register.tsx hooks: tool.call{tool=AskUserQuestion}, tool.call{tool=ExitPlanMode}, tool.call{tool=Bash}, tool.call{tool=Edit}, tool.call{tool=Write}, tool.call{tool=NotebookEdit}, session.start, turn.start, turn.complete, command.run{command=noask}
+  ❯ ./register.tsx gating hook with .catch: tool.call{tool=AskUserQuestion}
+  ❯ ./register.tsx gating hook with .catch: tool.call{tool=ExitPlanMode}
+  ❯ ./register.tsx gating hook with .catch: tool.call{tool=Bash}
+  ❯ ./register.tsx gating hook with .catch: tool.call{tool=Edit}
+  ❯ ./register.tsx gating hook with .catch: tool.call{tool=Write}
+  ❯ ./register.tsx gating hook with .catch: tool.call{tool=NotebookEdit}
+  ❯ ./register.tsx gating hook without .catch: command.run{command=noask}
+  ❯ ./register.tsx calls: $.clock.after (via inTime), $.clock.now (via mayPublish, readNoask), $.clock.sleep (via submitWakeUp), $.command.register, $.env.get (via configRoots, homeOf, stateDirectoryOf), $.fs.exists (via lookAt, readingWithoutId), $.fs.list (via listingOf, readingWithoutId), $.fs.read (via lookAt, readRule), $.fs.stat (via statOf), $.process.run (via countOn, runCommand), $.prompt.submit (via submitWakeUp), $.session.cwd (via directoryFor), $.session.id (via sessionIdOf), $.session.messages (via transcriptOf), $.state.get (via mainTurnOf), $.state.set, $.ui.toast (via toast)
+  ❯ ./register.tsx env writes: nothing
+  ❯ ./register.tsx env reads: CLAUDE_CONFIG_DIR, HOME
+  ❯ ./register.tsx state writes: sdd.mainTurn
+  ❯ ./register.tsx state reads: sdd.mainTurn
+  ❯ ./register.tsx types: not checked (the mod names dependencies, whose contracts are laid as links out of the mod's folder; validate reads nothing outside it)
+
+Provides:
+
+  ❯ modules: hooks/register.tsx
+  ❯ skills: sdd:apply
+  ❯ agents: sdd:implementer
+  ❯ agents: sdd:reviewer
+  ❯ agents: sdd:unit-controller
+  ❯ bin: noask
+  ❯ bin: sdd-checkpoint
+  ❯ bin: sdd-files-add
+
+Hosts not read for: modules (1), skills (1), bin (3)
+Hosts not declared: list what these parts reach under "network.hosts" in plugin.json
+
+Plugin directory checks for ~/projects/akalongman/claude-sdd. The plugin directory is the catalog that plugins are submitted to; this is a subset of what it runs.
+
+⚠ Found 1 plugin directory warning:
+
+  ❯ .claude-plugin/plugin.json icon: No icon (ICON_MISSING). No icon found in the plugin. The validator looked for `icon` in plugin.json and for a file at .claude-plugin/icon.png or .svg, assets/icon.png or .svg, or a similar path.
+    Fix: Add a square PNG to the plugin folder at .claude-plugin/icon.png, or set `icon` in plugin.json to the path of a square PNG or JPEG in the plugin: 512 to 2048 px on each side, under 2 MB. SVG and WebP are not accepted. That file may become the listing icon only once: the first time the plugin is saved or submitted in the developer portal. Adding or changing it later does not change the icon.
+
+About these checks:
+
+  ❯ hooks/hooks.json names a hooks module (a code file listed under `modules`). The plugin directory has rules of its own for such code, and these checks apply none of them, so passing here does not mean the directory accepts the plugin. The developer portal's own validation applies those rules.
+
+These plugin directory checks do not change the result below.
+
+The directory also runs a safety scan and a policy review that this command does not.
+
+✔ Validation passed
+$ claude plugin test .
+ 636 pass
+ 0 fail
+Ran 636 tests across 5 files. [6.64s]
+$ npx -y -p typescript@5.9.3 tsc -p . --noEmit
+$ bash tests/run.sh
+ok 19336/19500 (substituted)
+ok check-skill-size
+ok check-pause-text
+ok check-pause-text
+ok check-noask-reference
+ok check-isolated-reference
+ok 1
+ok 2
+ok 3
+ok 4
+ok 5
+ok 6
+ok 7
+ok 8
+ok 9
+ok 10
+ok 11
+ok 12
+ok 13
+ok 14
+ok 15
+ok 16
+ok 17
+ok 18
+ok 19
+ok test-run-archive
+ok 1
+ok 2
+ok 3
+ok 4
+ok 5
+ok 6
+ok 7
+ok 8
+ok 9
+ok 10
+ok 11
+ok 12
+ok 13
+ok 14
+ok test-sdd-checkpoint
+ok kept-file
+ok kept-new
+ok kept-range
+ok kept-line
+ok kept-dot
+ok folder
+ok no-folder
+ok no-root-file
+ok new-no-folder
+ok space
+ok trailing-slash
+ok glob
+ok method
+ok url
+ok flag
+ok variable
+ok tilde
+ok absolute
+ok scoped
+ok setting
+ok bare-name
+ok order
+ok fence
+ok indented-fence
+ok stdin
+ok subfolder
+ok errors
+ok test-named-paths
+ok 1
+ok 2
+ok 3
+ok 4
+ok 5
+ok 6
+ok 7
+ok test-briefs
+ok 1
+ok 2
+ok 3
+ok 4
+ok 5
+ok 6
+ok test-source-copy
+ok 1
+ok 2
+ok 3
+ok 4
+ok 5
+ok 6
+ok 7
+ok 8
+ok 9
+ok 10
+ok 11
+ok 12
+ok 13
+ok 14
+ok 15
+ok 16
+ok 17
+ok 18
+ok 19
+ok 20
+ok 21
+ok 22
+ok 23
+ok 24
+ok 25
+ok 26
+ok 27
+ok 28
+ok 29
+ok 30
+ok 31
+ok 32
+ok 33
+ok 34
+ok 35
+ok 36
+ok 37
+ok 38
+ok 39
+ok 40
+ok 41
+ok 42
+ok 43
+ok 44
+ok 45
+ok test-noask
+ok 1
+ok 2
+ok 3
+ok 4
+ok 5
+ok 6
+ok 7
+ok 8
+ok test-sub-skill-check
+ok 1
+ok 2
+ok 3
+ok 4
+ok 5
+ok 6
+ok 7
+ok 8
+ok 9
+ok 10
+ok 11
+ok 12
+ok 13
+ok 14
+ok 15
+ok 16
+ok test-tools
+ok 1
+ok 2
+ok 3
+ok 4
+ok 5
+ok test-check-skill-size
+ok 1
+ok 2
+ok 3
+ok 4
+ok 5
+ok test-run
+15 ok, 0 skipped, 0 failed
+$ shellcheck bin/noask bin/sdd-checkpoint bin/sdd-files-add skills/apply/scripts/named-paths skills/apply/scripts/openspec-section-brief skills/apply/scripts/openspec-section-tick skills/apply/scripts/run-archive skills/apply/scripts/source-copy skills/apply/scripts/sub-skill-check skills/apply/scripts/task-brief tests/*.sh
+$ bash tests/check-fence-rows.sh
+ok 275 rows, 10 not run
+```
+
+Every command exited 0 but the three `grep` commands, which find nothing
+and so exit 1, the pass here. The fence's table was then run again with
+GNU coreutils first on PATH, by a helper of the run that links each
+`/usr/bin/gnu*` program under its plain name, since this machine's plain
+names are uutils coreutils and the CI runner has GNU's. It printed the
+same line and exited 0:
+
+```
+ok 275 rows, 10 not run
+```
+
+The suite's totals line reads `15 ok, 0 skipped, 0 failed`, the module's
+tests `636 pass` and `0 fail`, the table `ok 275 rows, 10 not run` under
+both tool sets, and the validation passed with the warning of entry 5,
+the missing icon, which is not this release's. The type check and
+shellcheck printed nothing. The three `grep` commands, run again on this
+entry's text with these outputs in place, printed the same and exited 1
+again.
+
+Result: pass. Nothing was pushed.

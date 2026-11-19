@@ -3,7 +3,8 @@
 sdd is a Claude Code plugin that implements a superpowers plan or an OpenSpec
 change through subagents. Its `/sdd:apply` skill drives one unit controller
 per unit of the source, with implementers and reviewers one layer down, and
-archives the run.
+archives the run. Its noask switch lets a session, or every session on the
+machine, rule for itself instead of asking you.
 
 ## Install
 
@@ -30,7 +31,8 @@ the next session, or after `/reload-plugins` in a session already open.
 
 ## Requirements
 
-- Claude Code 2.1.318 or newer.
+- Claude Code 2.1.325 or newer: the plugin's hooks module loads in every
+  session.
 - The superpowers plugin (`superpowers@superpowers-marketplace`), whose
   subagent-driven-development loop the skill runs. sdd declares it as a
   dependency, so Claude Code installs it with sdd when the
@@ -42,8 +44,8 @@ the next session, or after `/reload-plugins` in a session already open.
   prints a warning that the run uses an unverified sub-skill, and the run
   goes on.
 - Until phase 3 of the plugin's design, which makes the scripts portable:
-  Linux, bash 5 and GNU coreutils. WSL counts as Linux; macOS and native
-  Windows are not supported until then.
+  Linux, bash 5, GNU coreutils and `flock` (util-linux). WSL counts as
+  Linux; macOS and native Windows are not supported until then.
 - git.
 - `jq`, which `skills/apply/scripts/sub-skill-check` runs at every launch.
 - For an OpenSpec source only, the `openspec` CLI, through which the skill
@@ -149,6 +151,234 @@ project slug being the working directory with every `/` replaced by `-`. It
 also parks each item the run handed to later work as a laterbox note, and
 the final message ends with the archive path.
 
+## Noask
+
+noask is a switch under which a session does not ask you: where it would
+ask, it takes its own recommendation, prints the ruling with what it would
+cost if wrong and goes on, and what only you may decide (a choice that
+nothing undoes, a step outside the worktree) it leaves blocked for you. You
+switch it for one session or for every session on the machine, and the
+plugin's hooks hold sessions to it at their tool calls.
+
+This release carries its first part:
+
+| | This release | The next release |
+|---|---|---|
+| A question, a plan approval | refused at the tool call | |
+| A push, a pull or merge request, an edit under a configuration directory, a switch of noask | refused at the tool call | |
+| An agent working the switch or writing a file under the state directory, in any session | refused (the guard) | |
+| `/noask` in a session, with the wake-up turn | yes | |
+| A permission prompt, an MCP server's question | waits for you, as without noask | denied |
+| A turn that ends without an end-of-turn line | ends, as without noask | continued |
+| The line at a session's start, the command linked into `~/.local/bin` | none; in a terminal the command is reached by its path | yes |
+
+So a permission prompt, an MCP server's question and a turn that ends on a
+question still wait for you until the next release.
+
+### What you type
+
+In a session:
+
+```text
+/noask on [<expiry>]                  noask for this session
+/noask on handsoff [<expiry>]         the same, and this session may publish
+/noask off                            this session's switch off
+/noask                                the status
+/noask global on [9h | until 07:30]   noask for every session
+/noask global off                     the switch of every session off
+```
+
+`<expiry>` is `<n>h`, `<n>m` or `until HH:MM`, the next such local time.
+A session's switch typed with no expiry ends after 8 hours; the global
+switch typed with none stays on until it is switched off. What each line
+prints first, typed one after another at 23:00 on 11 November in a session
+where no switch was on:
+
+| You type | The first line printed |
+|---|---|
+| `/noask on` | `noask: on for this session since 23:00 until 2026-11-12 07:00 (8 hours by default; /noask on <expiry> sets another)` |
+| `/noask` | `noask: on for this session since 23:00 until 2026-11-12 07:00` |
+| `/noask off` | `noask: off for this session` |
+| `/noask global on until 07:30` | `noask: on for every session since 23:00 until 2026-11-12 07:30` |
+| `/noask global off` | `noask: off for every session` |
+| `/noask on handsoff 2h` | `noask: handsoff for this session since 23:00 until 2026-11-12 01:00` |
+
+A new `on` also prints the marker's path and the rule text the session
+follows. An `on` typed in an idle session that already holds a message
+submits a wake-up turn: the session answers its own last question under
+the rule, or ends its turn when it was waiting or done. Every `on` that
+the command accepts in a session ends with this line, which says what this
+release does not do yet:
+
+```text
+noask: this release refuses questions and fences outward calls only; a turn that ends on a question in plain text, a permission prompt and a tool server's question still wait for you
+```
+
+**Do not leave sessions to noask overnight before the next release.**
+
+The bare `/noask` and `/noask status` run whoever sends them. Every other
+form, each switch among them, runs only when you type it at the session's
+prompt or send it from your phone or the web through Remote Control; sent
+from anywhere else (a schedule or a loop, another session, a channel,
+another plugin, the SDK, an automatic continuation), it runs nothing and
+shows `noask: /noask switches only when the owner types it; nothing changed`.
+
+In a terminal the command is `bin/noask` in the plugin's folder, until the
+next release links it into `~/.local/bin`. There
+`noask global on [<expiry>]` and `noask global off` work, and a bare
+`noask` shows the global switch and every session's switch that is on; a
+session's own switch is typed in that session.
+
+### What a session does while noask is on
+
+- A question is refused with the rule text, and the session rules for
+  itself. A plan approval is refused with a line of its own, which asks the
+  session to end its turn on `noask: blocked: plan awaits review`.
+- A push, a pull or merge request (`gh pr create`, `glab mr create`), an
+  edit through a file tool under a configuration directory (each entry of
+  the home whose name starts with `.claude`, and the directory
+  `CLAUDE_CONFIG_DIR` names, each also by where it resolves) and a switch
+  of noask are refused, each with a line that asks the session to print
+  `blocked: <what>` and go on with the next independent item, and a
+  subagent to follow its role's rule for a denied tool. This is the fence,
+  on as the plugin ships; with it off, the guard below still refuses the
+  switch, and the rest is left to the rule text.
+- Two budgets bound the refusals: 6 refused questions and 10 denials, the
+  fence's and the guard's included. Once one is spent, a refusal asks the
+  main session to end its turn with the list of its rulings and the line
+  `noask: blocked: <question or permission> budget exhausted`, and asks a
+  subagent to return; a subagent counts against budgets of its own. The
+  plan approval's refusal counts nothing.
+- In this release a budget counts every refusal since the switch went on,
+  not consecutive ones: with the default budgets, the sixth refused
+  question, or the tenth denial, already asks the session to end its turn,
+  and so does every refusal after it, until noask is switched off and on
+  again.
+- Typing an `on` with an expiry while that switch is on (`/noask on 2h`)
+  renews the expiry from that moment and keeps the counts, and
+  `/noask on handsoff` raises the level and keeps them too; a bare
+  `/noask on` while it is on changes nothing and says so.
+
+### The guard on the switch
+
+In every session, under noask or not, the plugin refuses an agent's own:
+
+- call of the command in any form but a bare `noask` and `noask status`,
+  and also either of those two after a `NAME=value` setting;
+- command that sets a variable whose name starts with `SDD_NOASK_`, the
+  command's test seams (a `NAME=value` setting, alone or before a
+  command, or `export`, `declare`, `typeset`, `readonly` or `local` of
+  one);
+- edit of a file under `~/.local/state/sdd/` through a file tool, judged as
+  spelled and by where it lands;
+- shell command that names a path there with `rm`, `rmdir`, `unlink`,
+  `shred`, `mv`, `cp`, `ln`, `install`, `truncate`, `tee`, `dd`, `touch`
+  or `chmod`, or with a redirection that can write (`>`, `>>`, `>|`, `&>`,
+  `&>>`, `>&` before a file, `<>`). Each of these is refused when it names
+  a path there, whether it would write it or only read it, so
+  `cp ~/.local/state/sdd/noask /tmp/x` is refused too;
+- removal of the home, `~/.local` or `~/.local/state` (`rm`, `rmdir`), or
+  a move of one of them away (`mv`, read by what it moves). Moving a file
+  into the home, as in `mv /tmp/report ~`, is not refused.
+
+A `*`, `?` or `[...]` in such a path is matched part by part, a little
+wider than the shell matches it (a set stands for any one character, and a
+leading dot is matched like any other), so `rm -rf ~/.local/state/*` is
+refused as the removal it is, and so is `rm -rf ~/*`. Under noask with the
+fence on, the guard's refusal carries the fence's line and counts as a
+denial; otherwise it carries a line of its own and counts nothing. A call
+wrapped in `sh -c`, a script or an alias passes the guard, as it passes
+the fence: the word to publish is yours against a plain call and no
+further, a stated limit until the wide fence of phase 4 of the plugin's
+design.
+
+Two more kinds of shell command are refused in every session, noask on or
+off, since the guard cannot tell what they would run:
+
+- A command the guard cannot read to its end, because it is too long or
+  nested too deep: the scan has a fixed amount of work for one command.
+  As measured, that work reads to its end about 230 KB of plain script, a
+  file program such as `rm -f` or `cp` with some 2,100 to 5,000 paths
+  (some 1,200 when each is a path of 59 characters under the home),
+  a script of some 1,800 `rm -f ~/...` lines (60 KB), and a script with a
+  redirection on each line up to some 194 KB. An ordinary tool call stays
+  far below these sizes.
+- A command in which a substitution (`$(...)`, `<(...)`, `>(...)`,
+  `${ ...; }`) closes while a here-document opened inside it is still
+  open, such as `x=$(cat <<EOF)` with the body on the lines after it,
+  which bash runs with a warning. Inside the text of a double parenthesis
+  the scan does not refuse this; see the limits below.
+
+Under noask with the fence on, each is a denial of the fence; otherwise
+it is refused with a line that says how to write the command instead.
+
+### What the fence and the guard do not catch
+
+- A command wrapped in `sh -c`, a script, an alias or a here-document
+  passes, and so does a spelling built to hide a command from the scan,
+  as a wrapped one does: the fence and the guard stand against a plain
+  call, not against a session that sets out to get round them.
+- A relative path into the state directory
+  (`cd ~/.local/state/sdd && rm noask`), a path spelled with a brace list
+  (`~/.local/{state,share}`), a copy that brings a folder named `sdd` into
+  the folder above the state directory (`cp -R /tmp/sdd ~/.local/state`),
+  and a write by a command the guard does not list (`sed -i`, an
+  interpreter's one-line program) pass.
+- Inside the text of a double parenthesis, which the scan reads both as
+  arithmetic and as commands (`$((...))`, and `((...))` where a command
+  stands), a here-document that a substitution leaves open is read in an
+  order that is not always bash's. There a push or a switch on a line
+  that bash runs can pass the scan, and a line that bash reads as a
+  here-document's body can be refused.
+- One more, in a failure only: while the home directory cannot be listed,
+  a configuration directory other than `~/.claude` and the one
+  `CLAUDE_CONFIG_DIR` names that is a link is guarded by its name and not
+  by where the link points, so an edit that names the link's target
+  passes; and so is any of them while a path cannot be resolved in time.
+
+The scan also refuses a little beyond need: after `env`, `command`,
+`exec`, `nohup` or `sudo` it does not read which words are an option's
+value, so a line where `git`, `gh`, `glab` or `noask` stands as another
+command's argument can be refused (`sudo grep -rn noask docs`), while the
+same line without the prefix passes.
+
+### noask and handsoff
+
+Under noask nobody is asked and nothing is to leave the machine: the rule
+text blocks every side effect outside the worktree, and the fence refuses
+the calls it names. `handsoff` is noask plus your word to publish. You
+give it to an apply run at its launch (`/sdd:apply <source> handsoff`), or
+to a session with `/noask on handsoff`; while noask is on, the fence reads
+the word from the session's own switch alone, so an apply run under noask
+publishes only in a session switched with `/noask on handsoff`. There the
+session itself, never a subagent, may open a pull or merge request, and
+push only with a plain push: `git push` with no setting or prefix command
+before `git`, nothing between `git` and `push` but `-C <path>`, and after
+it at most one `-u` or `--set-upstream`, a remote by its name and one
+branch, all written with literal words. A pattern, a variable or a
+substitution in it, or a remote given as a URL, makes it no plain push,
+and it is refused; so is a call that also holds anything else the fence
+names. What the repository's own configuration makes of a plain push (a
+mirror remote, a push default) the fence does not see. The global switch
+has no such level.
+
+### Settings, what it sends, where it runs
+
+Three options, which `/config` names `sdd.questionBudget`,
+`sdd.denialBudget` and `sdd.fence`: the question budget (6 by default),
+the denial budget (10) and the fence (on). A budget takes a whole number
+from 1 to 99999; any other value counts as the default. With the fence
+off, a push, a request and an edit under a configuration directory are
+left to the rule text, while the question's and the plan approval's
+refusals and the guard stay.
+
+noask sends nothing: its module and its command make no network call. Its
+switches and the sessions' records stay in `~/.local/state/sdd/`.
+
+noask works on Linux only, with bash 5, GNU coreutils and `flock`;
+elsewhere the command reads every switch as off and refuses to switch,
+with a line that says so.
+
 ## Develop
 
 Load the checkout in place for one session, and run `/reload-plugins` in it
@@ -158,22 +388,39 @@ after an edit:
 claude --plugin-dir .
 ```
 
-Validate the plugin, run the tests and check the shell scripts:
+Validate the plugin, test the hooks module, run the tests, hold the
+fence's table against bash and check the shell scripts:
 
 ```bash
 claude plugin validate . --strict
+claude plugin test .
 bash tests/run.sh
-shellcheck bin/sdd-checkpoint bin/sdd-files-add skills/apply/scripts/named-paths skills/apply/scripts/openspec-section-brief skills/apply/scripts/openspec-section-tick skills/apply/scripts/run-archive skills/apply/scripts/source-copy skills/apply/scripts/sub-skill-check skills/apply/scripts/task-brief tests/*.sh
+bash tests/check-fence-rows.sh
+shellcheck bin/noask bin/sdd-checkpoint bin/sdd-files-add skills/apply/scripts/named-paths skills/apply/scripts/openspec-section-brief skills/apply/scripts/openspec-section-tick skills/apply/scripts/run-archive skills/apply/scripts/source-copy skills/apply/scripts/sub-skill-check skills/apply/scripts/task-brief tests/*.sh
 ```
+
+The module's type check runs locally only: `tsconfig.json` extends the
+engine's declarations, which Claude Code writes into
+`.claude-plugin/types/` beside a loaded plugin and which the repository
+does not hold.
+
+```bash
+npx -y -p typescript@5.9.3 tsc -p . --noEmit
+```
+
+A session with this plugin loaded refuses an agent's plain call of a
+switching `noask` command, so the command is tested through
+`bash tests/test-noask.sh`, which `tests/run.sh` runs and which runs every
+command under a temporary home.
 
 `tests/run.sh` ends with `<n> ok, <n> skipped, <n> failed`. It skips
 `test-run-archive` when `later` is not on PATH, and `test-sub-skill-check`
 when no superpowers copy is installed; with one installed,
 `test-sub-skill-check` fails unless it is the copy that
 `skills/apply/scripts/sub-skill-check` pins. CI
-(`.github/workflows/test.yml`) provides both, fails on any skip, and runs
-shellcheck 0.11.0, which does not report the two SC2015 notes that 0.9.0
-reports.
+(`.github/workflows/test.yml`) provides both, fails on any skip, tests the
+module and holds the fence's table against bash, and runs shellcheck
+0.11.0, which does not report the two SC2015 notes that 0.9.0 reports.
 
 Installed copies move only when `version` in `.claude-plugin/plugin.json`
 changes, so a release is a version bump, which
@@ -183,11 +430,16 @@ update only while the paths it handed to its controllers still exist.
 
 ## Uninstall
 
+First switch noask off: type `/noask global off` in a session, or run
+`bin/noask global off` of the plugin's folder in a terminal. Then:
+
 ```bash
 claude plugin uninstall sdd@akalongman
 ```
 
-Or inside a session: `/plugin uninstall sdd@akalongman`.
+Or inside a session: `/plugin uninstall sdd@akalongman`. Last, remove
+`~/.local/state/sdd/`, which holds the switches and the sessions' records,
+by hand.
 
 ## History
 
