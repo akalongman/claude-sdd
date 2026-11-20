@@ -975,6 +975,19 @@ function notebook(path: string): Input {
     return { tool: 'NotebookEdit', notebook_path: path, new_source: 'x' };
 }
 
+// A watch: the tool that runs a shell command and takes each line it prints as an event, or, with no command, opens
+// a socket and takes each frame as one.
+function watch(command: string): Input {
+    return { tool: 'Monitor', description: 'the build', timeout_ms: 60_000, command };
+}
+
+const SOCKET: Input = {
+    tool: 'Monitor',
+    description: 'the events',
+    timeout_ms: 60_000,
+    ws: { url: 'wss://example.org/events' },
+};
+
 // What the tool beneath answers a call that reaches it, and the answer of a refused call.
 const REACHED = { result: 'ran' };
 
@@ -1285,6 +1298,8 @@ const SWITCHING_COMMANDS = [
     'env --u X noask global off',
     'env -a x noask global off',
     'time -p noask global off',
+    'timeout 5 noask global off',
+    'eval noask global off',
     'no""ask global off',
     'echo "${ noask global off; }"',
     'rm ~/.local/state/sdd/noask',
@@ -1395,9 +1410,67 @@ for (const [name, files] of [
         expect(await call($, QUESTION)).toEqual(denied(QUESTION_TEXT));
         expect(await call($, PLAN)).toEqual(denied(PLAN_TEXT));
         expect(await call($, shell('git push'))).toEqual(fenced('a push'));
+        expect(await call($, watch('git push'))).toEqual(fenced('a push'));
         expect(await call($, edit(CONFIG_FILE))).toEqual(CONFIG_EDIT);
         expect(await call($, edit(GLOBAL))).toEqual(fenced('switching noask'));
-        expect(argsOf(seen)).toEqual([QUESTION_RUN, DENIAL_RUN, DENIAL_RUN, DENIAL_RUN]);
+        expect(argsOf(seen)).toEqual([QUESTION_RUN, DENIAL_RUN, DENIAL_RUN, DENIAL_RUN, DENIAL_RUN]);
+        expect(seen.reached).toEqual([]);
+    });
+}
+
+// The watch tool's command is a shell command like the shell tool's: the guard denies one that switches noask, or
+// that the scan refuses to read, in every session, and under noask the fence denies a push and counts it. A watch of
+// a socket holds no command and goes on.
+
+test("outside noask a watch's switch of noask is denied with the guard's text, uncounted", async ($, on) => {
+    const seen = scene(on);
+    for (const command of SWITCHING_COMMANDS) {
+        expect(await call($, watch(command)), command).toEqual(denied(SWITCH_TEXT));
+    }
+    for (const command of READING_COMMANDS) {
+        expect(await call($, watch(command)), command).toEqual(REACHED);
+    }
+    expect(await call($, SOCKET)).toEqual(REACHED);
+    expect(seen.reached).toEqual([...READING_COMMANDS.map((command) => `Monitor ${command}`), 'Monitor']);
+    expect(seen.runs).toEqual([]);
+});
+
+test("under noask a watch's push and switch are fenced and counted, and a socket's watch goes on", async ($, on) => {
+    const seen = scene(on, { files: { [GLOBAL]: MARKER_ON } });
+    expect(await call($, watch('git push'))).toEqual(fenced('a push'));
+    expect(await call($, watch('timeout 60 git push origin main'))).toEqual(fenced('a push other than a plain one'));
+    expect(await call($, watch('noask global off'))).toEqual(fenced('switching noask'));
+    expect(await call($, watch('tail -f build.log'))).toEqual(REACHED);
+    expect(await call($, SOCKET)).toEqual(REACHED);
+    expect(argsOf(seen)).toEqual([DENIAL_RUN, DENIAL_RUN, DENIAL_RUN]);
+    expect(seen.reached).toEqual(['Monitor tail -f build.log', 'Monitor']);
+});
+
+test("at handsoff the main agent's watch may push as its shell may, and a subagent's may not", async ($, on) => {
+    const seen = scene(on, { files: { [OWN]: MARKER_HANDSOFF } });
+    expect(await call($, watch('git push -u origin b'))).toEqual(REACHED);
+    expect(await call($, watch('git push -u origin b'), 'a1')).toEqual(denied(SUBAGENT_TEXT));
+    expect(seen.reached).toEqual(['Monitor git push -u origin b']);
+    expect(argsOf(seen)).toEqual([AGENT_DENIAL_RUN]);
+});
+
+for (const [what, command, text] of UNREAD) {
+    test(`outside noask a watch of ${what} is denied with the guard's own text, uncounted`, async ($, on) => {
+        const seen = scene(on);
+        expect(await call($, watch(command))).toEqual(denied(text));
+        expect(seen.runs).toEqual([]);
+        expect(seen.reached).toEqual([]);
+    });
+}
+
+for (const [marker, files] of [
+    ['off', {}],
+    ['on', { [GLOBAL]: MARKER_ON }],
+] as const) {
+    test(`with the marker ${marker} a watch hook that throws on a switch gets the guard's text`, async ($, on) => {
+        const seen = scene(on, { files, refusedHomeRead: 2 });
+        expect(await call($, watch('noask global on'))).toEqual(denied(SWITCH_TEXT));
+        expect(seen.runs).toEqual([]);
         expect(seen.reached).toEqual([]);
     });
 }
@@ -1620,6 +1693,95 @@ test('a write under folders not there yet lands where its nearest folder does', 
     expect(argsOf(seen)).toEqual([DENIAL_RUN]);
 });
 
+// The plans folder of each configuration directory, where a session in plan mode saves its plan before the plan
+// approval, is the fence's one exception there: an edit below it passes, as spelled and by where it lands. The folder
+// itself, a plans folder deeper in the directory and a memory note are fenced and counted as every other edit there,
+// and the guard knows no exception. While the home cannot be listed, a path is judged by how it starts, a plan's too.
+const PLAN_FILE = `${HOME}/.claude/plans/2026-11-20-x.md`;
+const PLANS_TO_RULES: Scene = {
+    files: { [GLOBAL]: MARKER_ON },
+    links: { [`${HOME}/.claude/plans`]: `${HOME}/.claude/rules` },
+    dirs: [`${HOME}/.claude/rules`],
+};
+
+test("an edit below a configuration directory's plans folder reaches the engine, uncounted", async ($, on) => {
+    const seen = scene(on, {
+        files: { [GLOBAL]: MARKER_ON, [`${HOME}/.claude3/plans/old.md`]: '# plan\n' },
+        dirs: [`${HOME}/.claude/plans`, '/etc/claude/plans'],
+        env: { CLAUDE_CONFIG_DIR: '/etc/claude' },
+    });
+    const plans = [PLAN_FILE, `${HOME}/.claude3/plans/old.md`, '/etc/claude/plans/y.md', '~/.claude/plans/z.md'];
+    for (const path of plans) {
+        expect(await call($, write(path)), path).toEqual(REACHED);
+    }
+    expect(await call($, edit(`${HOME}/.claude3/plans/old.md`))).toEqual(REACHED);
+    expect(seen.runs).toEqual([]);
+});
+
+test('the plans folder itself, one deeper in the directory and a memory note are fenced and counted', async ($, on) => {
+    const seen = scene(on, {
+        files: { [GLOBAL]: MARKER_ON },
+        dirs: [`${HOME}/.claude/plans`, `${HOME}/.claude/projects/p/memory`],
+    });
+    const paths = [
+        `${HOME}/.claude/rules/x.md`,
+        `${HOME}/.claude/projects/p/memory/MEMORY.md`,
+        `${HOME}/.claude/plans`,
+        `${HOME}/.claude/projects/p/plans/x.md`,
+        `${HOME}/.claude/plans/../rules/x.md`,
+    ];
+    for (const path of paths) {
+        expect(await call($, write(path)), path).toEqual(CONFIG_EDIT);
+    }
+    expect(argsOf(seen)).toEqual(paths.map(() => DENIAL_RUN));
+});
+
+test('a plans folder linked elsewhere into the configuration directory is fenced where it lands', async ($, on) => {
+    const seen = scene(on, PLANS_TO_RULES);
+    expect(await call($, edit(`${HOME}/.claude/plans/x.md`))).toEqual(CONFIG_EDIT);
+    expect(argsOf(seen)).toEqual([DENIAL_RUN]);
+});
+
+test("outside noask a plans folder linked into the state directory is denied with the guard's text", async ($, on) => {
+    const seen = scene(on, { links: { [`${HOME}/.claude/plans`]: STATE }, dirs: [STATE] });
+    expect(await call($, edit(`${HOME}/.claude/plans/noask`))).toEqual(denied(SWITCH_TEXT));
+    expect(seen.runs).toEqual([]);
+});
+
+test('under noask a plans folder linked into the state directory is a switch, counted', async ($, on) => {
+    const seen = scene(on, { files: { [GLOBAL]: MARKER_ON }, links: { [`${HOME}/.claude/plans`]: STATE } });
+    expect(await call($, edit(`${HOME}/.claude/plans/noask`))).toEqual(fenced('switching noask'));
+    expect(argsOf(seen)).toEqual([DENIAL_RUN]);
+});
+
+test('with the home unlisted a plan is fenced by its spelling, as every path that starts like it', async ($, on) => {
+    const seen = scene(on, {
+        files: { [GLOBAL]: MARKER_ON },
+        dirs: [`${HOME}/.claude/plans`],
+        refuse: [`list ${HOME}`],
+    });
+    expect(await call($, write(PLAN_FILE))).toEqual(CONFIG_EDIT);
+    expect(argsOf(seen)).toEqual([DENIAL_RUN]);
+});
+
+test('unplaced in time, an edit through a plans folder linked elsewhere passes, the stated limit', async ($, on) => {
+    const path = `${HOME}/.claude/plans/x.md`;
+    const seen = scene(on, { ...PLANS_TO_RULES, hang: [`stat ${path}`] });
+    const answer = call($, edit(path));
+    await seen.clock.settle();
+    await seen.clock.advance(LOOK_TIMEOUT_MS);
+    expect(await answer).toEqual(REACHED);
+    expect(seen.runs).toEqual([]);
+});
+
+test('at handsoff a push behind a runner is no plain push, and is denied', async ($, on) => {
+    const seen = scene(on, { files: { [OWN]: MARKER_HANDSOFF } });
+    expect(await call($, shell('timeout 60 git push origin main'))).toEqual(fenced('a push other than a plain one'));
+    expect(await call($, shell('nice git push'))).toEqual(fenced('a push other than a plain one'));
+    expect(argsOf(seen)).toEqual([DENIAL_RUN, DENIAL_RUN]);
+    expect(seen.reached).toEqual([]);
+});
+
 test('an edit or a write of a marker or a record, and an rm of a marker, are counted denials', async ($, on) => {
     const seen = scene(on, { files: { [GLOBAL]: MARKER_ON, [OWN]: MARKER_SESSION, [RECORD]: 'x\n' } });
     const inputs = [GLOBAL, OWN, RECORD].flatMap((path) => [edit(path), write(path)]);
@@ -1681,6 +1843,15 @@ const REFUSED_HOME = 'the test refuses this read of HOME)';
 test('a shell hook that throws after an on reading is denied with the rule and the failure', async ($, on) => {
     const seen = scene(on, { files: { [GLOBAL]: MARKER_ON }, refusedHomeRead: 2 });
     const answer = await call($, shell('git push'));
+    expect(answer.deny).toStartWith(`${RULE}${HOOK_FAILED}`);
+    expect(answer.deny).toEndWith(REFUSED_HOME);
+    expect(seen.runs).toEqual([]);
+    expect(seen.reached).toEqual([]);
+});
+
+test('a watch hook that throws after an on reading is denied with the rule and the failure', async ($, on) => {
+    const seen = scene(on, { files: { [GLOBAL]: MARKER_ON }, refusedHomeRead: 2 });
+    const answer = await call($, watch('git push'));
     expect(answer.deny).toStartWith(`${RULE}${HOOK_FAILED}`);
     expect(answer.deny).toEndWith(REFUSED_HOME);
     expect(seen.runs).toEqual([]);

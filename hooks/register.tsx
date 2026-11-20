@@ -2,11 +2,11 @@
 // `/noask`, the session's door to the noask command (bin/noask): registered at every session start, it runs the
 // command by its argument vector and shows its lines, any form but the status only when the owner typed it, and an
 // `on` typed in an idle session submits the wake-up turn. Under noask it refuses the question and the plan approval,
-// and fences the shell's and the file tools' calls that need the owner (fence.ts names them), each refusal counted by
-// the command (count.ts) but the plan approval's; in every session it guards the switch, denying a call that switches
-// noask or writes its files, and a shell command the fence's scan refuses to read: one too complex to read to its end,
-// and one in which a substitution leaves a here-document open. Each of those registrations carries a `.catch` handler
-// that denies in the hook's place.
+// and fences the calls of the shell, the watch tool and the file tools that need the owner (fence.ts names them; a
+// configuration directory's plans folder is let through), each refusal counted by the command (count.ts) but the plan
+// approval's; in every session it guards the switch, denying a call that switches noask or writes its files, and a
+// shell command the fence's scan refuses to read: one too complex to read to its end, and one in which a substitution
+// leaves a here-document open. Each of those registrations carries a `.catch` handler that denies in the hook's place.
 // The markers are read by marker.ts; every text the module shows is in text.ts. A subagent's turn changes nothing.
 import type {
     CommandRunResult,
@@ -21,7 +21,17 @@ import type {
 import type { Budgets, Counter, Spent } from './count';
 import { budgetsOf, countOn } from './count';
 import type { FenceHit, FenceWhat } from './fence';
-import { configRoots, isPublication, isUnder, placed, shellHits, spelled, startsLikeConfig, stateRoots } from './fence';
+import {
+    configRoots,
+    isPublication,
+    isUnder,
+    isUnderConfig,
+    placed,
+    shellHits,
+    spelled,
+    startsLikeConfig,
+    stateRoots,
+} from './fence';
 import type { Reading } from './marker';
 import { inTime, isNoask, mayPublish, messageOf, readNoask, sessionIdOf } from './marker';
 import {
@@ -386,8 +396,10 @@ async function shellDenial(
 }
 
 // An edit, a write or a notebook edit, its path judged as spelled and as placed: the guard first, on a path under the
-// state directory; then, under noask with the fence on, a path under the configuration directory, or, while the home
-// cannot be listed, a spelled path that starts like it. A path that cannot be placed is judged by its spelling alone.
+// state directory; then, under noask with the fence on, a path under the configuration directory outside a root's own
+// plans folder, where a session in plan mode saves its plan, or, while the home cannot be listed, a spelled path that
+// starts like it, a plan's too. A path that cannot be placed is judged by its spelling alone, so a plans folder that
+// is a link elsewhere into the configuration directory lets an edit through then.
 async function editDenial(
     $: EngineInterface,
     fence: Fence,
@@ -407,7 +419,8 @@ async function editDenial(
     }
     const config = await configRoots($, home);
     const isConfig =
-        paths.some((each) => isUnder(each, config.roots)) || (!config.isListed && startsLikeConfig(spelledPath, home));
+        paths.some((each) => isUnderConfig(each, config.roots)) ||
+        (!config.isListed && startsLikeConfig(spelledPath, home));
     if (!isConfig) {
         return undefined;
     }
@@ -492,6 +505,20 @@ export const register: Register = (on, options) => {
             return next(e);
         }
         const named = await namedByGuard($, { command: e.command });
+        return decided(await caughtDenial($, e.agentId, next.error, named), () => next(e));
+    });
+    // The watch tool runs a shell command and takes each line it prints as an event, so its command is the shell's to
+    // the guard and the fence; a watch of a socket holds none and goes on.
+    on('tool.call', { tool: 'Monitor' }, async ($, e, next) =>
+        decided(
+            typeof e.command === 'string' ? await shellDenial($, fence, e.command, e.agentId) : undefined,
+            () => next(e),
+        ),
+    ).catch(async ($, e, next) => {
+        if (next.called) {
+            return next(e);
+        }
+        const named = typeof e.command === 'string' ? await namedByGuard($, { command: e.command }) : undefined;
         return decided(await caughtDenial($, e.agentId, next.error, named), () => next(e));
     });
     on('tool.call', { tool: 'Edit' }, async ($, e, next) =>

@@ -7,8 +7,8 @@
 // command's arguments included: a command it cannot read to its end within WORK_LIMIT, or at all, is named as too
 // complex to read, and one in which a substitution closes on a here-document it opened and left open is named for
 // that; the guard refuses both in every session.
-// configRoots, stateRoots, placed, spelled, isUnder and startsLikeConfig judge an edit's path, by its spelling and by
-// where it lands. Every file call goes through inTime.
+// configRoots, stateRoots, placed, spelled, isUnder, isUnderConfig and startsLikeConfig judge an edit's path, by its
+// spelling and by where it lands. Every file call goes through inTime.
 import type { EngineInterface, FsStat } from 'claude-code';
 import { inTime } from './marker';
 
@@ -143,7 +143,26 @@ const NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 // The leading words a simple command skips, besides NAME=value words and `time` with its options.
 const LEADING: ReadonlySet<string> = new Set(['!', '{', 'if', 'then', 'elif', 'else', 'while', 'until', 'do']);
-const PREFIXES: ReadonlySet<string> = new Set(['env', 'command', 'exec', 'nohup', 'sudo']);
+// The prefix commands, after which every later word that names a command the fence reads is read as that command:
+// the shell's `command` and `exec`, the programs that run the command after them (`env`, `nohup`, `sudo`, `doas`, and
+// the runners from `timeout` on), and `eval`, whose words are not joined and read again, so a quoted
+// `eval "git push"` names nothing.
+const PREFIXES: ReadonlySet<string> = new Set([
+    'env',
+    'command',
+    'exec',
+    'nohup',
+    'sudo',
+    'doas',
+    'timeout',
+    'nice',
+    'ionice',
+    'setsid',
+    'stdbuf',
+    'xargs',
+    'flock',
+    'eval',
+]);
 const FILE_COMMANDS: ReadonlySet<string> = new Set([
     'rm',
     'rmdir',
@@ -196,6 +215,9 @@ const ANSI_C_ESCAPES: Readonly<Record<string, string>> = {
 
 // inTime's error for a call that did not answer in time (marker.ts).
 const TIMED_OUT = 'timed out';
+
+// The folder of a configuration directory that the fence lets an edit reach (isUnderConfig).
+const PLANS = 'plans';
 
 function valueOf(chars: ReadonlyArray<Char>): string {
     return chars.map(({ value }) => value).join('');
@@ -1373,6 +1395,16 @@ export function isUnder(path: string, roots: ReadonlyArray<string>): boolean {
     return roots.some((root) => {
         const base = root.endsWith('/') ? root.slice(0, -1) : root;
         return path === base || path.startsWith(`${base}/`);
+    });
+}
+
+// Equal to a configuration root or below it, outside that root's own plans folder, where a session in plan mode saves
+// its plan: a path below `<root>/plans/` is no edit under that root, while the folder itself is, and so is a plans
+// folder deeper in the root. Another root that holds the path outside its own plans folder still counts.
+export function isUnderConfig(path: string, roots: ReadonlyArray<string>): boolean {
+    return roots.some((root) => {
+        const base = root.endsWith('/') ? root.slice(0, -1) : root;
+        return isUnder(path, [base]) && !path.startsWith(`${joinedPath(base, PLANS)}/`);
     });
 }
 

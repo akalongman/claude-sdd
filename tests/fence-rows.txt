@@ -170,6 +170,56 @@ env -a x git push
 sudo -u bob git push
 # end
 
+# hits: a push other than a plain one
+# bash: differs: a prefix (timeout)
+timeout 60 git push origin main
+# end
+
+# hits: a push other than a plain one
+# bash: differs: a prefix (timeout)
+if ! timeout 30 git push origin main; then echo failed; fi
+# end
+
+# hits: a push other than a plain one
+# bash: differs: a prefix (nice)
+nice git push
+# end
+
+# hits: a push other than a plain one
+# bash: differs: a prefix (ionice)
+ionice -c3 git push
+# end
+
+# hits: a push other than a plain one
+# bash: differs: a prefix (setsid)
+setsid git push
+# end
+
+# hits: a push other than a plain one
+# bash: differs: a prefix (stdbuf)
+stdbuf -oL git push
+# end
+
+# hits: a push other than a plain one
+# bash: differs: a prefix (xargs)
+xargs git push
+# end
+
+# hits: a push other than a plain one
+# bash: differs: a prefix (flock)
+flock /tmp/l git push
+# end
+
+# hits: a push other than a plain one
+# bash: differs: not observed (doas is not in the stub folder)
+doas git push
+# end
+
+# hits: a push other than a plain one
+# bash: differs: a prefix (eval)
+eval git push
+# end
+
 ## A push inside a substitution, and across a line continuation.
 
 # hits: a push
@@ -580,6 +630,51 @@ sudo -u bob noask global off
 
 # hits: switching noask
 # bash: agrees
+timeout 5 noask global off
+# end
+
+# hits: switching noask
+# bash: agrees
+nice -n 5 noask global off
+# end
+
+# hits: switching noask
+# bash: agrees
+ionice -c3 noask global off
+# end
+
+# hits: switching noask
+# bash: agrees
+setsid noask global off
+# end
+
+# hits: switching noask
+# bash: agrees
+stdbuf -oL noask global off
+# end
+
+# hits: switching noask
+# bash: agrees
+xargs noask global off
+# end
+
+# hits: switching noask
+# bash: agrees
+flock /tmp/l noask global off
+# end
+
+# hits: switching noask
+# bash: differs: not observed (doas is not in the stub folder)
+doas noask global off
+# end
+
+# hits: switching noask
+# bash: agrees
+eval noask global off
+# end
+
+# hits: switching noask
+# bash: agrees
 time -p noask global off
 # end
 
@@ -628,6 +723,11 @@ env -u noask true
 # hits: switching noask
 # bash: differs: not earned (after a prefix command noask is read as a command; here it is grep's argument, and sudo is not in the stub folder)
 sudo grep -rn noask docs
+# end
+
+# hits: switching noask
+# bash: differs: not earned (after a prefix command noask is read as a command; here it is grep's argument, and grep is not in the stub folder)
+timeout 5 grep -rn noask docs
 # end
 
 # hits: switching noask
@@ -1131,6 +1231,16 @@ rm ~/.local/state/"*"
 # hits: none
 # bash: differs: wrapped (a brace list is not read)
 rm -rf ~/.local/{state,share}
+# end
+
+# hits: none
+# bash: differs: wrapped (eval's words are not joined and read again)
+eval "git push"
+# end
+
+# hits: none
+# bash: differs: wrapped (eval's words are not joined and read again)
+eval 'noask global off'
 # end
 
 # hits: none

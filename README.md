@@ -243,6 +243,17 @@ session's own switch is typed in that session.
   subagent to follow its role's rule for a denied tool. This is the fence,
   on as the plugin ships; with it off, the guard below still refuses the
   switch, and the rest is left to the rule text.
+- The fence lets one folder of a configuration directory through:
+  `plans/`, where a session in plan mode saves its plan before it asks for
+  the plan approval, so the plan is written and the approval is refused.
+  An edit below it passes unless it lands elsewhere in a configuration
+  directory (a `plans` that is a link to `rules`); the folder itself and a
+  `plans` folder deeper in the directory (`projects/<project>/plans/`) are
+  no exception, and the guard has none. A memory note, under
+  `projects/<project>/memory/`, is refused and counted as a denial like
+  every other edit there. While the home directory cannot be listed, a
+  path that starts like a configuration directory is refused by its
+  spelling, a plan's too.
 - Two budgets bound the refusals: 6 refused questions and 10 denials, the
   fence's and the guard's included. Once one is spent, a refusal asks the
   main session to end its turn with the list of its rulings and the line
@@ -287,10 +298,10 @@ leading dot is matched like any other), so `rm -rf ~/.local/state/*` is
 refused as the removal it is, and so is `rm -rf ~/*`. Under noask with the
 fence on, the guard's refusal carries the fence's line and counts as a
 denial; otherwise it carries a line of its own and counts nothing. A call
-wrapped in `sh -c`, a script or an alias passes the guard, as it passes
-the fence: the word to publish is yours against a plain call and no
-further, a stated limit until the wide fence of phase 4 of the plugin's
-design.
+wrapped in `sh -c`, a quoted `eval`, a script or an alias passes the
+guard, as it passes the fence: the word to publish is yours against a
+plain call and no further, a stated limit until the wide fence of phase 4
+of the plugin's design.
 
 Two more kinds of shell command are refused in every session, noask on or
 off, since the guard cannot tell what they would run:
@@ -312,12 +323,19 @@ off, since the guard cannot tell what they would run:
 Under noask with the fence on, each is a denial of the fence; otherwise
 it is refused with a line that says how to write the command instead.
 
+The fence and the guard read a shell command wherever an agent hands one
+to a tool: to the shell tool, and to the watch tool, which runs a command
+and takes each line it prints as an event. A watch of a socket holds no
+command and passes.
+
 ### What the fence and the guard do not catch
 
-- A command wrapped in `sh -c`, a script, an alias or a here-document
-  passes, and so does a spelling built to hide a command from the scan,
-  as a wrapped one does: the fence and the guard stand against a plain
-  call, not against a session that sets out to get round them.
+- A command wrapped in `sh -c`, a quoted `eval` (`eval "git push"`, whose
+  words the scan does not join and read again), a script, an alias or a
+  here-document passes, and so does a spelling built to hide a command
+  from the scan, as a wrapped one does: the fence and the guard stand
+  against a plain call, not against a session that sets out to get round
+  them.
 - A relative path into the state directory
   (`cd ~/.local/state/sdd && rm noask`), a path spelled with a brace list
   (`~/.local/{state,share}`), a copy that brings a folder named `sdd` into
@@ -334,11 +352,17 @@ it is refused with a line that says how to write the command instead.
   a configuration directory other than `~/.claude` and the one
   `CLAUDE_CONFIG_DIR` names that is a link is guarded by its name and not
   by where the link points, so an edit that names the link's target
-  passes; and so is any of them while a path cannot be resolved in time.
+  passes; and so is any of them while a path cannot be resolved in time,
+  and then an edit through a `plans` folder that is a link elsewhere into
+  its directory passes by its name.
 
-The scan also refuses a little beyond need: after `env`, `command`,
-`exec`, `nohup` or `sudo` it does not read which words are an option's
-value, so a line where `git`, `gh`, `glab` or `noask` stands as another
+After a prefix command (`env`, `command`, `exec`, `nohup`, `sudo`,
+`doas`, `eval`, and the runners `timeout`, `nice`, `ionice`, `setsid`,
+`stdbuf`, `xargs` and `flock`) the scan reads every later word that names
+`git`, `gh`, `glab`, `noask` or one of the file programs above as that
+command, so `timeout 60 git push` is a push, one other than a plain one.
+That refuses a little beyond need: the scan does not read which words are
+an option's value, so a line where such a name stands as another
 command's argument can be refused (`sudo grep -rn noask docs`), while the
 same line without the prefix passes.
 
@@ -353,14 +377,15 @@ the word from the session's own switch alone, so an apply run under noask
 publishes only in a session switched with `/noask on handsoff`. There the
 session itself, never a subagent, may open a pull or merge request, and
 push only with a plain push: `git push` with no setting or prefix command
-before `git`, nothing between `git` and `push` but `-C <path>`, and after
-it at most one `-u` or `--set-upstream`, a remote by its name and one
-branch, all written with literal words. A pattern, a variable or a
-substitution in it, or a remote given as a URL, makes it no plain push,
-and it is refused; so is a call that also holds anything else the fence
-names. What the repository's own configuration makes of a plain push (a
-mirror remote, a push default) the fence does not see. The global switch
-has no such level.
+(`timeout` among them, as named above) before `git`, nothing between
+`git` and `push` but `-C <path>`, and after it at most one `-u` or
+`--set-upstream`, a remote by its name and one branch, all written with
+literal words. A pattern, a variable or a substitution in it, or a
+remote given as a URL, makes it no plain push, and it is refused; so is
+a call that also holds anything else the fence names. What the
+repository's own configuration makes of a plain push (a mirror remote, a
+push default) the fence does not see. The global switch has no such
+level.
 
 ### Settings, what it sends, where it runs
 

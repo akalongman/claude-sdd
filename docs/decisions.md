@@ -2513,13 +2513,13 @@ The second check of 2026-11-17 added:
 Running the rewritten rules as commands added, the same day:
 
 - No option of a prefix command read for a value: after `env`,
-  `command`, `exec`, `nohup` or `sudo`, every later word that names a
-  command the fence reads (`git`, `gh`, `glab`, `noask` and the thirteen
-  file programs) is read as that command, since two `env` programs
-  disagree on which options take a value and a list of them was wrong
-  twice. What that refuses beyond need, a line where such a name is
-  another command's argument (`sudo grep -rn noask docs`), the README
-  states.
+  `command`, `exec`, `nohup` or `sudo` (R20 below adds `doas`, `eval`
+  and seven runners), every later word that names a command the fence
+  reads (`git`, `gh`, `glab`, `noask` and the thirteen file programs) is
+  read as that command, since two `env` programs disagree on which
+  options take a value and a list of them was wrong twice. What that
+  refuses beyond need, a line where such a name is another command's
+  argument (`sudo grep -rn noask docs`), the README states.
 - `time -p`: `time` and its options are leading words.
 - A pattern in a path matched part by part, so `rm -rf ~/.local/state/*`
   is the removal it is; a brace list is not read, a stated limit.
@@ -2575,10 +2575,10 @@ The minor findings that the reviews of the build of `bin/noask`
 
 The run's own rulings that changed what was built beyond the plan's
 text, by the run's numbers, each with what it would cost if it were
-wrong. The sentences that R9 and R10, R14, R15 and R17 add to the spec,
-and the texts `OWNER_ONLY_LINE`, `TOO_COMPLEX_TEXT` and `LEFT_OPEN_TEXT`
-in `hooks/text.ts`, wait for the spec's revision 21, where the owner
-confirms them.
+wrong. The sentences that R9 and R10, R14, R15, R17 and R20 add to the
+spec, and the texts `OWNER_ONLY_LINE`, `TOO_COMPLEX_TEXT` and
+`LEFT_OPEN_TEXT` in `hooks/text.ts`, wait for the spec's revision 21,
+where the owner confirms them.
 
 - R2. The plan tested for GNU `date` by `date --version`, which here
   names uutils coreutils, where the command works; the platform test is
@@ -2633,9 +2633,28 @@ confirms them.
   stated limit of the fence and the guard: the scan may read the lines
   after it in an order that is not bash's, and miss a push or a switch
   there, or refuse a line that bash reads as a body. No further review
-  round; records 274 and 275 of the table pin it. Cost if wrong: the
+  round; the table's last two records pin it. Cost if wrong: the
   guard misses these layouts in every session; a later fix is one
   commit.
+- R20 (the owner, 2026-11-20, on the three Important findings of the
+  final review). The watch tool, which runs a shell command and takes
+  each line it prints as an event, gets a seventh tool-call registration
+  with the same `.catch`: its command is guarded and fenced as the shell
+  tool's is, and a watch of a socket, which holds none, goes on.
+  `timeout`, `nice`, `ionice`, `setsid`, `stdbuf`, `xargs`, `flock`,
+  `doas` and `eval` are prefix commands, read as `sudo` and `nohup` are;
+  `eval`'s words are not joined and read again, so a quoted
+  `eval "git push"` passes. An edit below the `plans/` folder of a
+  configuration directory, where a session in plan mode saves its plan,
+  passes the fence (never the guard), as spelled and by where it lands;
+  the folder itself and a `plans` folder deeper in the directory are no
+  exception, and a memory note under `projects/<project>/memory/` stays
+  refused and counted. The gate outputs quoted below are Task 7's, from
+  before this change. Cost if wrong: a push behind a runner is refused
+  where a plain push is allowed, a name the fence reads that stands as
+  another command's argument behind a runner brings a refusal not earned
+  (`timeout 5 grep -rn noask docs`), and an edit of a plan under noask is
+  no longer refused; one commit to revert per part.
 
 ### Not covered
 

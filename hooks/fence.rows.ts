@@ -125,6 +125,46 @@ export const FENCE_ROWS: ReadonlyArray<{ readonly command: string; readonly hits
         hits: ['a push other than a plain one'],
     },
     {
+        command: `timeout 60 git push origin main`,
+        hits: ['a push other than a plain one'],
+    },
+    {
+        command: `if ! timeout 30 git push origin main; then echo failed; fi`,
+        hits: ['a push other than a plain one'],
+    },
+    {
+        command: `nice git push`,
+        hits: ['a push other than a plain one'],
+    },
+    {
+        command: `ionice -c3 git push`,
+        hits: ['a push other than a plain one'],
+    },
+    {
+        command: `setsid git push`,
+        hits: ['a push other than a plain one'],
+    },
+    {
+        command: `stdbuf -oL git push`,
+        hits: ['a push other than a plain one'],
+    },
+    {
+        command: `xargs git push`,
+        hits: ['a push other than a plain one'],
+    },
+    {
+        command: `flock /tmp/l git push`,
+        hits: ['a push other than a plain one'],
+    },
+    {
+        command: `doas git push`,
+        hits: ['a push other than a plain one'],
+    },
+    {
+        command: `eval git push`,
+        hits: ['a push other than a plain one'],
+    },
+    {
         command: `out=$(git push 2>&1)`,
         hits: ['a push'],
     },
@@ -442,6 +482,42 @@ push`,
         hits: ['switching noask'],
     },
     {
+        command: `timeout 5 noask global off`,
+        hits: ['switching noask'],
+    },
+    {
+        command: `nice -n 5 noask global off`,
+        hits: ['switching noask'],
+    },
+    {
+        command: `ionice -c3 noask global off`,
+        hits: ['switching noask'],
+    },
+    {
+        command: `setsid noask global off`,
+        hits: ['switching noask'],
+    },
+    {
+        command: `stdbuf -oL noask global off`,
+        hits: ['switching noask'],
+    },
+    {
+        command: `xargs noask global off`,
+        hits: ['switching noask'],
+    },
+    {
+        command: `flock /tmp/l noask global off`,
+        hits: ['switching noask'],
+    },
+    {
+        command: `doas noask global off`,
+        hits: ['switching noask'],
+    },
+    {
+        command: `eval noask global off`,
+        hits: ['switching noask'],
+    },
+    {
         command: `time -p noask global off`,
         hits: ['switching noask'],
     },
@@ -479,6 +555,10 @@ noask global off`,
     },
     {
         command: `sudo grep -rn noask docs`,
+        hits: ['switching noask'],
+    },
+    {
+        command: `timeout 5 grep -rn noask docs`,
         hits: ['switching noask'],
     },
     {
@@ -876,6 +956,14 @@ git push`,
     },
     {
         command: `rm -rf ~/.local/{state,share}`,
+        hits: [],
+    },
+    {
+        command: `eval "git push"`,
+        hits: [],
+    },
+    {
+        command: `eval 'noask global off'`,
         hits: [],
     },
     {

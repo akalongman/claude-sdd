@@ -17,15 +17,16 @@
 # /home/u replaced by <home> and /tmp by a temporary folder, both made anew
 # for each record. <home> holds .local/state/sdd with noask, noask.d/s-1
 # and budgets.d/s-1, one line each, and .local/bin/noask, a link to the
-# noask stub. The stub folder holds nineteen names and nothing else: git,
-# gh, glab, noask and the thirteen file programs the fence reads (rm,
+# noask stub. The stub folder holds twenty-six names and nothing else:
+# git, gh, glab, noask and the thirteen file programs the fence reads (rm,
 # rmdir, unlink, shred, mv, cp, ln, install, truncate, tee, dd, touch and
 # chmod), each a copy of one script that appends to the log its name, its arguments
 # and the names of the SDD_NOASK_ variables it was given and exits 0, and
-# links to the env and nohup found on PATH. A stub only logs, so no record
-# removes, moves or writes a file through a program; what a record's own
-# redirections write lands under <home>, the temporary folder or the run's
-# folder.
+# links to the env, nohup, timeout, nice, ionice, setsid, stdbuf, xargs
+# and flock found on PATH, prefix commands that each run the command after
+# them. A stub only logs, so no record removes, moves or writes a file
+# through a program; what a record's own redirections write lands under
+# <home>, the temporary folder or the run's folder.
 #
 # What ran, as the fence's kinds: a noask call with any argument but one
 # "status" alone, or given an SDD_NOASK_ variable, is "switching noask"; so
@@ -53,7 +54,7 @@
 # env an option that empties the environment, asks command for its default
 # search path, or holds an ANSI-C quoted word; a record so refused fails
 # unless it is marked norun. The stub folder is checked to hold its
-# nineteen names alone before every record. Before the first record the
+# twenty-six names alone before every record. Before the first record the
 # script proves these guards on texts that must be refused and on stub
 # folders with a stray, a missing or a changed name, and stops if one lets
 # its input through. The guards make the table's records harmless; they do
@@ -72,7 +73,7 @@ shopt -s nullglob dotglob globstar
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 root=$(cd "$here/.." && pwd)
 STUBBED=(git gh glab noask rm rmdir unlink shred mv cp ln install truncate tee dd touch chmod)
-LINKED=(env nohup)
+LINKED=(env nohup timeout nice ionice setsid stdbuf xargs flock)
 FILE_PROGRAMS=' rm rmdir unlink shred mv cp ln install truncate tee dd touch chmod '
 H=$'\x01H' T=$'\x01T' N=$'\x01N' U=$'\x01U' V=$'\x01V'
 
@@ -128,7 +129,7 @@ build_stubs() {
     ln -s -- "$real" "$dir/$name" || return 1
   done
 }
-# stubs_only DIR: true when DIR holds the nineteen names and nothing else,
+# stubs_only DIR: true when DIR holds the twenty-six names and nothing else,
 # each stub the stub's text and each link a link.
 stubs_only() {
   local dir=$1 name
@@ -456,7 +457,7 @@ for ((at = 0; at < ${#fields[@]}; at += 3)); do
     failed=$((failed + 1))
     continue
   fi
-  stubs_only "$stubs" || die "the stub folder holds more or other than its nineteen names, before record $rows"
+  stubs_only "$stubs" || die "the stub folder holds more or other than its twenty-six names, before record $rows"
   if ! run_record "$text"; then
     printf 'FAIL record %s %s: %s\n' "$rows" "$shown" "$WHY"
     failed=$((failed + 1))

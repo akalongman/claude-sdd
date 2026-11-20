@@ -1,7 +1,17 @@
 import type { EngineInterface, FsEntry, FsStat, Timer } from 'claude-code';
 import { expect, test } from 'claude-code/testing';
 import type { FenceWhat } from './fence';
-import { configRoots, isPublication, isUnder, placed, shellHits, spelled, startsLikeConfig, stateRoots } from './fence';
+import {
+    configRoots,
+    isPublication,
+    isUnder,
+    isUnderConfig,
+    placed,
+    shellHits,
+    spelled,
+    startsLikeConfig,
+    stateRoots,
+} from './fence';
 import { FENCE_ROWS } from './fence.rows';
 import { LOOK_TIMEOUT_MS } from './marker';
 
@@ -16,7 +26,7 @@ for (const [index, { command, hits }] of FENCE_ROWS.entries()) {
 }
 
 test('the table holds every record of tests/fence-rows.txt', async () => {
-    expect(FENCE_ROWS).toHaveLength(275);
+    expect(FENCE_ROWS).toHaveLength(297);
 });
 
 // The scan's work. Each nested text is read once per reading, and a command whose reading passes the scan's work limit
@@ -411,6 +421,31 @@ test('a path that only starts like a root, a project folder and another home are
 
 test('a root is under itself', async () => {
     expect(isUnder('/home/u/.claude', ROOTS)).toBe(true);
+});
+
+// isUnderConfig: a root's own plans folder is let through below it, and nothing else is.
+
+test("a path below a root's own plans folder is not under the configuration, wherever the root is", async () => {
+    for (const path of ['/home/u/.claude/plans/x.md', '/home/u/.claude2/plans/a/b.md', '/etc/claude/plans/y.md']) {
+        expect(isUnderConfig(path, [...ROOTS, '/etc/claude/']), path).toBe(false);
+    }
+});
+
+test('the plans folder itself, a deeper plans folder and a memory note are under the configuration', async () => {
+    for (const path of [
+        '/home/u/.claude/plans',
+        '/home/u/.claude/projects/p/plans/x.md',
+        '/home/u/.claude/projects/p/memory/MEMORY.md',
+        '/home/u/.claude/plansx/y.md',
+        '/home/u/.claude/CLAUDE.md',
+    ]) {
+        expect(isUnderConfig(path, ROOTS), path).toBe(true);
+    }
+    expect(isUnderConfig('/home/u/projects/app/plans/x.md', ROOTS)).toBe(false);
+});
+
+test("a plan under one root's plans folder is under another root that holds it outside its own", async () => {
+    expect(isUnderConfig('/home/u/.claude/plans/x.md', [...ROOTS, '/home/u/.claude/plans'])).toBe(true);
 });
 
 test('spelled makes a path absolute, expands ~ and folds . and ..', async () => {
