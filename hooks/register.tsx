@@ -398,8 +398,8 @@ async function shellDenial(
 // An edit, a write or a notebook edit, its path judged as spelled and as placed: the guard first, on a path under the
 // state directory; then, under noask with the fence on, a path under the configuration directory outside a root's own
 // plans folder, where a session in plan mode saves its plan, or, while the home cannot be listed, a spelled path that
-// starts like it, a plan's too. A path that cannot be placed is judged by its spelling alone, so a plans folder that
-// is a link elsewhere into the configuration directory lets an edit through then.
+// starts like it, a plan's too. A path that cannot be placed is judged by its spelling alone, and with no plans
+// exception, so a plan's write is refused then, as an edit through a plans folder that is a link elsewhere is.
 async function editDenial(
     $: EngineInterface,
     fence: Fence,
@@ -418,8 +418,9 @@ async function editDenial(
         return undefined;
     }
     const config = await configRoots($, home);
+    const isUnderRoots = placedPath === undefined ? isUnder : isUnderConfig;
     const isConfig =
-        paths.some((each) => isUnderConfig(each, config.roots)) ||
+        paths.some((each) => isUnderRoots(each, config.roots)) ||
         (!config.isListed && startsLikeConfig(spelledPath, home));
     if (!isConfig) {
         return undefined;

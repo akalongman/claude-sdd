@@ -2646,13 +2646,16 @@ where the owner confirms them.
   `eval`'s words are not joined and read again, so a quoted
   `eval "git push"` passes. An edit below the `plans/` folder of a
   configuration directory, where a session in plan mode saves its plan,
-  passes the fence (never the guard), as spelled and by where it lands;
-  the folder itself and a `plans` folder deeper in the directory are no
-  exception, and a memory note under `projects/<project>/memory/` stays
-  refused and counted. The gate outputs quoted below are Task 7's, from
-  before this change. Cost if wrong: a push behind a runner is refused
-  where a plain push is allowed, a name the fence reads that stands as
-  another command's argument behind a runner brings a refusal not earned
+  passes the fence (never the guard), as spelled and by where it lands,
+  and only when its path is resolved in time: while it cannot be, the
+  path is judged by its spelling with no exception, so a plan's write is
+  refused then. The folder itself and a `plans` folder deeper in the
+  directory are no exception, and a memory note under
+  `projects/<project>/memory/` stays refused and counted. The gate
+  outputs quoted below are Task 7's, from before this change. Cost if
+  wrong: a push behind a runner is refused where a plain push is
+  allowed, a name the fence reads that stands as another command's
+  argument behind a runner brings a refusal not earned
   (`timeout 5 grep -rn noask docs`), and an edit of a plan under noask is
   no longer refused; one commit to revert per part.
 

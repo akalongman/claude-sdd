@@ -253,7 +253,9 @@ session's own switch is typed in that session.
   `projects/<project>/memory/`, is refused and counted as a denial like
   every other edit there. While the home directory cannot be listed, a
   path that starts like a configuration directory is refused by its
-  spelling, a plan's too.
+  spelling, a plan's too. So is a plan's write while its path cannot be
+  resolved in time: the path is then judged by its spelling alone, with
+  no exception for `plans/`.
 - Two budgets bound the refusals: 6 refused questions and 10 denials, the
   fence's and the guard's included. Once one is spent, a refusal asks the
   main session to end its turn with the list of its rulings and the line
@@ -352,9 +354,7 @@ command and passes.
   a configuration directory other than `~/.claude` and the one
   `CLAUDE_CONFIG_DIR` names that is a link is guarded by its name and not
   by where the link points, so an edit that names the link's target
-  passes; and so is any of them while a path cannot be resolved in time,
-  and then an edit through a `plans` folder that is a link elsewhere into
-  its directory passes by its name.
+  passes; and so is any of them while a path cannot be resolved in time.
 
 After a prefix command (`env`, `command`, `exec`, `nohup`, `sudo`,
 `doas`, `eval`, and the runners `timeout`, `nice`, `ionice`, `setsid`,

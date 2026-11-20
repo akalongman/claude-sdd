@@ -1696,7 +1696,8 @@ test('a write under folders not there yet lands where its nearest folder does', 
 // The plans folder of each configuration directory, where a session in plan mode saves its plan before the plan
 // approval, is the fence's one exception there: an edit below it passes, as spelled and by where it lands. The folder
 // itself, a plans folder deeper in the directory and a memory note are fenced and counted as every other edit there,
-// and the guard knows no exception. While the home cannot be listed, a path is judged by how it starts, a plan's too.
+// and the guard knows no exception. While the home cannot be listed, a path is judged by how it starts, a plan's too,
+// and while a path cannot be placed in time, by its spelling with no exception.
 const PLAN_FILE = `${HOME}/.claude/plans/2026-11-20-x.md`;
 const PLANS_TO_RULES: Scene = {
     files: { [GLOBAL]: MARKER_ON },
@@ -1764,9 +1765,47 @@ test('with the home unlisted a plan is fenced by its spelling, as every path tha
     expect(argsOf(seen)).toEqual([DENIAL_RUN]);
 });
 
-test('unplaced in time, an edit through a plans folder linked elsewhere passes, the stated limit', async ($, on) => {
+test('unplaced in time, a plan is fenced by its spelling and counted', async ($, on) => {
+    const seen = scene(on, {
+        files: { [GLOBAL]: MARKER_ON },
+        dirs: [`${HOME}/.claude/plans`],
+        hang: [`stat ${PLAN_FILE}`],
+    });
+    const answer = call($, write(PLAN_FILE));
+    await seen.clock.settle();
+    await seen.clock.advance(LOOK_TIMEOUT_MS);
+    expect(await answer).toEqual(CONFIG_EDIT);
+    expect(argsOf(seen)).toEqual([DENIAL_RUN]);
+});
+
+test('unplaced in time, an edit through a plans folder linked elsewhere is fenced by its spelling', async ($, on) => {
     const path = `${HOME}/.claude/plans/x.md`;
     const seen = scene(on, { ...PLANS_TO_RULES, hang: [`stat ${path}`] });
+    const answer = call($, edit(path));
+    await seen.clock.settle();
+    await seen.clock.advance(LOOK_TIMEOUT_MS);
+    expect(await answer).toEqual(CONFIG_EDIT);
+    expect(argsOf(seen)).toEqual([DENIAL_RUN]);
+});
+
+test('unplaced in time, under noask a plans link into the state directory is fenced by its spelling', async ($, on) => {
+    const path = `${HOME}/.claude/plans/noask`;
+    const seen = scene(on, {
+        files: { [GLOBAL]: MARKER_ON },
+        links: { [`${HOME}/.claude/plans`]: STATE },
+        hang: [`stat ${path}`],
+    });
+    const answer = call($, edit(path));
+    await seen.clock.settle();
+    await seen.clock.advance(LOOK_TIMEOUT_MS);
+    expect(await answer).toEqual(CONFIG_EDIT);
+    expect(argsOf(seen)).toEqual([DENIAL_RUN]);
+});
+
+// The guard judges a path it cannot place by its spelling alone, which names no state path here.
+test('unplaced in time, outside noask a plans link into the state directory passes the guard', async ($, on) => {
+    const path = `${HOME}/.claude/plans/noask`;
+    const seen = scene(on, { links: { [`${HOME}/.claude/plans`]: STATE }, dirs: [STATE], hang: [`stat ${path}`] });
     const answer = call($, edit(path));
     await seen.clock.settle();
     await seen.clock.advance(LOOK_TIMEOUT_MS);
