@@ -13,10 +13,10 @@
 # (<reason>)" for a case that cannot run; exits 1 when any case fails. Cases
 # 1 to 30 are those of the phase 2 plan (a local working document), Task 2;
 # cases 31 to 45 those of the plan of noask's first step, a local working
-# document, Tasks 1 (31 to 36), 2 (37 to 44), 4 and 6 (45). Case 45 runs
-# tests/gen-marker-fixtures.sh on SCRIPT, which makes its own temporary
-# HOMEs, and reads hooks/text.ts and skills/apply/references/noask.md beside
-# this script's directory.
+# document, Tasks 1 (31 to 36), 2 (37 to 44), 4 and 6 (45), and case 46 that
+# of a later fix to count read. Case 45 runs tests/gen-marker-fixtures.sh on
+# SCRIPT, which makes its own temporary HOMEs, and reads hooks/text.ts and
+# skills/apply/references/noask.md beside this script's directory.
 #
 # Usage: bash tests/test-noask.sh [SCRIPT]
 #   Default SCRIPT: bin/noask in the plugin root, the parent of this script's
@@ -1231,5 +1231,20 @@ elif [[ $nothing != "$phrase"* ]]; then
   broken+=" NOTHING_RUNNING_TEXT-starts:\"$nothing\""
 fi
 verdict 45
+
+# 46. count read on a record that does not parse reads it as an empty one,
+#     writes nothing and says so on standard error; a count that writes
+#     starts such a record again (case 43).
+fresh 46
+step on global on
+own_dir "$B"
+printf 'x\n' > "$B/s-1"
+cp -- "$B/s-1" "$tmp/c46"
+noask --session s-1 count read
+note="noask: the record $B/s-1 did not parse (the record has 1 line, not 5)"
+{ [ "$rc" -eq 0 ] && [ "$out" = 'counted none 0 0 0' ] && [ "$err" = "$note; read as an empty one, left as it is" ]; } ||
+  broken+=" read"
+cmp -s -- "$B/s-1" "$tmp/c46" || broken+=" read-written"
+verdict 46
 
 exit "$fail"

@@ -61,10 +61,11 @@
 #   continuations=<n>
 #   spent=<none, question, permission or continuation>
 # <n> is 0 to 99999. A record that is longer than 4096 bytes or does not
-# parse is started again as an empty one, with a line on standard error that
-# says so. A record that exists and cannot be read within 2 seconds is not:
-# the count fails (exit 1) and leaves it as it is, since starting it again
-# would clear a spent budget inside its generation.
+# parse is started again as an empty one by a count that writes, and read as
+# an empty one and left as it is by read; each says so in a line on standard
+# error. A record that exists and cannot be read within 2 seconds is
+# neither: the count fails (exit 1) and leaves it as it is, since starting
+# it again would clear a spent budget inside its generation.
 #
 # count charges S's record, or its subagent's. When S reads off or expired it
 # prints off and makes nothing. Otherwise it makes budgets.d (mode 700), takes
@@ -870,7 +871,11 @@ cmd_count() {
     write_record "$file" "${rec[generation]}" "${rec[refusals]}" "${rec[denials]}" "${rec[continuations]}" \
       "${rec[spent]}"
   fi
-  [ -z "$note" ] || printf 'noask: the record %s did not parse (%s); started again\n' "$file" "$note" >&2
+  if [ -n "$note" ] && [ "$count_word" = read ]; then
+    printf 'noask: the record %s did not parse (%s); read as an empty one, left as it is\n' "$file" "$note" >&2
+  elif [ -n "$note" ]; then
+    printf 'noask: the record %s did not parse (%s); started again\n' "$file" "$note" >&2
+  fi
   printf 'counted %s %s %s %s\n' "${rec[spent]}" "${rec[refusals]}" "${rec[denials]}" "${rec[continuations]}"
 }
 
