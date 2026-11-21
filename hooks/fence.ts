@@ -10,7 +10,7 @@
 // configRoots, stateRoots, placed, spelled, isUnder, isUnderConfig and startsLikeConfig judge an edit's path, by its
 // spelling and by where it lands. Every file call goes through inTime.
 import type { EngineInterface, FsStat } from 'claude-code';
-import { inTime } from './marker';
+import { inTime, TIMED_OUT } from './marker';
 
 export type FenceWhat =
     | 'a push'
@@ -212,9 +212,6 @@ const ANSI_C_ESCAPES: Readonly<Record<string, string>> = {
     '"': '"',
     '?': '?',
 };
-
-// inTime's error for a call that did not answer in time (marker.ts).
-const TIMED_OUT = 'timed out';
 
 // The folder of a configuration directory that the fence lets an edit reach (isUnderConfig).
 const PLANS = 'plans';

@@ -61,7 +61,7 @@ const LEVELS: ReadonlyArray<'noask' | 'handsoff'> = ['noask', 'handsoff'];
 const KEYS = ['generation', 'since', 'until', 'level'] as const;
 
 // What inTime answers for a call that has not answered when its timer fires.
-const TIMED_OUT = 'timed out';
+export const TIMED_OUT = 'timed out';
 
 const OFF: Reading = { kind: 'off' };
 
