@@ -24,7 +24,7 @@
     "fence": {
       "type": "boolean",
       "title": "Fence",
-      "description": "While noask is on, deny before they run the outward calls the plugin names exactly, such as a push, each counted as a denial; off leaves them to the rule text.",
+      "description": "While noask is on, deny each outward call the plugin names exactly, such as a push, before it runs, and count it as a denial; off leaves those calls to the rule text.",
       "default": true
     }
   }
