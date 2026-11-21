@@ -7,6 +7,7 @@ import {
     ARGUMENT_HINT,
     BLOCKED_LINE,
     COMMAND_DESCRIPTION,
+    commandNotRunLine,
     DONE_LINE,
     endingText,
     FALLBACK_RULE,
@@ -15,7 +16,6 @@ import {
     noIdLine,
     NOTHING_RUNNING_TEXT,
     notRegisteredLine,
-    notRunLine,
     notSubmittedLine,
     OWNER_ONLY_LINE,
     PARTIAL_LINE,
@@ -25,6 +25,7 @@ import {
     SUBAGENT_TEXT,
     SWITCH_TEXT,
     switchFailedLine,
+    switchNotRunLine,
     TOO_COMPLEX_TEXT,
     WAITING_LINE,
     WAKE_TEXT,
@@ -87,14 +88,15 @@ test("the command's failure lines", async () => {
         'noask: the switch failed (exit 1): noask: cannot write /m',
     );
     expect(switchFailedLine(137, '')).toBe('noask: the switch failed (exit 137): no output');
-    expect(notRunLine('spawn ENOENT')).toBe('noask: the switch could not run: spawn ENOENT');
+    expect(switchNotRunLine('spawn ENOENT')).toBe('noask: the switch could not run: spawn ENOENT');
+    expect(commandNotRunLine('spawn ENOENT')).toBe('noask: the command could not run: spawn ENOENT');
     expect(noIdLine("this session's id could not be read (boom)")).toBe(
         "noask: this session's id could not be read (boom); noask global on still switches every session",
     );
 });
 
 test("a /noask the owner did not type is refused in the owner's words", async () => {
-    expect(OWNER_ONLY_LINE).toBe('noask: /noask switches only when the owner types it; nothing changed');
+    expect(OWNER_ONLY_LINE).toBe('noask: /noask acts only when the owner types it; nothing changed');
 });
 
 test("the module's own toasts", async () => {

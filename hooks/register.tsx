@@ -9,6 +9,7 @@
 // leaves a here-document open. Each of those registrations carries a `.catch` handler that denies in the hook's place.
 // The markers are read by marker.ts; every text the module shows is in text.ts. A subagent's turn changes nothing.
 import type {
+    Caught,
     CommandRunResult,
     CommandSpec,
     EngineInterface,
@@ -37,12 +38,12 @@ import { inTime, isNoask, mayPublish, messageOf, readNoask, sessionIdOf } from '
 import {
     ARGUMENT_HINT,
     COMMAND_DESCRIPTION,
+    commandNotRunLine,
     endingText,
     fenceText,
     LEFT_OPEN_TEXT,
     noIdLine,
     notRegisteredLine,
-    notRunLine,
     notSubmittedLine,
     OWNER_ONLY_LINE,
     PLAN_TEXT,
@@ -52,6 +53,7 @@ import {
     SUBAGENT_TEXT,
     SWITCH_TEXT,
     switchFailedLine,
+    switchNotRunLine,
     TOO_COMPLEX_TEXT,
     wakeText,
     withCountFailure,
@@ -77,6 +79,9 @@ type Fence = { readonly budgets: Budgets; readonly isFenced: boolean };
 // read to its end, and one in which a substitution leaves a here-document open.
 type Unread = Extract<FenceWhat, 'a command too complex to read' | 'a here-document left open by a substitution'>;
 type Guarded = Extract<FenceWhat, 'switching noask'> | Unread;
+
+// What the guard reads of a call when its hook failed: the shell's or the watch tool's command, or an edit's path.
+type Named = { readonly command: string } | { readonly path: string };
 
 // What the typed words ask, after an optional `global`: to switch a marker on or off, or anything else (the status,
 // the bare command, a wrong argument), which the command answers with its own lines whatever its exit.
@@ -219,9 +224,10 @@ async function submitWakeUp(
 // OWNER_ONLY_LINE, before the session's id is read; those two run whoever asked. Otherwise the command runs with the
 // words typed after `--session <the session's id>`, or after nothing for a global command in a session with no usable
 // id, where a session's command runs nothing: without `--session` the command would read a status for the id in the
-// host process's environment, and refuse a switch. A failed switch, its exit neither 0 nor 2, and a run that rejects
-// are said twice, in the text and in a toast, and wake nothing; an `on` that exited 0 ends on the partial line, and a
-// session idle with a history when it was typed gets the wake-up turn once the text is shown.
+// host process's environment, and refuse a switch. A failed switch, its exit neither 0 nor 2, and a switch whose run
+// rejects are said twice, in the text and in a toast, and wake nothing; a run of any other form that rejects is said
+// once, in the text, since nothing was switched; an `on` that exited 0 ends on the partial line, and a session idle
+// with a history when it was typed gets the wake-up turn once the text is shown.
 async function noask($: EngineInterface, args: string, origin: PromptOrigin): Promise<CommandRunResult> {
     const words = args.split(WHITE_SPACE).filter((word) => word !== '');
     const switching = switchingOf(words);
@@ -239,7 +245,10 @@ async function noask($: EngineInterface, args: string, origin: PromptOrigin): Pr
     const sessionWords = session.ok ? ['--session', session.id] : [];
     const ran = await runCommand($, [`${$.plugin.root}/bin/noask`, ...sessionWords, ...words]);
     if (!ran.ok) {
-        const line = notRunLine(ran.error);
+        if (switching === 'none') {
+            return { text: commandNotRunLine(ran.error) };
+        }
+        const line = switchNotRunLine(ran.error);
         toast($, line);
         return { text: line };
     }
@@ -263,7 +272,7 @@ async function noask($: EngineInterface, args: string, origin: PromptOrigin): Pr
 // when the count answered off (the marker went off after the hook's reading, which stands), and, with the failure
 // added, when the count failed; once a budget is spent the main session gets the ending text and an agent
 // SUBAGENT_SPENT_TEXT. A count's note follows whichever text is returned. Without a counter (the plan approval) it
-// counts nothing and returns `text`. Every return carries an unreadable reading's error. Never rejects.
+// counts nothing and returns the role's text. Every return carries an unreadable reading's error. Never rejects.
 export async function answerFor(
     $: Pick<EngineInterface, 'process' | 'plugin' | 'session'>,
     budgets: Budgets,
@@ -273,7 +282,7 @@ export async function answerFor(
     text: string,
 ): Promise<string> {
     if (counter === undefined) {
-        return withError(text, reading);
+        return withError(roleText(text, agentId, undefined), reading);
     }
     const counted = await countOn($, agentId, counter, budgets);
     const spent = counted.kind === 'counted' && counted.spent !== 'none' ? counted.spent : undefined;
@@ -347,8 +356,8 @@ async function questionDenial(
     return answerFor($, fence.budgets, reading, agentId, 'question', `${QUESTION_PREFIX}${await ruleText($)}`);
 }
 
-// Under noask the plan approval is refused with PLAN_TEXT, counted nowhere, so it keeps its text once a budget is
-// spent and the morning reads that a plan waits.
+// Under noask the plan approval is refused with PLAN_TEXT, or a subagent's with SUBAGENT_TEXT, counted nowhere, so it
+// keeps its text once a budget is spent and the morning reads that a plan waits.
 async function planDenial($: EngineInterface, fence: Fence, agentId: string | undefined): Promise<string | undefined> {
     const reading = await readNoask($);
     return isNoask(reading) ? answerFor($, fence.budgets, reading, agentId, undefined, PLAN_TEXT) : undefined;
@@ -446,10 +455,7 @@ async function homeIfRead($: Pick<EngineInterface, 'env'>): Promise<string | und
 // home: with HOME refused the command is scanned against an empty home, and only that refusal is taken from the scan.
 // A switch is judged against the home, so with HOME refused, or the session's directory for a path, it is undefined;
 // the handler then goes on to its own reading.
-async function namedByGuard(
-    $: Pick<EngineInterface, 'env' | 'session'>,
-    call: { readonly command: string } | { readonly path: string },
-): Promise<Guarded | undefined> {
+async function namedByGuard($: Pick<EngineInterface, 'env' | 'session'>, call: Named): Promise<Guarded | undefined> {
     const home = await homeIfRead($);
     if ('command' in call) {
         const guarded = guardedOf(shellHits(call.command, home ?? ''));
@@ -487,29 +493,35 @@ async function caughtDenial(
     return withError(withHookFailure(lead, failure), reading);
 }
 
+// The answer of every tool.call registration's `.catch` handler: the call's own result once the hook had called next,
+// since a denial then would undo nothing; otherwise caughtDenial's, with what the guard names by the call's command or
+// path (`call`, undefined for a call that holds neither), and the call goes on when there is nothing to deny.
+async function caught<T>(
+    $: EngineInterface,
+    agentId: string | undefined,
+    next: Caught,
+    goOn: () => Promise<T>,
+    call: Named | undefined,
+): Promise<T | { readonly deny: string }> {
+    if (next.called) {
+        return goOn();
+    }
+    const named = call === undefined ? undefined : await namedByGuard($, call);
+    return decided(await caughtDenial($, agentId, next.error, named), goOn);
+}
+
 export const register: Register = (on, options) => {
     const fence: Fence = { budgets: budgetsOf(options), isFenced: options['fence'] !== false };
-    // The refusals, the fence and the guard: one registration per tool, each with its `.catch` handler, which returns
-    // the call's own result once the hook had called next, since a denial then would undo nothing.
+    // The refusals, the fence and the guard: one registration per tool, each with its `.catch` handler (caught).
     on('tool.call', { tool: QUESTION_TOOL }, async ($, e, next) =>
         decided(await questionDenial($, fence, e.agentId), () => next(e)),
-    ).catch(async ($, e, next) =>
-        next.called ? next(e) : decided(await caughtDenial($, e.agentId, next.error, undefined), () => next(e)),
-    );
+    ).catch(($, e, next) => caught($, e.agentId, next, () => next(e), undefined));
     on('tool.call', { tool: 'ExitPlanMode' }, async ($, e, next) =>
         decided(await planDenial($, fence, e.agentId), () => next(e)),
-    ).catch(async ($, e, next) =>
-        next.called ? next(e) : decided(await caughtDenial($, e.agentId, next.error, undefined), () => next(e)),
-    );
+    ).catch(($, e, next) => caught($, e.agentId, next, () => next(e), undefined));
     on('tool.call', { tool: 'Bash' }, async ($, e, next) =>
         decided(await shellDenial($, fence, e.command, e.agentId), () => next(e)),
-    ).catch(async ($, e, next) => {
-        if (next.called) {
-            return next(e);
-        }
-        const named = await namedByGuard($, { command: e.command });
-        return decided(await caughtDenial($, e.agentId, next.error, named), () => next(e));
-    });
+    ).catch(($, e, next) => caught($, e.agentId, next, () => next(e), { command: e.command }));
     // The watch tool runs a shell command and takes each line it prints as an event, so its command is the shell's to
     // the guard and the fence; a watch of a socket holds none and goes on.
     on('tool.call', { tool: 'Monitor' }, async ($, e, next) =>
@@ -517,40 +529,19 @@ export const register: Register = (on, options) => {
             typeof e.command === 'string' ? await shellDenial($, fence, e.command, e.agentId) : undefined,
             () => next(e),
         ),
-    ).catch(async ($, e, next) => {
-        if (next.called) {
-            return next(e);
-        }
-        const named = typeof e.command === 'string' ? await namedByGuard($, { command: e.command }) : undefined;
-        return decided(await caughtDenial($, e.agentId, next.error, named), () => next(e));
+    ).catch(($, e, next) => {
+        const call = typeof e.command === 'string' ? { command: e.command } : undefined;
+        return caught($, e.agentId, next, () => next(e), call);
     });
     on('tool.call', { tool: 'Edit' }, async ($, e, next) =>
         decided(await editDenial($, fence, e.file_path, e.agentId), () => next(e)),
-    ).catch(async ($, e, next) => {
-        if (next.called) {
-            return next(e);
-        }
-        const named = await namedByGuard($, { path: e.file_path });
-        return decided(await caughtDenial($, e.agentId, next.error, named), () => next(e));
-    });
+    ).catch(($, e, next) => caught($, e.agentId, next, () => next(e), { path: e.file_path }));
     on('tool.call', { tool: 'Write' }, async ($, e, next) =>
         decided(await editDenial($, fence, e.file_path, e.agentId), () => next(e)),
-    ).catch(async ($, e, next) => {
-        if (next.called) {
-            return next(e);
-        }
-        const named = await namedByGuard($, { path: e.file_path });
-        return decided(await caughtDenial($, e.agentId, next.error, named), () => next(e));
-    });
+    ).catch(($, e, next) => caught($, e.agentId, next, () => next(e), { path: e.file_path }));
     on('tool.call', { tool: 'NotebookEdit' }, async ($, e, next) =>
         decided(await editDenial($, fence, e.notebook_path, e.agentId), () => next(e)),
-    ).catch(async ($, e, next) => {
-        if (next.called) {
-            return next(e);
-        }
-        const named = await namedByGuard($, { path: e.notebook_path });
-        return decided(await caughtDenial($, e.agentId, next.error, named), () => next(e));
-    });
+    ).catch(($, e, next) => caught($, e.agentId, next, () => next(e), { path: e.notebook_path }));
     // `session.start` runs again at every reload of the plugin, so the command is registered there each time; the
     // engine replaces a name registered again, and only a refusal is toasted.
     on('session.start', async ($, e, next) => {

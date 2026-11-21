@@ -36,7 +36,7 @@ export const PARTIAL_LINE =
 
 // The text of a /noask other than the bare command and `status` that did not come from the owner's own typing (the
 // prompt or the bridge): nothing is run, submitted or toasted. A count is refused under the same line.
-export const OWNER_ONLY_LINE = 'noask: /noask switches only when the owner types it; nothing changed';
+export const OWNER_ONLY_LINE = 'noask: /noask acts only when the owner types it; nothing changed';
 
 // What a refused question carries before the rule text.
 export const QUESTION_PREFIX = 'sdd noask: ';
@@ -103,9 +103,14 @@ export function switchFailedLine(exitCode: number, output: string): string {
     return `noask: the switch failed (exit ${exitCode}): ${output === '' ? NO_OUTPUT : output}`;
 }
 
-// A run of the command that rejected: it could not start, or it outran its time and was killed.
-export function notRunLine(message: string): string {
+// A run of a switching command that rejected: it could not start, or it outran its time and was killed.
+export function switchNotRunLine(message: string): string {
     return `noask: the switch could not run: ${message}`;
+}
+
+// A run of any other form (the bare command, the status, a count) that rejected, which switched nothing.
+export function commandNotRunLine(message: string): string {
+    return `noask: the command could not run: ${message}`;
 }
 
 // A session's command typed where the session has no usable id; `error` is sessionIdOf's.

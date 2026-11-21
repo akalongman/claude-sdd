@@ -160,7 +160,8 @@ const HISTORY: ReadonlyArray<SessionMessage> = [
 // and every submission enters. `messages` as a function is asked at each read of the transcript, and answers when what
 // it returns does; `rule: 'hang'` is a read that never answers, and a promise one that answers when the test settles
 // it; `turn: 'deny'` refuses `$.state.get`, and a function is asked at each read of the turn and answers when what it
-// returns does; `submit: 'reject'` is a submission that rejects.
+// returns does; with `submit: 'reject'` the submission's hook throws, and the engine skips it, so the submission
+// rejects.
 type World = {
     readonly register?: 'deny';
     readonly id?: string | Error;
@@ -414,13 +415,15 @@ test('a second --session is passed on, and the command refuses it', async ($, on
     expect(world.submits).toEqual([]);
 });
 
+// The line of a session's command typed where the session's id could not be read, the test's reason in it.
+function expectNoIdLine(text: string | undefined): void {
+    expect(text).toStartWith("noask: this session's id could not be read (");
+    expect(text).toEndWith('no id in this test); noask global on still switches every session');
+}
+
 test("with no usable id a session's command runs nothing, and a switch typed says so twice", async ($, on) => {
     const world = stage(on, { id: new Error('no id in this test') });
     await idle($);
-    const expectNoIdLine = (text: string | undefined): void => {
-        expect(text).toStartWith("noask: this session's id could not be read (");
-        expect(text).toEndWith('no id in this test); noask global on still switches every session');
-    };
     const switchedOn = await noask($, 'on');
     expectNoIdLine(switchedOn);
     expect(world.toasts).toEqual([switchedOn]);
@@ -726,14 +729,15 @@ test('a dropped submission raises a toast with the reason', async ($, on) => {
     expect(world.toasts).toEqual(['sdd: the wake-up turn could not be submitted: dropped by the test']);
 });
 
+// The engine skips the test's submission hook that throws, so nothing beneath answers the submission, which rejects
+// with the engine's message; the toast carries it whole.
 test('a submission that rejects raises a toast with the message', async ($, on) => {
     const world = stage(on, { submit: 'reject' });
     await idle($);
     await noask($, 'on');
     await world.clock.settle();
     expect(world.submits).toHaveLength(1);
-    expect(world.toasts).toHaveLength(1);
-    expect(world.toasts[0]).toMatch(/^sdd: the wake-up turn could not be submitted: \S/);
+    expect(world.toasts).toEqual(['sdd: the wake-up turn could not be submitted: no implementation for prompt.submit']);
 });
 
 for (const args of ['on', 'off', 'global on', 'global off', 'on handsoff 3h']) {
@@ -779,6 +783,28 @@ test('an on refused with exit 2 shows the usage line and wakes nothing', async (
     expect(world.submits).toEqual([]);
 });
 
+// A run that rejects switched nothing for a form that switches nothing: its line says the command could not run, and
+// no toast is raised.
+const SWITCHING_NOTHING: ReadonlyArray<readonly [string, string]> = [
+    ['the bare /noask', ''],
+    ['/noask status', 'status'],
+    ['/noask count reset', 'count reset'],
+    ["a subagent's count reset", '--agent a1 count reset'],
+];
+
+for (const [name, args] of SWITCHING_NOTHING) {
+    test(`a run of ${name} that rejects is said once, in the text`, async ($, on) => {
+        const world = stage(on, { reply: new Error('command still running after 10000 ms') });
+        await idle($);
+        const text = await noask($, args);
+        await world.clock.settle();
+        expect(text).toStartWith('noask: the command could not run: ');
+        expect(text).toEndWith('command still running after 10000 ms');
+        expect(world.toasts).toEqual([]);
+        expect(world.submits).toEqual([]);
+    });
+}
+
 test('a run that rejects is said twice and wakes nothing', async ($, on) => {
     const world = stage(on, { reply: new Error('command still running after 10000 ms') });
     await idle($);
@@ -815,7 +841,7 @@ test('a status, an off and an on refused with exit 2 do not carry the partial li
 // Who typed it: the bare command and `status`, the one word, run for every origin; every other form, a switch, a count
 // or any other words, runs only when the owner typed it, at the prompt or through the bridge. From anywhere else the
 // command's text is the one line below, written out here once more.
-const OWNER_ONLY = 'noask: /noask switches only when the owner types it; nothing changed';
+const OWNER_ONLY = 'noask: /noask acts only when the owner types it; nothing changed';
 const BRIDGE: PromptOrigin = { kind: 'bridge' };
 const THE_OWNER: ReadonlyArray<PromptOrigin> = [AT_PROMPT.origin, BRIDGE];
 const NOT_THE_OWNER: ReadonlyArray<PromptOrigin> = [
@@ -1487,6 +1513,14 @@ test('the question is denied with the rule and counted; the plan approval is not
     expect(seen.runs[0]?.init).toStrictEqual({ timeoutMs: 5_000, env: { SDD_NOASK_NOW: '', SDD_NOASK_LOCK_WAIT: '' } });
 });
 
+// A subagent's plan approval is refused with the role's text, as its other refusals are, and counted nowhere.
+test("a subagent's plan approval is denied with the role's text, uncounted", async ($, on) => {
+    const seen = scene(on, { files: { [GLOBAL]: MARKER_ON } });
+    expect(await call($, PLAN, 'a1')).toEqual(denied(SUBAGENT_TEXT));
+    expect(await call($, PLAN)).toEqual(denied(PLAN_TEXT));
+    expect(seen.runs).toEqual([]);
+});
+
 test("the question budget is the option's", { options: { questionBudget: 3 } }, async ($, on) => {
     const seen = scene(on, { files: { [GLOBAL]: MARKER_ON } });
     expect(await call($, QUESTION)).toEqual(denied(QUESTION_TEXT));
@@ -1949,6 +1983,15 @@ test('a watch hook that throws after an on reading is denied with the rule and t
     expect(seen.reached).toEqual([]);
 });
 
+test('a notebook hook that throws after an on reading is denied with the rule and the failure', async ($, on) => {
+    const seen = scene(on, { files: { [GLOBAL]: MARKER_ON }, refusedHomeRead: 2 });
+    const answer = await call($, notebook(`${SESSION.cwd}/x.ipynb`));
+    expect(answer.deny).toStartWith(`${RULE}${HOOK_FAILED}`);
+    expect(answer.deny).toEndWith(REFUSED_HOME);
+    expect(seen.runs).toEqual([]);
+    expect(seen.reached).toEqual([]);
+});
+
 test("a subagent's hook that throws is denied with the role's text and the failure", async ($, on) => {
     const seen = scene(on, { files: { [GLOBAL]: MARKER_ON }, refusedHomeRead: 2 });
     const answer = await call($, shell('git push'), 'a1');
@@ -1976,6 +2019,7 @@ const NAMED_BY_THE_GUARD: ReadonlyArray<readonly [string, Input]> = [
     ['noask global on', shell('noask global on')],
     ['an edit of the global marker', edit(GLOBAL)],
     ['a write of a session marker spelled with ~', write('~/.local/state/sdd/noask.d/s-1')],
+    ['a notebook edit of a record', notebook(RECORD)],
 ];
 
 for (const [name, input] of NAMED_BY_THE_GUARD) {
@@ -2054,6 +2098,14 @@ test("a failure after the call ran hands back the call's own outcome and denies 
     const seen = scene(on, { files: { [OWN]: MARKER_HANDSOFF }, tool: 'reject' });
     await expect(call($, shell('git push'))).rejects.toThrow('no implementation for tool.call');
     expect(seen.reached).toEqual(['Bash git push']);
+    expect(seen.runs).toEqual([]);
+});
+
+// The plan approval's hook has no call that throws before it calls next: its handler runs once the call beneath fails.
+test("a plan approval that fails beneath the hook hands back the call's own outcome", async ($, on) => {
+    const seen = scene(on, { tool: 'reject' });
+    await expect(call($, PLAN)).rejects.toThrow('no implementation for tool.call');
+    expect(seen.reached).toEqual(['ExitPlanMode']);
     expect(seen.runs).toEqual([]);
 });
 
