@@ -671,10 +671,7 @@ test('the state directory as spelled, and where it lands through a link above it
     expect(await stateRoots(plain.engine, HOME)).toEqual(['/home/u/.local/state/sdd']);
 
     const linked = stage({ real: { '/home/u/.local/state': '/home/u/elsewhere/state' } });
-    expect(await stateRoots(linked.engine, HOME)).toEqual([
-        '/home/u/.local/state/sdd',
-        '/home/u/elsewhere/state/sdd',
-    ]);
+    expect(await stateRoots(linked.engine, HOME)).toEqual(['/home/u/.local/state/sdd', '/home/u/elsewhere/state/sdd']);
 });
 
 test('a state directory that cannot be placed in time stands as spelled', async () => {
