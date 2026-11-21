@@ -320,16 +320,28 @@ off, since the guard cannot tell what they would run:
 - A command the guard cannot read to its end, because it is too long or
   nested too deep: the scan has a fixed amount of work for one command.
   As measured on the costliest lines found, that work reads to its end at
-  least some 140 KB of plain script, one with no file program, no
-  redirection that writes a file and no `git`, `gh`, `glab` or `noask`
-  behind a prefix command (most such scripts are read past 160 KB), and
-  some 110 KB when each line also writes a file spelled from a home of 13
-  characters (`echo a >~/a`). A file program costs more for each path it
-  judges: `rm -f` is read to its end with some 2,100 absolute paths of 33
-  characters, 5,000 relative ones of 20 characters or 1,200 of 59
-  characters under the home, `cp` with some 3,000, 7,000 or 1,750 of the
-  same, and a script of `rm -f ~/...` lines to some 1,800 lines (58 KB)
-  with that home. An ordinary tool call stays far below these sizes.
+  least some 139 KB of plain script: simple commands joined by `;`, `&`,
+  `&&`, `||`, `|` or line ends, each a lone `NAME=value` word or one that
+  starts with its name, made of words, quoted strings, `$name`
+  parameters, redirections that write no file, and `$(...)` or `<(...)`
+  around such commands, with no file program and no word after a prefix
+  command that names `git`, `gh`, `glab`, `noask` or a file program (in
+  `sudo apt-get install` the scan reads `install` as the file program, as
+  said below). Anything else can cost more: lines of one-letter words in
+  a group (`{ a b c ...; }`) are read to some 108 KB, and one-letter
+  words in a backtick substitution, or terms of arithmetic written with
+  spaces (`(( a + b + c ))`), to some 88 KB; each word at a command's
+  start (a `NAME=value` word, `time`, `!`, or a reserved word such as
+  `if` or `do`) is looked at again for every later word of the command,
+  so one command of 1,000 `NAME=value` words, under 4 KB, is refused.
+  A file program, or a redirection that writes a file, costs more for
+  each path it judges: `rm -f` is read to its end with some 2,100
+  absolute paths of 33 characters, 5,000 relative ones of 20 characters
+  or 1,200 of 59 characters under the home, `cp` with some 3,000, 7,000
+  or 1,750 of the same, and, with a home of 13 characters, a script of
+  `echo a >~/a` lines to some 110 KB and one of `rm -f ~/...` lines to
+  some 1,800 lines (58 KB). An ordinary tool call stays far below these
+  sizes.
 - A command in which a substitution (`$(...)`, `<(...)`, `>(...)`,
   `${ ...; }`) closes while a here-document opened inside it is still
   open, such as `x=$(cat <<EOF)` with the body on the lines after it,
@@ -410,10 +422,13 @@ more places, each failing closed: `rm -rf ~/*`, whose `*` it matches to
 `.local` (above); a double parenthesis, which it reads both as arithmetic
 and as commands, so `((git push))`, arithmetic to bash that runs nothing,
 is a push; and two commands it takes for a here-document left open by a
-substitution: an unclosed `$[` before a comment that holds a substitution
-(`echo $[ 1 # $(: <<B)`, past which bash runs nothing), and a shift
-inside `((` in a function's body (`function f { (( n<(1<<10) )); }`),
-plain or inside backticks, which bash reads as arithmetic.
+substitution: an unclosed `$[` before a comment that holds a `$(...)` or
+`${ ...; }` leaving a here-document open (`echo $[ 1 # $(: <<B)`, past
+which bash runs nothing), and a shift after `<(` inside `((` in the
+first command of the body of a function declared with the word
+`function` and no parentheses, written on the line of its `{`
+(`function f { (( n<(1<<10) )); }`), plain, inside backticks or inside
+`$(...)`, which bash reads as arithmetic.
 
 ### noask and handsoff
 
