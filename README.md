@@ -185,14 +185,17 @@ In a session:
 /noask off                            this session's switch off
 /noask                                the status
 /noask global on [9h | until 07:30]   noask for every session
-/noask global off                     the switch of every session off
+/noask global off                     the global switch off
 ```
 
 `<expiry>` is `<n>h`, `<n>m` or `until HH:MM`, the next such local time.
 A session's switch typed with no expiry ends after 8 hours; the global
-switch typed with none stays on until it is switched off. What each line
-prints first, typed one after another at 23:00 on 11 November in a session
-where no switch was on:
+switch typed with none stays on until it is switched off. `global off`
+turns off the global switch only: a session's own switch stays on until
+`/noask off` is typed in that session or its expiry comes, and
+`global off` says so of the session it is typed in. What each line prints
+first, typed one after another at 23:00 on 11 November in a session where
+no switch was on:
 
 | You type | The first line printed |
 |---|---|
@@ -221,7 +224,7 @@ form, each switch among them, runs only when you type it at the session's
 prompt or send it from your phone or the web through Remote Control; sent
 from anywhere else (a schedule or a loop, another session, a channel,
 another plugin, the SDK, an automatic continuation), it runs nothing and
-shows `noask: /noask switches only when the owner types it; nothing changed`.
+shows `noask: /noask acts only when the owner types it; nothing changed`.
 
 In a terminal the command is `bin/noask` in the plugin's folder, until the
 next release links it into `~/.local/bin`. There
@@ -233,7 +236,9 @@ session's own switch is typed in that session.
 
 - A question is refused with the rule text, and the session rules for
   itself. A plan approval is refused with a line of its own, which asks the
-  session to end its turn on `noask: blocked: plan awaits review`.
+  main session to end its turn on `noask: blocked: plan awaits review`; a
+  subagent's is refused with the line that asks it to follow its role's
+  rule for a denied tool.
 - A push, a pull or merge request (`gh pr create`, `glab mr create`), an
   edit through a file tool under a configuration directory (each entry of
   the home whose name starts with `.claude`, and the directory
@@ -255,7 +260,10 @@ session's own switch is typed in that session.
   path that starts like a configuration directory is refused by its
   spelling, a plan's too. So is a plan's write while its path cannot be
   resolved in time: the path is then judged by its spelling alone, with
-  no exception for `plans/`.
+  no exception for `plans/`. Nor is there the exception while a
+  configuration directory itself cannot be resolved (its look refused, or
+  not answered in time), since a `plans` folder that is a link may lead
+  into it: an edit under any of them is then refused, a plan's too.
 - Two budgets bound the refusals: 6 refused questions and 10 denials, the
   fence's and the guard's included. Once one is spent, a refusal asks the
   main session to end its turn with the list of its rulings and the line
@@ -297,7 +305,8 @@ In every session, under noask or not, the plugin refuses an agent's own:
 A `*`, `?` or `[...]` in such a path is matched part by part, a little
 wider than the shell matches it (a set stands for any one character, and a
 leading dot is matched like any other), so `rm -rf ~/.local/state/*` is
-refused as the removal it is, and so is `rm -rf ~/*`. Under noask with the
+refused as the removal it is; so is `rm -rf ~/*`, whose `*` the shell does
+not match to `.local`, a refusal beyond need (below). Under noask with the
 fence on, the guard's refusal carries the fence's line and counts as a
 denial; otherwise it carries a line of its own and counts nothing. A call
 wrapped in `sh -c`, a quoted `eval`, a script or an alias passes the
@@ -310,12 +319,17 @@ off, since the guard cannot tell what they would run:
 
 - A command the guard cannot read to its end, because it is too long or
   nested too deep: the scan has a fixed amount of work for one command.
-  As measured, that work reads to its end about 230 KB of plain script, a
-  file program such as `rm -f` or `cp` with some 2,100 to 5,000 paths
-  (some 1,200 when each is a path of 59 characters under the home),
-  a script of some 1,800 `rm -f ~/...` lines (60 KB), and a script with a
-  redirection on each line up to some 194 KB. An ordinary tool call stays
-  far below these sizes.
+  As measured on the costliest lines found, that work reads to its end at
+  least some 140 KB of plain script, one with no file program, no
+  redirection that writes a file and no `git`, `gh`, `glab` or `noask`
+  behind a prefix command (most such scripts are read past 160 KB), and
+  some 110 KB when each line also writes a file spelled from a home of 13
+  characters (`echo a >~/a`). A file program costs more for each path it
+  judges: `rm -f` is read to its end with some 2,100 absolute paths of 33
+  characters, 5,000 relative ones of 20 characters or 1,200 of 59
+  characters under the home, `cp` with some 3,000, 7,000 or 1,750 of the
+  same, and a script of `rm -f ~/...` lines to some 1,800 lines (58 KB)
+  with that home. An ordinary tool call stays far below these sizes.
 - A command in which a substitution (`$(...)`, `<(...)`, `>(...)`,
   `${ ...; }`) closes while a here-document opened inside it is still
   open, such as `x=$(cat <<EOF)` with the body on the lines after it,
@@ -325,10 +339,12 @@ off, since the guard cannot tell what they would run:
 Under noask with the fence on, each is a denial of the fence; otherwise
 it is refused with a line that says how to write the command instead.
 
-The fence and the guard read a shell command wherever an agent hands one
-to a tool: to the shell tool, and to the watch tool, which runs a command
-and takes each line it prints as an event. A watch of a socket holds no
-command and passes.
+The fence and the guard read a shell command that an agent hands to the
+shell tool or to the watch tool, which runs a command and takes each line
+it prints as an event; a watch of a socket holds no command and passes.
+These two are the only tools hooked for a command: a tool of an MCP
+server that runs a shell command is hooked by nothing, and its command
+passes both.
 
 ### What the fence and the guard do not catch
 
@@ -338,23 +354,48 @@ command and passes.
   from the scan, as a wrapped one does: the fence and the guard stand
   against a plain call, not against a session that sets out to get round
   them.
+- A command run by a word the scan does not read as a prefix command
+  (`builtin`, `coproc`, `chronic` or the `watch` program, as in
+  `coproc git push`), a function declared with the word `function`
+  (`function f { git push; }; f`), a command word made by a brace list
+  (`{git,push}`) or joined by `${IFS}` (`noask${IFS}global${IFS}off`), a
+  git alias for `push`, and a declaration behind a prefix command
+  (`command export SDD_NOASK_NOW=1`, while a plain `export` of the name is
+  refused) pass.
 - A relative path into the state directory
   (`cd ~/.local/state/sdd && rm noask`), a path spelled with a brace list
-  (`~/.local/{state,share}`), a copy that brings a folder named `sdd` into
-  the folder above the state directory (`cp -R /tmp/sdd ~/.local/state`),
-  and a write by a command the guard does not list (`sed -i`, an
-  interpreter's one-line program) pass.
+  (`~/.local/{state,share}`) or from the home as `~user` or `${HOME:-x}`,
+  a copy that brings a folder named `sdd` into the folder above the state
+  directory (`cp -R /tmp/sdd ~/.local/state`), the removal of a folder
+  above the home (`rm -rf /home`), and a write by a command the guard does
+  not list (`sed -i`, `find -delete`, an interpreter's one-line program)
+  pass.
+- A substitution in single quotes inside arithmetic
+  (`x=$(( '$(noask global off)' ))`) or inside a parameter's default in
+  double quotes (`echo "${x:-'$(git push)'}"`) is not read, while bash
+  runs it.
 - Inside the text of a double parenthesis, which the scan reads both as
   arithmetic and as commands (`$((...))`, and `((...))` where a command
   stands), a here-document that a substitution leaves open is read in an
   order that is not always bash's. There a push or a switch on a line
   that bash runs can pass the scan, and a line that bash reads as a
   here-document's body can be refused.
+- In a few more layouts the scan reads lines that bash runs as a
+  here-document's body, so a push or a switch on them passes: after a
+  compound assignment's subscript that holds `<<` (`arr=( [1<<2]=y )`, a
+  shift to bash), and in a `$(`, alone or inside another, that runs across
+  a line end after a here-document opened earlier on its line
+  (`: <<EOF; echo $(true` and the lines after), whose body bash reads only
+  after the line the substitution closes on.
 - One more, in a failure only: while the home directory cannot be listed,
   a configuration directory other than `~/.claude` and the one
   `CLAUDE_CONFIG_DIR` names that is a link is guarded by its name and not
   by where the link points, so an edit that names the link's target
   passes; and so is any of them while a path cannot be resolved in time.
+- The guard, like the fence, judges a path that cannot be resolved in time
+  by its spelling alone, and a link to a file that is not there yet by the
+  link's own path, so a write through either link into the state
+  directory or a configuration directory passes.
 
 After a prefix command (`env`, `command`, `exec`, `nohup`, `sudo`,
 `doas`, `eval`, and the runners `timeout`, `nice`, `ionice`, `setsid`,
@@ -364,7 +405,15 @@ command, so `timeout 60 git push` is a push, one other than a plain one.
 That refuses a little beyond need: the scan does not read which words are
 an option's value, so a line where such a name stands as another
 command's argument can be refused (`sudo grep -rn noask docs`), while the
-same line without the prefix passes.
+same line without the prefix passes. The scan refuses beyond need in a few
+more places, each failing closed: `rm -rf ~/*`, whose `*` it matches to
+`.local` (above); a double parenthesis, which it reads both as arithmetic
+and as commands, so `((git push))`, arithmetic to bash that runs nothing,
+is a push; and two commands it takes for a here-document left open by a
+substitution: an unclosed `$[` before a comment that holds a substitution
+(`echo $[ 1 # $(: <<B)`, past which bash runs nothing), and a shift
+inside `((` in a function's body (`function f { (( n<(1<<10) )); }`),
+plain or inside backticks, which bash reads as arithmetic.
 
 ### noask and handsoff
 
@@ -380,12 +429,16 @@ push only with a plain push: `git push` with no setting or prefix command
 (`timeout` among them, as named above) before `git`, nothing between
 `git` and `push` but `-C <path>`, and after it at most one `-u` or
 `--set-upstream`, a remote by its name and one branch, all written with
-literal words. A pattern, a variable or a substitution in it, or a
-remote given as a URL, makes it no plain push, and it is refused; so is
-a call that also holds anything else the fence names. What the
-repository's own configuration makes of a plain push (a mirror remote, a
-push default) the fence does not see. The global switch has no such
-level.
+literal words. The remote is the first word after `push` other than its
+option, the only one when there is one; one that holds a `/`, is `.` or
+`..`, or starts with `~` is a path and not a name, while a branch may
+hold a `/` (`git push origin feature/x`). A pattern, a variable or a
+substitution in it, or a remote given as a URL or as a path
+(`git push /srv/git/x.git main`), makes it no plain push, and it is
+refused; so is a call that also holds anything else the fence names.
+What the repository's own configuration makes of a plain push (a mirror
+remote, a push default) the fence does not see. The global switch has no
+such level.
 
 ### Settings, what it sends, where it runs
 
@@ -456,7 +509,9 @@ update only while the paths it handed to its controllers still exist.
 ## Uninstall
 
 First switch noask off: type `/noask global off` in a session, or run
-`bin/noask global off` of the plugin's folder in a terminal. Then:
+`bin/noask global off` of the plugin's folder in a terminal, for the
+global switch, and type `/noask off` in each session whose own switch is
+on (a bare `bin/noask` lists them). Then:
 
 ```bash
 claude plugin uninstall sdd@akalongman

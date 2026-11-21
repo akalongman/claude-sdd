@@ -2575,8 +2575,8 @@ The minor findings that the reviews of the build of `bin/noask`
 
 The run's own rulings that changed what was built beyond the plan's
 text, by the run's numbers, each with what it would cost if it were
-wrong. The sentences that R9 and R10, R14, R15, R17 and R20 add to the
-spec, and the texts `OWNER_ONLY_LINE`, `TOO_COMPLEX_TEXT` and
+wrong. The sentences that R9 and R10, R14, R15, R17, R20 and R21 add to
+the spec, and the texts `OWNER_ONLY_LINE`, `TOO_COMPLEX_TEXT` and
 `LEFT_OPEN_TEXT` in `hooks/text.ts`, wait for the spec's revision 21,
 where the owner confirms them.
 
@@ -2658,6 +2658,38 @@ where the owner confirms them.
   argument behind a runner brings a refusal not earned
   (`timeout 5 grep -rn noask docs`), and an edit of a plan under noask is
   no longer refused; one commit to revert per part.
+- R21 (the owner, 2026-11-21, on the run's Minor findings). A pass after
+  the final review, its code first and its prose after. The plans
+  exception holds only while the home is listed and every configuration
+  directory's resolution answered, one that is not there counting as
+  answered; otherwise a path under any of them is refused as before the
+  exception. A `CLAUDE_CONFIG_DIR` spelled with `~` is also a directory by
+  where its expanded spelling resolves. A remote given as a path (the
+  first word after `push` but its option holds a `/`, is `.` or `..`, or
+  starts with `~`) makes a push other than a plain one; a branch may hold
+  a `/`. A subagent's refused plan approval gets the role's text, still
+  counted nowhere. A form of `/noask` that switches nothing and could not
+  run says `noask: the command could not run: <message>` with no toast,
+  while a switch keeps `noask: the switch could not run: <message>` and
+  its toast; the line for a form the owner did not type is now
+  `noask: /noask acts only when the owner types it; nothing changed`.
+  `count read` says of a record that does not parse that it was read as
+  an empty one and left as it is. The fence takes the timed-out reason
+  from the marker reader, the `.catch` handlers share one wiring, each
+  timed test holds the fastest of three runs to the same 250 ms, the
+  tests use a neutral home, and the fence option's description has a
+  subject. The README states the scan's room as measured at this pass's
+  head, with the least plain script always read, which the work limit's
+  comment now states too; names `rm -rf ~/*` and three more refusals
+  beyond need; says that `global off` leaves a session's own switch on,
+  that the shell tool and the watch tool are the only tools hooked for a
+  command, and that a write through a link the guard cannot follow in
+  time, or to a file not there yet, passes it as it passes the fence; and
+  lists among what passes the spellings, the declaration behind a prefix
+  command, the two quoted substitutions and the here-document layouts
+  that the scan does not read as bash does. The Gates below say which
+  gates ran before the last wording edits; their outputs stay Task 7's.
+  Cost if wrong: one commit to revert per item.
 
 ### Not covered
 
@@ -2671,9 +2703,13 @@ where the owner confirms them.
 
 ### Gates
 
-At the repository root, in the working tree before this entry's commit
-and with this entry's text in place, the gates of this task, run one after
-another. The output is whole but for one cut: of `claude plugin test .`
+At the repository root, in the working tree before this entry's commit,
+the gates of this task, run one after another. `claude plugin test .`,
+the type check, `bash tests/run.sh`, shellcheck and the fence's table
+ran before the last wording edits of the README, this entry and the CI
+workflow's comment, none of which they read; the three `grep` commands,
+`jq` and the validation ran again on the final text and printed the same.
+The output is whole but for one cut: of `claude plugin test .`
 the command line and its closing lines are quoted, and the 636 lines
 `(pass) <test> [<time>]` under the names of its five test files are left
 out. Only the home directory is written as `~`:
