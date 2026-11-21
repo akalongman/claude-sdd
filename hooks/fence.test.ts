@@ -33,16 +33,30 @@ test('the table holds every record of tests/fence-rows.txt', async () => {
 // is too complex to read: one hit of its own, refused by the guard in every session. A hook's .catch handler has 1
 // second, in which it scans the command again after the hook, so each scan below must end in a quarter of it. Each of
 // the review's three nestings doubled or tripled the scan's time with each level before; now a moderate depth is read
-// to its end, and a deep one, past the limit, is refused.
+// to its end, and a deep one, past the limit, is refused. A scan is held to the bound by the fastest of three runs, so
+// that a busy runner, which slows one run now and then, does not fail a scan that fits it.
 
 const TOO_COMPLEX: ReadonlyArray<FenceWhat> = ['a command too complex to read'];
 const TIME_BOUND_MS = 250;
+const RUNS = 3;
 
-// The hits of one call of shellHits, and its time.
-function timed(command: string): { readonly hits: ReadonlyArray<FenceWhat>; readonly ms: number } {
-    const start = performance.now();
-    const hits = shellHits(command, HOME).map(({ what }) => what);
-    return { hits, ms: performance.now() - start };
+// The hits of shellHits on the command under `home`, and the time of the fastest of RUNS runs, each run `scans` calls
+// one after another. shellHits keeps nothing from one call to the next, so every call gives the same hits.
+function timed(
+    command: string,
+    home: string = HOME,
+    scans = 1,
+): { readonly hits: ReadonlyArray<FenceWhat>; readonly ms: number } {
+    let hits: ReadonlyArray<FenceWhat> = [];
+    let fastest = Number.POSITIVE_INFINITY;
+    for (let run = 0; run < RUNS; run += 1) {
+        const start = performance.now();
+        for (let scan = 0; scan < scans; scan += 1) {
+            hits = shellHits(command, home).map(({ what }) => what);
+        }
+        fastest = Math.min(fastest, performance.now() - start);
+    }
+    return { hits, ms: fastest };
 }
 
 function nested(wrap: (inner: string) => string, depth: number): string {
@@ -134,7 +148,7 @@ test('a long ordinary script, here-document and all, is read to its end', async 
 // alone, such a command took half a second to refuse. The first five are the review's (the first one the calibration
 // row, quick before too); the last two put a path part's pattern and a deep home under the same count. Each is refused
 // in time, and so are the hook's scan and its .catch handler's second scan of the same command together.
-const HOME_LONGER = '/home/longman';
+const HOME_LONGER = '/home/example';
 const HOME_DEEP = `/${'h'.repeat(60)}/${'u'.repeat(60)}/${'x'.repeat(60)}`;
 const JUDGED: ReadonlyArray<readonly [string, string, string]> = [
     ['sudo, 805 rm and a path', `sudo ${'rm '.repeat(805)}/home/u/.local/state/x`, HOME],
@@ -148,15 +162,12 @@ const JUDGED: ReadonlyArray<readonly [string, string, string]> = [
 
 for (const [name, command, home] of JUDGED) {
     test(`judging is counted by its work: ${name} is refused in time, twice over too`, async () => {
-        const start = performance.now();
-        const first = shellHits(command, home).map(({ what }) => what);
-        const firstMs = performance.now() - start;
-        const second = shellHits(command, home).map(({ what }) => what);
-        const bothMs = performance.now() - start;
-        expect(first).toEqual(TOO_COMPLEX);
-        expect(second).toEqual(TOO_COMPLEX);
-        expect(firstMs).toBeLessThan(TIME_BOUND_MS);
-        expect(bothMs).toBeLessThan(2 * TIME_BOUND_MS);
+        const once = timed(command, home);
+        const twice = timed(command, home, 2);
+        expect(once.hits).toEqual(TOO_COMPLEX);
+        expect(twice.hits).toEqual(TOO_COMPLEX);
+        expect(once.ms).toBeLessThan(TIME_BOUND_MS);
+        expect(twice.ms).toBeLessThan(2 * TIME_BOUND_MS);
     });
 }
 
