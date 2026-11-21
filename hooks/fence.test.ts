@@ -26,7 +26,7 @@ for (const [index, { command, hits }] of FENCE_ROWS.entries()) {
 }
 
 test('the table holds every record of tests/fence-rows.txt', async () => {
-    expect(FENCE_ROWS).toHaveLength(297);
+    expect(FENCE_ROWS).toHaveLength(306);
 });
 
 // The scan's work. Each nested text is read once per reading, and a command whose reading passes the scan's work limit

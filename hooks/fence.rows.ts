@@ -278,6 +278,34 @@ push`,
         hits: ['a push other than a plain one'],
     },
     {
+        command: `git push /srv/git/x.git main`,
+        hits: ['a push other than a plain one'],
+    },
+    {
+        command: `git push /srv/git/x.git`,
+        hits: ['a push other than a plain one'],
+    },
+    {
+        command: `git push ./x.git main`,
+        hits: ['a push other than a plain one'],
+    },
+    {
+        command: `git push . main`,
+        hits: ['a push other than a plain one'],
+    },
+    {
+        command: `git push .. main`,
+        hits: ['a push other than a plain one'],
+    },
+    {
+        command: `git push ~/x.git`,
+        hits: ['a push other than a plain one'],
+    },
+    {
+        command: `git push feature/x`,
+        hits: ['a push other than a plain one'],
+    },
+    {
         command: `git push`,
         hits: ['a push'],
     },
@@ -291,6 +319,14 @@ push`,
     },
     {
         command: `git push -u origin b`,
+        hits: ['a push'],
+    },
+    {
+        command: `git push origin feature/x`,
+        hits: ['a push'],
+    },
+    {
+        command: `git push -u origin feature/x`,
         hits: ['a push'],
     },
     {

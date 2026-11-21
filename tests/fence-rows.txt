@@ -365,6 +365,46 @@ git push https://example.org/o/r.git main
 git push git@example.org:o/r.git main
 # end
 
+## A remote given as a path, not by its name: the remote is the first word
+## after push, the only one when there is one, and one that holds a /, is .
+## or .., or starts with ~ is a path. The stubs' check does not read the
+## remote's role. A branch may hold a / (the next section).
+
+# hits: a push other than a plain one
+# bash: norun: an absolute path
+git push /srv/git/x.git main
+# end
+
+# hits: a push other than a plain one
+# bash: norun: an absolute path
+git push /srv/git/x.git
+# end
+
+# hits: a push other than a plain one
+# bash: differs: a role (the remote is given as a path)
+git push ./x.git main
+# end
+
+# hits: a push other than a plain one
+# bash: differs: a role (the remote is given as a path)
+git push . main
+# end
+
+# hits: a push other than a plain one
+# bash: norun: a .. that climbs above where its path starts
+git push .. main
+# end
+
+# hits: a push other than a plain one
+# bash: differs: a role (the remote is given as a path)
+git push ~/x.git
+# end
+
+# hits: a push other than a plain one
+# bash: differs: a role (the only word after push is the remote, here a path)
+git push feature/x
+# end
+
 ## Plain pushes, their output redirected or not.
 
 # hits: a push
@@ -385,6 +425,16 @@ git push origin b
 # hits: a push
 # bash: agrees
 git push -u origin b
+# end
+
+# hits: a push
+# bash: agrees
+git push origin feature/x
+# end
+
+# hits: a push
+# bash: agrees
+git push -u origin feature/x
 # end
 
 # hits: a push

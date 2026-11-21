@@ -1194,8 +1194,14 @@ function isLiteralWord(word: Word): boolean {
     return !word.isExpanding && !word.chars.some(({ value, isQuoted }) => !isQuoted && '*?[{'.includes(value));
 }
 
+// A remote given as a path, not by its name: it holds a `/`, is `.` or `..`, or starts with `~`.
+function isPathRemote(value: string): boolean {
+    return value.includes('/') || value === '.' || value === '..' || value.startsWith('~');
+}
+
 // After push: at most one -u or --set-upstream and at most two other words, a remote and a branch, neither starting
-// with - or + nor holding a `:`.
+// with - or + nor holding a `:`, and the remote, the first of them, named and not given as a path; a branch may hold a
+// `/`.
 function isPlainTail(words: ReadonlyArray<Word>): boolean {
     let upstreams = 0;
     let operands = 0;
@@ -1204,6 +1210,8 @@ function isPlainTail(words: ReadonlyArray<Word>): boolean {
         if (value === '-u' || value === '--set-upstream') {
             upstreams += 1;
         } else if (value.startsWith('-') || value.startsWith('+') || value.includes(':')) {
+            return false;
+        } else if (operands === 0 && isPathRemote(value)) {
             return false;
         } else {
             operands += 1;
