@@ -1423,10 +1423,22 @@ async function listingOf(
     return $.fs.list(path);
 }
 
-// Where a path lands when it exists, or undefined.
-async function realPathOf($: Pick<EngineInterface, 'fs' | 'clock'>, path: string): Promise<string | undefined> {
+// What a root's resolution came to: where the root lands, undefined when it is not there or is a link that leads
+// nowhere; and whether the call answered so. A call refused for another reason than a missing path, or that did not
+// answer in time, did not: where that root lands is unknown.
+type Resolution = { readonly realPath: string | undefined; readonly isAnswered: boolean };
+
+// The engine's rejection of a call on a missing path names ENOENT.
+const MISSING = /\bENOENT\b/;
+
+// The resolution of a root that is not looked at.
+const UNLOOKED: Resolution = { realPath: undefined, isAnswered: true };
+
+async function resolutionOf($: Pick<EngineInterface, 'fs' | 'clock'>, path: string): Promise<Resolution> {
     const answer = await inTime($, statOf($, path));
-    return answer.ok ? answer.value.realPath : undefined;
+    return answer.ok
+        ? { realPath: answer.value.realPath, isAnswered: true }
+        : { realPath: undefined, isAnswered: MISSING.test(answer.error) };
 }
 
 function defined(paths: ReadonlyArray<string | undefined>): ReadonlyArray<string> {
@@ -1436,20 +1448,24 @@ function defined(paths: ReadonlyArray<string | undefined>): ReadonlyArray<string
 // Every entry of the home whose name starts with `.claude`, and CLAUDE_CONFIG_DIR, each as spelled and as resolved;
 // <home>/.claude whether listed or not, since a write may make it. isListed is false when the home could not be
 // listed, by a rejection or a timeout: the roots are then <home>/.claude and the variable's, each also as resolved:
-// those two are resolved by calls started together with the listing, which they do not need. A relative
-// CLAUDE_CONFIG_DIR stands as resolved alone.
+// those two are resolved by calls started together with the listing, which they do not need. CLAUDE_CONFIG_DIR is
+// resolved as written and, where its spelling differs (a `~` expanded, a `..` folded), as spelled too; a relative one
+// stands as resolved alone. isResolved is true when the home was listed and every resolution answered (resolutionOf),
+// so that no root's real place is unknown.
 export async function configRoots(
     $: Pick<EngineInterface, 'env' | 'fs' | 'clock'>,
     home: string,
-): Promise<{ readonly roots: ReadonlyArray<string>; readonly isListed: boolean }> {
+): Promise<{ readonly roots: ReadonlyArray<string>; readonly isListed: boolean; readonly isResolved: boolean }> {
     const homePath = folded(home);
     const own = joinedPath(homePath, '.claude');
     const variable = (await $.env.get('CLAUDE_CONFIG_DIR')) ?? '';
     const isSpelled = variable.startsWith('/') || variable === '~' || variable.startsWith('~/');
-    const [listed, ownReal, variableReal] = await Promise.all([
+    const variableSpelled = isSpelled ? spelled(variable, homePath, homePath) : undefined;
+    const [listed, ownResolution, variableResolution, spelledResolution] = await Promise.all([
         inTime($, listingOf($, homePath)),
-        realPathOf($, own),
-        variable === '' ? Promise.resolve(undefined) : realPathOf($, variable),
+        resolutionOf($, own),
+        variable === '' ? UNLOOKED : resolutionOf($, variable),
+        variableSpelled === undefined || variableSpelled === variable ? UNLOOKED : resolutionOf($, variableSpelled),
     ]);
     const names = listed.ok
         ? listed.value.map(({ name }) => name).filter((name) => name.startsWith('.claude') && name !== '.claude')
@@ -1457,13 +1473,26 @@ export async function configRoots(
     const others = await Promise.all(
         names.map(async (name) => {
             const path = joinedPath(homePath, name);
-            return [path, await realPathOf($, path)];
+            return { path, resolution: await resolutionOf($, path) };
         }),
     );
-    const variableSpelled = isSpelled ? spelled(variable, homePath, homePath) : undefined;
+    const resolutions = [
+        ownResolution,
+        variableResolution,
+        spelledResolution,
+        ...others.map(({ resolution }) => resolution),
+    ];
     return {
-        roots: defined([own, ownReal, ...others.flat(), variableSpelled, variableReal]),
+        roots: defined([
+            own,
+            ownResolution.realPath,
+            ...others.flatMap(({ path, resolution }) => [path, resolution.realPath]),
+            variableSpelled,
+            variableResolution.realPath,
+            spelledResolution.realPath,
+        ]),
         isListed: listed.ok,
+        isResolved: listed.ok && resolutions.every(({ isAnswered }) => isAnswered),
     };
 }
 

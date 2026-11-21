@@ -1697,7 +1697,8 @@ test('a write under folders not there yet lands where its nearest folder does', 
 // approval, is the fence's one exception there: an edit below it passes, as spelled and by where it lands. The folder
 // itself, a plans folder deeper in the directory and a memory note are fenced and counted as every other edit there,
 // and the guard knows no exception. While the home cannot be listed, a path is judged by how it starts, a plan's too,
-// and while a path cannot be placed in time, by its spelling with no exception.
+// and while a path cannot be placed in time, by its spelling with no exception; nor is there the exception while the
+// home cannot be listed or a configuration directory cannot be resolved (the tests after the guard's below).
 const PLAN_FILE = `${HOME}/.claude/plans/2026-11-20-x.md`;
 const PLANS_TO_RULES: Scene = {
     files: { [GLOBAL]: MARKER_ON },
@@ -1810,6 +1811,57 @@ test('unplaced in time, outside noask a plans link into the state directory pass
     await seen.clock.settle();
     await seen.clock.advance(LOOK_TIMEOUT_MS);
     expect(await answer).toEqual(REACHED);
+    expect(seen.runs).toEqual([]);
+});
+
+// The exception holds only while every configuration directory is resolved and the home is listed: a directory whose
+// real place is unknown may be where a plans folder that is a link leads. Here .claude is a link to /data/claude,
+// whose plans folder is a link to its rules, and the edit's path is placed; only the look at .claude itself fails.
+const LINKED_PLANS_TO_RULES: Scene = {
+    files: { [GLOBAL]: MARKER_ON },
+    links: { [`${HOME}/.claude`]: '/data/claude', '/data/claude/plans': '/data/claude/rules' },
+    dirs: ['/data/claude/rules'],
+};
+
+test('with .claude unresolved in time, an edit through its plans folder is fenced by its spelling', async ($, on) => {
+    const seen = scene(on, { ...LINKED_PLANS_TO_RULES, hang: [`stat ${HOME}/.claude`] });
+    const answer = call($, edit(`${HOME}/.claude/plans/x.md`));
+    await seen.clock.settle();
+    await seen.clock.advance(LOOK_TIMEOUT_MS);
+    expect(await answer).toEqual(CONFIG_EDIT);
+    expect(argsOf(seen)).toEqual([DENIAL_RUN]);
+});
+
+test('with the look at .claude refused, an edit through its plans folder is fenced by its spelling', async ($, on) => {
+    const seen = scene(on, { ...LINKED_PLANS_TO_RULES, refuse: [`stat ${HOME}/.claude`] });
+    expect(await call($, edit(`${HOME}/.claude/plans/x.md`))).toEqual(CONFIG_EDIT);
+    expect(argsOf(seen)).toEqual([DENIAL_RUN]);
+});
+
+test('with the home unlisted, a plans folder of CLAUDE_CONFIG_DIR linked elsewhere is fenced', async ($, on) => {
+    const seen = scene(on, {
+        files: { [GLOBAL]: MARKER_ON, [`${HOME}/dotfiles/second-profile/rules/x.md`]: '# rule\n' },
+        links: {
+            [`${HOME}/.claude2`]: `${HOME}/dotfiles/second-profile`,
+            '/etc/claude/plans': `${HOME}/dotfiles/second-profile/rules`,
+        },
+        dirs: [`${HOME}/.claude`, '/etc/claude'],
+        env: { CLAUDE_CONFIG_DIR: '/etc/claude' },
+        refuse: [`list ${HOME}`],
+    });
+    expect(await call($, edit('/etc/claude/plans/x.md'))).toEqual(CONFIG_EDIT);
+    expect(argsOf(seen)).toEqual([DENIAL_RUN]);
+});
+
+// A configuration directory that is not there is resolved as missing: CLAUDE_CONFIG_DIR's plans pass in a home with no
+// .claude.
+test('in a home with no .claude, a plan under CLAUDE_CONFIG_DIR reaches the engine, uncounted', async ($, on) => {
+    const seen = scene(on, {
+        files: { [GLOBAL]: MARKER_ON },
+        dirs: ['/etc/claude/plans'],
+        env: { CLAUDE_CONFIG_DIR: '/etc/claude' },
+    });
+    expect(await call($, write('/etc/claude/plans/y.md'))).toEqual(REACHED);
     expect(seen.runs).toEqual([]);
 });
 

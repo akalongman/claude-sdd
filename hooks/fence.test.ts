@@ -600,6 +600,7 @@ test("the roots are the home's entries that start with .claude and the variable,
     expect(await configRoots(world.engine, HOME)).toEqual({
         roots: ['/home/u/.claude', '/home/u/dotfiles/claude', '/home/u/.claude2', '/etc/claude', '/srv/claude'],
         isListed: true,
+        isResolved: true,
     });
     expect(world.calls).not.toContain('stat /home/u/.cache');
     expect(world.calls).not.toContain('stat /home/u/projects');
@@ -612,6 +613,7 @@ test('a listing that rejects leaves .claude and the variable, each resolved with
     expect(await configRoots(world.engine, HOME)).toEqual({
         roots: ['/home/u/.claude', '/home/u/dotfiles/claude', '/etc/claude', '/srv/claude'],
         isListed: false,
+        isResolved: false,
     });
 });
 
@@ -627,6 +629,7 @@ test('a listing that does not answer in time leaves the same roots, both resolve
     expect(await answer).toEqual({
         roots: ['/home/u/.claude', '/home/u/dotfiles/claude', '/etc/claude', '/srv/claude'],
         isListed: false,
+        isResolved: false,
     });
 });
 
@@ -639,6 +642,7 @@ test('when .claude cannot be resolved either, it stands as spelled', async () =>
     expect(await configRoots(rejected.engine, HOME)).toEqual({
         roots: ['/home/u/.claude', '/etc/claude', '/srv/claude'],
         isListed: false,
+        isResolved: false,
     });
 
     const listing = hanging<FsEntry[]>();
@@ -653,7 +657,11 @@ test('when .claude cannot be resolved either, it stands as spelled', async () =>
     await resolving.made;
     await flush();
     hung.fireTimers();
-    expect(await answer).toEqual({ roots: ['/home/u/.claude', '/etc/claude', '/srv/claude'], isListed: false });
+    expect(await answer).toEqual({
+        roots: ['/home/u/.claude', '/etc/claude', '/srv/claude'],
+        isListed: false,
+        isResolved: false,
+    });
 });
 
 test('without the variable the roots are the home alone', async () => {
@@ -661,7 +669,70 @@ test('without the variable the roots are the home alone', async () => {
     expect(await configRoots(world.engine, HOME)).toEqual({
         roots: ['/home/u/.claude', '/home/u/dotfiles/claude', '/home/u/.claude2'],
         isListed: true,
+        isResolved: true,
     });
+});
+
+// Whether every root was resolved: each resolution answered, with where the root lands, with no real path (a link
+// that leads nowhere) or as a path that is not there, and the home was listed, so that no root is unknown. A root
+// whose resolution was refused for another reason, or did not answer in time, is unknown, and so are the roots only
+// the listing finds when it fails.
+test('a root whose resolution is refused or does not answer in time leaves the roots unresolved', async () => {
+    const refused = stage({
+        ...LINKED,
+        stat: (path) => (path === '/home/u/.claude2' ? Promise.reject(new Error('EIO: i/o error')) : undefined),
+    });
+    expect(await configRoots(refused.engine, HOME)).toEqual({
+        roots: ['/home/u/.claude', '/home/u/dotfiles/claude', '/home/u/.claude2', '/etc/claude', '/srv/claude'],
+        isListed: true,
+        isResolved: false,
+    });
+
+    const resolving = hanging<FsStat>();
+    const hung = stage({ ...LINKED, stat: (path) => (path === '/etc/claude' ? resolving.call() : undefined) });
+    const answer = configRoots(hung.engine, HOME);
+    await resolving.made;
+    await flush();
+    hung.fireTimers();
+    expect(await answer).toEqual({
+        roots: ['/home/u/.claude', '/home/u/dotfiles/claude', '/home/u/.claude2', '/etc/claude'],
+        isListed: true,
+        isResolved: false,
+    });
+});
+
+test('a root that is not there, or a link that leads nowhere, is resolved as it is', async () => {
+    const missing = stage({ env: { HOME, CLAUDE_CONFIG_DIR: '/etc/claude' }, entries: ['.cache'] });
+    expect(await configRoots(missing.engine, HOME)).toEqual({
+        roots: ['/home/u/.claude', '/etc/claude'],
+        isListed: true,
+        isResolved: true,
+    });
+
+    const nowhere = stage({
+        entries: ['.claude-old'],
+        stat: (path) =>
+            path === '/home/u/.claude-old'
+                ? Promise.resolve({ kind: 'other', size: 0, mtimeMs: 0, isLink: true })
+                : undefined,
+    });
+    expect(await configRoots(nowhere.engine, HOME)).toEqual({
+        roots: ['/home/u/.claude', '/home/u/.claude-old'],
+        isListed: true,
+        isResolved: true,
+    });
+});
+
+// A variable spelled from the home is a root as expanded, and by where that expanded path lands: read as written, it
+// would be a path relative to the session's directory.
+test('a CLAUDE_CONFIG_DIR spelled with ~ is a root by where its expanded spelling resolves', async () => {
+    const world = stage({ env: { HOME, CLAUDE_CONFIG_DIR: '~/profile' }, real: { '/home/u/profile': '/srv/profile' } });
+    expect(await configRoots(world.engine, HOME)).toEqual({
+        roots: ['/home/u/.claude', '/home/u/profile', '/srv/profile'],
+        isListed: true,
+        isResolved: true,
+    });
+    expect(world.calls).toContain('stat /home/u/profile');
 });
 
 // stateRoots
