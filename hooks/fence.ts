@@ -121,8 +121,9 @@ const HOME_PREFIX_LENGTH = 8;
 // with the commands read one after another in one process (three runs), and 137 to 223 ms with each command alone in
 // its process, its first heavy call (six runs); the largest of a hook's scan and its .catch handler's second scan of
 // the same command together was 218 to 227 ms a run the first way, and the second way 237 to 254 ms in five runs and
-// 347 ms in the sixth: well inside the 1 second the handler has. A plain script of some 190 KB, a here-document's
-// body of some 14 MB, or a file program with some 2,000 paths, is read to its end.
+// 347 ms in the sixth: well inside the 1 second the handler has. A plain script of some 140 KB, a here-document's
+// body of some 480 KB (some 14 MB in lines of 28 characters), or a file program with some 2,000 paths of 33
+// characters, is read to its end.
 const WORK_LIMIT = 500_000;
 const SKIPPED_SHIFT = 5;
 
