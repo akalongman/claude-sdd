@@ -2680,21 +2680,22 @@ where the owner confirms them.
   tests use a neutral home, and the fence option's description has a
   subject. The README states the scan's room as measured at this pass's
   head, as the work limit's comment does too: the size of plain script
-  always read (plain being simple commands that each start with their
-  name or are one `NAME=value` word alone, of words, quoted strings,
-  `$name` parameters, redirections that write no file and `$(...)` or
-  `<(...)`, with no file program and no name the fence reads after a
-  prefix command) and what costs more, such as a word at a command's
-  start. It also names `rm -rf ~/*` and three more refusals beyond need;
-  says that `global off` leaves a session's own switch on,
-  that the shell tool and the watch tool are the only tools hooked for a
-  command, and that a write through a link the guard cannot follow in
-  time, or to a file not there yet, passes it as it passes the fence; and
-  lists among what passes the spellings, the declaration behind a prefix
-  command, the two quoted substitutions and the here-document layouts
-  that the scan does not read as bash does. The Gates below say which
-  gates ran before the last wording edits; their outputs stay Task 7's.
-  Cost if wrong: one commit to revert per item.
+  always read (plain being lines that each hold one simple command of
+  words made only of ASCII letters and digits, `.`, `_`, `-` and `/`,
+  separated by spaces or tabs, whose first word is no path, reserved
+  word, prefix command or file program, each of these measured alone at
+  its densest) and what costs more and can be refused far sooner, such
+  as a word at a command's start or a line of here-documents. It also
+  names `rm -rf ~/*` and three more refusals beyond need; says that
+  `global off` leaves a session's own switch on, that the shell tool and
+  the watch tool are the only tools hooked for a command, and that a
+  write through a link the guard cannot follow in time, or to a file not
+  there yet, passes it as it passes the fence; and lists among what
+  passes the spellings, the declaration behind a prefix command, the two
+  quoted substitutions and the here-document layouts that the scan does
+  not read as bash does. The Gates below say which gates ran before the
+  last wording edits; their outputs stay Task 7's. Cost if wrong: one
+  commit to revert per item.
 
 ### Not covered
 

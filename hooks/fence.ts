@@ -123,12 +123,15 @@ const HOME_PREFIX_LENGTH = 8;
 // the same command together was 218 to 227 ms a run the first way, and the second way 237 to 254 ms in five runs and
 // 347 ms in the sixth: well inside the 1 second the handler has. A plain script of some 139 KB, a here-document's
 // body of some 480 KB (some 14 MB in lines of 28 characters), or a file program with some 2,000 paths of 33
-// characters, is read to its end. Plain means simple commands, each a lone NAME=value word or one that starts with
-// its name, of words, quoted strings, $name parameters, redirections that write no file, and `$(...)` or `<(...)`
-// around such commands, with no file program and no word after a prefix command that names a command the fence reads.
-// Anything else can cost more (one-letter words in a group, some 108 KB; in backticks or in arithmetic with spaces,
-// some 88 KB), and each word at a command's start is looked at again for every later word of that command, so 1,000
-// NAME=value words in one command, 4,000 characters, are too complex to read.
+// characters, is read to its end. Plain means lines that each hold one simple command of words made only of ASCII
+// letters and digits, `.`, `_`, `-` and `/`, separated by spaces or tabs, whose first word is no path, reserved word,
+// prefix command or file program: so no quote, `$`, pattern, comment, redirection, here-document, assignment,
+// substitution or operator but the line end. Each of these was measured alone at its densest, and the densest, one
+// command of one-letter words, is read to 139.5 KB. Any other shape can cost more and be too complex far sooner:
+// one-letter words in a group, some 108 KB; in backticks or in arithmetic with spaces, some 88 KB; a line of 16
+// here-documents with substitutions after them, some 55 KB, since each substitution counts the here-documents still
+// waiting; and each word at a command's start is looked at again for every later word of that command, so 1,000
+// NAME=value words in one command, 4,000 characters, or 705 `!` before one, 1,412 characters, are too complex to read.
 const WORK_LIMIT = 500_000;
 const SKIPPED_SHIFT = 5;
 

@@ -318,30 +318,40 @@ Two more kinds of shell command are refused in every session, noask on or
 off, since the guard cannot tell what they would run:
 
 - A command the guard cannot read to its end, because it is too long or
-  nested too deep: the scan has a fixed amount of work for one command.
-  As measured on the costliest lines found, that work reads to its end at
-  least some 139 KB of plain script: simple commands joined by `;`, `&`,
-  `&&`, `||`, `|` or line ends, each a lone `NAME=value` word or one that
-  starts with its name, made of words, quoted strings, `$name`
-  parameters, redirections that write no file, and `$(...)` or `<(...)`
-  around such commands, with no file program and no word after a prefix
-  command that names `git`, `gh`, `glab`, `noask` or a file program (in
-  `sudo apt-get install` the scan reads `install` as the file program, as
-  said below). Anything else can cost more: lines of one-letter words in
-  a group (`{ a b c ...; }`) are read to some 108 KB, and one-letter
-  words in a backtick substitution, or terms of arithmetic written with
-  spaces (`(( a + b + c ))`), to some 88 KB; each word at a command's
-  start (a `NAME=value` word, `time`, `!`, or a reserved word such as
-  `if` or `do`) is looked at again for every later word of the command,
-  so one command of 1,000 `NAME=value` words, under 4 KB, is refused.
-  A file program, or a redirection that writes a file, costs more for
-  each path it judges: `rm -f` is read to its end with some 2,100
-  absolute paths of 33 characters, 5,000 relative ones of 20 characters
-  or 1,200 of 59 characters under the home, `cp` with some 3,000, 7,000
-  or 1,750 of the same, and, with a home of 13 characters, a script of
+  nested too deep: the scan has a fixed amount of work for one command,
+  and what a command costs depends on its shape. That work reads to its
+  end at least some 139 KB of plain script: lines that each hold one
+  simple command of words made only of ASCII letters and digits, `.`,
+  `_`, `-` and `/`, separated by spaces or tabs, whose first word is not
+  a path, a reserved word (such as `if`, `do` or `time`), a prefix
+  command (named below) or a file program (named above); so no quote,
+  `$`, pattern, comment, redirection, here-document, assignment,
+  substitution or operator but the line end. Each of these features was
+  measured alone at its densest, and the densest, one command of
+  one-letter words, is read to 139.5 KB. A script of any other shape can
+  cost more and be refused far sooner. One-letter words in a group
+  (`{ a b c ...; }`) or after `!`, `if` or `do` are read to some 108 KB,
+  and in a backtick substitution, or as terms of arithmetic written with
+  spaces (`(( a + b + c ))`), to some 88 KB. Lines of `a[1]=x`, whose
+  subscript the scan reads as arithmetic, are read to some 121 KB; lines
+  of `sudo apt-get install -y build-essential` to some 116 KB, and of
+  `sudo ./install --prefix /usr/local` to some 106 KB, since behind a
+  prefix command the scan reads `install`, and a path by its last part,
+  as the file program; and one line of 16 here-documents, the most bash
+  5.3 takes on a line, and `$(...)` after them, to some 55 KB, since
+  each substitution counts every here-document still waiting. Each word
+  at a command's start (a `NAME=value` word, `time`, `!`, or a reserved
+  word such as `if` or `do`) is looked at again for every later word of
+  the command, so one command of 1,000 `NAME=value` words, under 4 KB,
+  is refused, and so is one with 705 `!` before its name, 1.4 KB. A
+  file program, or a redirection that writes a file, costs more for each
+  path it judges: `rm -f` is read to its end with some 2,100 absolute
+  paths of 33 characters, 5,000 relative ones of 20 characters or 1,200
+  of 59 characters under the home, `cp` with some 3,000, 7,000 or 1,750
+  of the same, and, with a home of 13 characters, a script of
   `echo a >~/a` lines to some 110 KB and one of `rm -f ~/...` lines to
-  some 1,800 lines (58 KB). An ordinary tool call stays far below these
-  sizes.
+  some 1,800 lines (58 KB). An ordinary tool call comes nowhere near
+  these shapes and sizes.
 - A command in which a substitution (`$(...)`, `<(...)`, `>(...)`,
   `${ ...; }`) closes while a here-document opened inside it is still
   open, such as `x=$(cat <<EOF)` with the body on the lines after it,
@@ -368,7 +378,9 @@ passes both.
   them.
 - A command run by a word the scan does not read as a prefix command
   (`builtin`, `coproc`, `chronic` or the `watch` program, as in
-  `coproc git push`), a function declared with the word `function`
+  `coproc git push`), a command that follows a `function` on its line
+  with only words between the two, as in the body of a function declared
+  with the word `function` and no parentheses
   (`function f { git push; }; f`), a command word made by a brace list
   (`{git,push}`) or joined by `${IFS}` (`noask${IFS}global${IFS}off`), a
   git alias for `push`, and a declaration behind a prefix command
@@ -395,10 +407,16 @@ passes both.
 - In a few more layouts the scan reads lines that bash runs as a
   here-document's body, so a push or a switch on them passes: after a
   compound assignment's subscript that holds `<<` (`arr=( [1<<2]=y )`, a
-  shift to bash), and in a `$(`, alone or inside another, that runs across
-  a line end after a here-document opened earlier on its line
-  (`: <<EOF; echo $(true` and the lines after), whose body bash reads only
-  after the line the substitution closes on.
+  shift to bash); after a `<<` with a word after it inside a `((` that
+  follows a `function` or a `coproc` on its line with only words between
+  the two (`function f { (( x = 1<<10 )); }`, `coproc (( x = 1<<10 ))`),
+  a shift to bash, which the scan takes for a here-document's opener
+  since it reads that `((` as two parentheses, unless the `<<` stands
+  inside a `<(` or the `((` inside a substitution; and in a `$(`, alone
+  or inside another, that runs across a line end after a here-document
+  opened earlier on its line (`: <<EOF; echo $(true` and the lines
+  after), whose body bash reads only after the line the substitution
+  closes on.
 - One more, in a failure only: while the home directory cannot be listed,
   a configuration directory other than `~/.claude` and the one
   `CLAUDE_CONFIG_DIR` names that is a link is guarded by its name and not
@@ -424,11 +442,10 @@ and as commands, so `((git push))`, arithmetic to bash that runs nothing,
 is a push; and two commands it takes for a here-document left open by a
 substitution: an unclosed `$[` before a comment that holds a `$(...)` or
 `${ ...; }` leaving a here-document open (`echo $[ 1 # $(: <<B)`, past
-which bash runs nothing), and a shift after `<(` inside `((` in the
-first command of the body of a function declared with the word
-`function` and no parentheses, written on the line of its `{`
-(`function f { (( n<(1<<10) )); }`), plain, inside backticks or inside
-`$(...)`, which bash reads as arithmetic.
+which bash runs nothing), and a `<<` with a word after it inside a `<(`
+inside a `((` that follows a `function` or a `coproc` on its line with
+only words between the two (`function f { (( n<(1<<10) )); }`), plain,
+inside backticks or inside `$(...)`, which bash reads as arithmetic.
 
 ### noask and handsoff
 
