@@ -2101,7 +2101,9 @@ test("a failure after the call ran hands back the call's own outcome and denies 
     expect(seen.runs).toEqual([]);
 });
 
-// The plan approval's hook has no call that throws before it calls next: its handler runs once the call beneath fails.
+// The plan approval's hook has no call that throws before it calls next. This test pins that a failure of the call
+// beneath hands back the call's own outcome, which comes back with the handler or without it: the handler's own run is
+// held by no test.
 test("a plan approval that fails beneath the hook hands back the call's own outcome", async ($, on) => {
     const seen = scene(on, { tool: 'reject' });
     await expect(call($, PLAN)).rejects.toThrow('no implementation for tool.call');
