@@ -525,9 +525,8 @@ export const register: Register = (on, options) => {
     // The watch tool runs a shell command and takes each line it prints as an event, so its command is the shell's to
     // the guard and the fence; a watch of a socket holds none and goes on.
     on('tool.call', { tool: 'Monitor' }, async ($, e, next) =>
-        decided(
-            typeof e.command === 'string' ? await shellDenial($, fence, e.command, e.agentId) : undefined,
-            () => next(e),
+        decided(typeof e.command === 'string' ? await shellDenial($, fence, e.command, e.agentId) : undefined, () =>
+            next(e),
         ),
     ).catch(($, e, next) => {
         const call = typeof e.command === 'string' ? { command: e.command } : undefined;
