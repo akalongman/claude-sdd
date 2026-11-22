@@ -183,6 +183,29 @@ commands is from now on run under bash itself, with stubs in place of
 the programs, so that what the scan says is held against what the
 shell does; with that the review rounds on spellings end (owner,
 2026-11-17).
+Revision 21, 2026-11-21, writes in what the build of the first step
+settled (`docs/decisions.md`, entry 7): the owner's rulings during the
+build, and what was built and measured where revision 20 said nothing.
+A `/noask` in any form but the bare command and `status` runs only
+when the owner types it at the session's prompt or sends it through
+Remote Control; from any other origin it runs nothing and shows one
+line. The scan keeps both readings of a double parenthesis, as
+arithmetic and as commands. Two kinds of shell command are refused in
+every session, each with a text of its own: one the scan cannot read
+to its end within a fixed amount of work, and one in which a
+substitution closes while a here-document opened inside it is still
+open; inside the text of a double parenthesis the second is a stated
+limit instead, both ways. The watch tool's command is read as the
+shell tool's is. Nine more names are read as prefix commands. The
+fence lets a plan's write to `plans/` through, under conditions. A
+plain push names its remote by its name and never by a path. A
+subagent's refused plan approval gets the role's text. The texts of a
+failed hook, of a switch that failed or could not run and of a record
+that does not parse are stated. The goal proposal is no longer said to
+be absent from the build. And the limits the README lists are named
+here: the spellings the scan does not read, the refusals beyond need,
+the room of the work limit as measured, and a marker path that is a
+link to nothing, on which the two readers are not known to agree.
 
 ## Intent
 
@@ -618,8 +641,10 @@ intervention ships off by default and every prompt joins this list); a
 turn ending in an API error (`StopFailure`, which nothing re-wakes); a
 session already idle, or holding an open question dialog or permission
 prompt, when the marker appeared; a built-in dialog that no hook precedes
-(the browser setup offer is one; the goal proposal is not a tool of
-build 2.1.325, so no dialog of its own was there to probe); a `noask: waiting:` line printed while something of the
+(the browser setup offer is one, and the goal proposal may be another:
+build 2.1.325's tool declarations list it, the probe sessions were not
+offered it, and whether its dialog waits under noask is unchecked,
+revision 21); a `noask: waiting:` line printed while something of the
 session's is running or scheduled, however unrelated, which the Stop hook
 cannot tell from a real wait; and the budgets below running out, which
 end in a visible `blocked:` line. Since revision 16 also: a machine
@@ -983,6 +1008,11 @@ generation's time carries the same form (revision 19); a time that
 is no calendar time (30 February, 24:00) is unreadable to both readers,
 as is a marker without its final newline (revision 18: each reader took
 some of these and refused the others).
+A marker path that is a symbolic link to nothing holds no text, so
+that rule does not reach it. The command reads it as unreadable; what
+the module reads there is unchecked (off, if its look for the file
+follows the link), so the two readers are not known to agree on it.
+Revision 21 states it and leaves it open for the live acceptance.
 A session's marker always carries an `until`, and one whose `until` is
 empty is unreadable to the command and to the module alike: read as on
 without an expiry by one of them, it would never end for that reader
@@ -1051,7 +1081,9 @@ write nothing). The global switch keeps its optional expiry (decision
 
 - In a session: `/noask on [expiry]`, `/noask off` and bare `/noask` act
   on the session's own switch; `/noask global on [expiry]` and `/noask
-  global off` act on the global one. A session's `on` takes one more
+  global off` act on the global one: `global off` ends the global
+  switch only, and a session's own switch stays on until its own `off`
+  or its expiry (stated in revision 21). A session's `on` takes one more
   word, `/noask on handsoff [expiry]`, the switch's second level: noask
   plus the owner's word that this session may publish (Intervention 4).
   Its lines read `noask: handsoff for this session since <time> until
@@ -1066,7 +1098,22 @@ write nothing). The global switch keeps its optional expiry (decision
   those on standard error included. A switch that fails is said twice,
   in the command's output and in a toast, `noask: the switch failed
   (exit <n>): <the error>`, and wakes nothing, because the owner may be
-  on the way out of the room.
+  on the way out of the room. The error is the command's output, or
+  the words `no output` when it printed nothing. A switching command
+  that could not be run at all (it did not start, or it outran its
+  time) is said the same two ways, as `noask: the switch could not
+  run: <message>`; a run of any other form that fails so has switched
+  nothing, so it shows `noask: the command could not run: <message>`
+  and raises no toast (revision 21).
+  Only the bare `/noask` and `/noask status`, which write nothing, run
+  whoever sends them. Every other form, each switch and the count
+  entry among them, runs only when the command's origin is the
+  session's own prompt or Remote Control, the two ways the owner
+  types. From any other origin (a schedule or a loop, another
+  session, a channel, another plugin, an automatic continuation) the
+  module runs nothing, submits nothing, raises no toast and shows
+  `noask: /noask acts only when the owner types it; nothing changed`
+  (owner, 2026-11-18, the line's wording 2026-11-21; revision 21).
   Every line names its scope: `noask: on for this session since <time>
   until <time>`, `noask: on for every session since <time>` (with `until
   <time>` when set), `noask: off`, `noask: off (expired <time>)`. A
@@ -1325,7 +1372,13 @@ from its options and a hook entry from the plugin's option variables,
 taking the built-in default where a variable is absent, which it is
 while the option holds its default; so the command reads no settings. A count that cannot take the lock
 within two seconds, or cannot write, fails, and its caller answers the
-noask side without it, as for any other failure. The record lives under
+noask side without it, as for any other failure. A record that does
+not parse is no failure: a count that writes starts it again as an
+empty one and says `noask: the record <file> did not parse (<reason>);
+started again`, and a count that only reads takes it as an empty one
+and says `noask: the record <file> did not parse (<reason>); read as
+an empty one, left as it is`; the caller adds the note to the text it
+answers with (stated in revision 21). The record lives under
 the state directory, so the guard on the switch covers it: no agent's
 plain call counts, resets or writes it. A switching command's sweep
 also removes the records whose generation no marker carries any more.
@@ -1397,18 +1450,25 @@ count goes to that agent's own record.
 **Intervention 1, the question refusal** (module, `tool.call` on the
 tool that puts a question to the person and on the tool that presents a
 plan for approval; both refusals were read by the agent with no dialog
-in the probes of 2026-11-15, and the goal proposal, the one other
-candidate, is not a tool of that build). Inert
+in the probes of 2026-11-15; the goal proposal, the one other
+candidate, is listed in that build's tool declarations but was not
+offered in the probe sessions, so it is not hooked and stays a
+residual wait, unchecked, revision 21). Inert
 without the marker. With it, the question call
 is answered with a deny whose text is the rule, prefixed `sdd noask:`, and
 the refusal counter is incremented. The plan-approval call is answered
 with "noask is on: a plan awaits the owner's review; end this turn on
 `noask: blocked: plan awaits review`" and counts nothing, since it is not a
 question the agent could answer for the owner; it keeps that text after
-a budget is spent, so the morning reads that a plan waits. At the budget
+a budget is spent, so the morning reads that a plan waits. A
+subagent's plan approval is refused with the role-neutral reason above
+instead, since the line to end a turn on is the main session's, and
+counts nothing either (revision 21; through revision 20 every refused
+approval got the plan's text). At the budget
 the question's text is the ending instruction (Budgets). The
 registration carries a `.catch` handler that denies with the rule and
-the error when the hook fails after the marker read on and before the
+the error, added to the text as ` (noask hook failed: <message>)`
+(revision 21), when the hook fails after the marker read on and before the
 call ran, so a defect in the plugin never lets a question through; a
 failure after the call ran returns the call's own result, since a denial
 then would undo nothing. A hook decides on the reading it took at its
@@ -1555,12 +1615,21 @@ keeps the last word, as by day, and whatever bounds it is the owner's.
 without the marker. With it, the calls the module can name exactly are
 denied before they run, each with the text "noask is on: <what> needs the
 owner; print `blocked: <what>` and continue with the next independent
-item", counted as permission denials. A push: a shell command whose git
+item", counted as permission denials. A shell command is read where an
+agent hands one to the shell tool or to the watch tool, which runs a
+command and takes each line it prints as an event; a watch that holds
+no command passes. The watch tool is hooked since revision 21 (owner,
+2026-11-20), since a command handed to it ran unread. No other tool is
+hooked for a command: a tool of an MCP server that runs one is read by
+nothing, a stated limit. A push: a shell command whose git
 subcommand is `push`, with options between `git` and `push` in either
 spelling of an option's value, behind `if`, `while`, `until`, `!`,
-`env`, `command`, `exec`, `nohup`, `time` or `sudo`, inside `$(...)` or
-backticks, or across a backslash line break. After `env`, `command`,
-`exec`, `nohup` or `sudo` no option is read: which options take a
+`time` or a prefix command, inside `$(...)` or
+backticks, or across a backslash line break. The prefix commands are
+`env`, `command`, `exec`, `nohup` and `sudo`, and since revision 21
+`doas`, `eval` and the runners `timeout`, `nice`, `ionice`, `setsid`,
+`stdbuf`, `xargs` and `flock` (owner, 2026-11-20). After a prefix
+command no option is read: which options take a
 value differs from one `env` program to the next, so every later word
 of that command that names `git`, `gh`, `glab`, `noask` or a command
 of the guard's list is read as a command, with the words after it. No
@@ -1568,7 +1637,10 @@ spelling of an option's value hides the command behind it then
 (revision 18 read the values of `-u`, `-C` and `-a`; revision 19
 stopped reading options), and a line where such a name is an option's
 value or another command's argument is refused without need, as
-`sudo grep -rn noask docs` is, which the README says. `time` takes
+`sudo grep -rn noask docs` is, which the README says. A push behind a
+prefix command is never a plain one. An `eval` whose words are quoted
+(`eval "git push"`) is not joined and read again, and passes as a
+wrapped command does (revision 21). `time` takes
 its `-p` along. A command that holds a substitution is read whole
 and the substitution's text apart, so `git -C "$(pwd)" push` is a
 push; and a word is taken as the shell leaves it after quote removal,
@@ -1576,7 +1648,38 @@ so `no""ask` is `noask`, a here-document's delimiter included
 (revision 20). A redirection is no word of
 a command: it is read once, descriptor, operator and target, for the
 cut into commands, for the plain push and for the guard on the switch
-(revision 19). A pull or merge request: a
+(revision 19). Where a text can be arithmetic or commands (`$((...))`,
+and `((...))` where a command stands), the scan keeps the hits of both
+readings, so `((git push))`, arithmetic to bash that runs nothing, is
+refused as a push (owner, 2026-11-18; revision 21). Two kinds of shell
+command are refused in every session, noask on or off, since the guard
+cannot tell what they would run (owner, 2026-11-18; revision 21). The
+first is a command the scan cannot read to its end. The scan has a
+fixed amount of work for one command, 500000 steps, which bounds the
+time a hook can spend on one, and a command past it is refused with
+"the noask guard cannot read this command to its end: it is too long
+or nested too deep; write it with less nesting, or split it into
+shorter commands". What a command costs depends on its shape. The work
+reads to its end at least some 139 KB of plain script (lines that each
+hold one simple command of plain words, as the README defines it, each
+admitted feature measured alone at its densest) and far less of other
+shapes, which the README lists with their measured figures: one
+command of 1,000 `NAME=value` words, under 4 KB, is refused. The
+second is a command in which a substitution closes while a
+here-document opened inside it is still open (`x=$(cat <<EOF)` with
+the body on the lines after it), which bash runs with a warning and
+whose lines the scan cannot order as bash does. It is refused with
+"the noask guard does not read this command: a substitution in it
+closes while a here-document opened inside it is still open; put the
+here-document's body and its delimiter line before the substitution's
+close". Under noask with the fence on, each is a denial of the fence,
+with the fence's text and a count; otherwise it carries the guard's
+text above and counts nothing. Inside the text of a double parenthesis
+the second kind is not refused. It is a stated limit there, both ways:
+the scan may read the lines after it in an order that is not bash's,
+so a push or a switch on a line that bash runs can pass, and a line
+that bash reads as a here-document's body can be refused (owner,
+2026-11-20; revision 21). A pull or merge request: a
 shell command that creates one (`gh pr create`, `glab mr create`, and
 `new`, the alias of each). An edit under the configuration directory: an
 edit or write through the file-editing tools to a path under one of the
@@ -1584,7 +1687,9 @@ owner's configuration directories, where the settings auto-allow edits;
 they are every entry of the home directory whose name starts with
 `.claude` and the directory `CLAUDE_CONFIG_DIR` names, each also by
 where it resolves, since such a directory may be a link into a dotfiles
-checkout. When the home cannot be listed, every path whose first part
+checkout; a `CLAUDE_CONFIG_DIR` spelled with `~` is resolved by its
+expanded spelling as well (revision 21). When the home cannot be
+listed, every path whose first part
 below the home is spelled so counts as one (revision 18). That guards
 by name and not by place. `~/.claude` and the directory the variable
 names need no listing and are resolved beside it, so they stay known
@@ -1597,7 +1702,21 @@ judged as spelled and as resolved, so a file that
 is a link out of the directory is caught by its spelling and a link
 elsewhere that points into it by where it lands; a file that does not
 exist yet is placed by its nearest existing folder, so a new file in a
-new folder elsewhere is never refused. Switching noask: a shell command
+new folder elsewhere is never refused. One folder of a configuration
+directory is let through: `plans/` directly below it, where a session
+in plan mode saves its plan before it asks for the approval. Without
+the exception the plan's write was refused and nothing was on disk
+beside `noask: blocked: plan awaits review` (owner, 2026-11-20). An
+edit below that folder passes unless it lands elsewhere in a
+configuration directory (a `plans` that is a link to `rules`). The
+folder itself, a `plans` folder deeper in the directory and a memory
+note under `projects/<project>/memory/` are no exception, and the
+guard on the switch has none. The exception holds only while the path
+could be placed, the home is listed and every configuration
+directory's resolution answered, a directory that is not there
+counting as answered: a path judged by its spelling alone gets none,
+since a `plans` that is a link may lead anywhere in the directory
+(revision 21). Switching noask: a shell command
 that runs the `noask` command in any form but its two reading ones,
 bare `noask` and `noask status`, each with no further word and no
 variable set in front of it (through revision 15 the fence named `on`,
@@ -1623,13 +1742,39 @@ moved, since revision 20). A `*`, `?` or `[` in such a path is matched
 part by part, so `rm -rf ~/.local/state/*` is read as the removal of
 the directory that it is; a brace list is not read (revision 19). The
 match is a little wider than the shell's: a set stands for any one
-character and a leading dot is matched as well, so `rm -rf ~/*` is
-refused too. Each of these commands is refused when it names a path
+character and a leading dot is matched as well, so `rm -rf ~/*`, whose
+`*` the shell does not match to `.local`, is refused too, a refusal
+beyond need. Each of these commands is refused when it names a path
 there, whether it would write it or only read it, since the guard does
 not read which argument a command writes. A copy that reaches the
 directory through a folder above it (`cp -R /tmp/sdd ~/.local/state`)
 is not read, and a spelling built to hide a command from the scan
-passes as a wrapped one does; the README lists both (revision 20). The
+passes as a wrapped one does; the README lists both (revision 20).
+Revision 21 names what the build's reviews found the scan does not
+read, each listed in the README with its example: a command run by a
+word that is no prefix command (`builtin`, `coproc`, the `chronic` and
+`watch` programs); a command that follows the word `function` on its
+line with only words between the two; a command word made by a brace
+list or joined by `${IFS}`; a git alias for `push`; a declaration of a
+test variable behind a prefix command; a path into the state directory
+spelled relative, with a brace list, or from the home as `~user` or
+`${HOME:-x}`; the removal of a folder above the home, and a removal
+by `find -delete`; a substitution in single quotes inside arithmetic or
+inside a parameter's default in double quotes, which bash runs; and a
+few layouts in which the scan takes for a here-document's body lines
+that bash runs. The guard, like the fence, judges a path that cannot
+be resolved in time by its spelling alone, and a link to a file that
+is not there yet by the link's own path, so a write through either
+link into the state directory or a configuration directory passes.
+The README names also where the scan refuses beyond need, each failing
+closed: `rm -rf ~/*` above, `((git push))`, a name of the list as
+another command's argument behind a prefix command, the lines after
+the one a `$(` closes on when it runs across a line end after a
+here-document opened earlier on its line, which bash reads as that
+here-document's body and the scan as commands, and two kinds of
+command it takes for a here-document left open by a substitution
+(among them a `<<` inside a `<(` or `>(` within a double parenthesis
+that follows `function` or `coproc`, arithmetic to bash). The
 plugin's tests run the table of commands under bash itself, with
 stubs in place of `git`, `gh`, `glab` and `noask` and no program that
 removes, moves or writes a file within reach, and hold what ran
@@ -1645,6 +1790,8 @@ main agent's push and its request creation pass and count nothing. The
 word is read from the marker at the moment of the call, so it survives
 a resume and ends with the switch. It is the owner's against every plain
 call: the module runs the command only for a `/noask` the owner typed,
+which it tells by the command's origin (the session's prompt or
+Remote Control; revision 21, with the command's forms above),
 and the fence refuses an agent's own call of the command and its write
 to a marker, in every session. It is not the owner's by construction. A
 call of the command wrapped in `sh -c` or a script, or a marker written
@@ -1667,7 +1814,10 @@ push. So does a word that is not literal, one with a pattern, a
 variable or a substitution in it, since the shell may make several
 words of it; and so does a remote written as a URL or as `host:path`,
 since the word to publish covers the repository's own remotes, by
-their names (revision 20). What the repository's own configuration
+their names (revision 20). A remote given as a path is no name: the
+first word after `push` other than its option, when it holds a `/`,
+is `.` or `..`, or starts with `~`, makes the push no plain one, while
+a branch may hold a `/` (revision 21). What the repository's own configuration
 makes of a plain push (a
 mirror remote, a push default) the fence does not see, and the README
 says so. A subagent's push is refused as before:
@@ -2213,6 +2363,26 @@ undesigned.
     build that stopped.
 40. The machine's move to the plugin waits until noask has shipped
     whole, the second step of the build order (owner, 2026-11-16).
+44. Only the bare `/noask` and `/noask status` run whoever sends them;
+    every other form runs only from the session's prompt or Remote
+    Control, and any other origin gets one line and nothing else
+    (owner, 2026-11-18).
+45. The scan keeps both readings of a double parenthesis, at the
+    price of refusing arithmetic that reads as a command the fence
+    names (owner, 2026-11-18).
+46. A command the scan cannot read to its end within its fixed work,
+    and one in which a substitution leaves a here-document open, are
+    refused in every session, each with a text that says how to write
+    the command instead (owner, 2026-11-18). Inside a double
+    parenthesis the second is a stated limit, both ways, and the
+    review rounds on it end there (owner, 2026-11-20).
+47. The watch tool's command is read as the shell tool's; `doas`,
+    `eval` and seven runners are prefix commands; and a plan's write
+    to `plans/` passes the fence, a memory note does not (owner,
+    2026-11-20).
+48. A remote given as a path makes a push no plain one. This is the
+    builder's reading of "by their names" in revision 20, built with
+    the owner's yes of 2026-11-21 to the list it stood in.
 
 ### Left to the builder
 
