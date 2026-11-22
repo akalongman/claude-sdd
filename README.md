@@ -348,16 +348,19 @@ off, since the guard cannot tell what they would run:
   is looked at again for every later word of the command, so one command
   of 1,000 `NAME=value` words, under 4 KB, is refused, and so is one
   with 705 `!` before its name, 1.4 KB. A file program, or a redirection
-  that writes a file, costs more for each path it judges, and more for a
-  path spelled from `~` or under `~/.local`. With a home of 13
-  characters, `rm -f` is read to its end with some 1,850 to 2,000 paths
-  of 33 characters written out under the home, 1,550 to 1,650 spelled
-  from `~` under `~/.local/state/`, 4,850 relative ones of 20 characters
-  or 1,200 of 59 characters written out under the home, and `cp` with
-  some 2,750 to 3,400, 2,200 to 2,350, 6,750 or 1,750 to 1,950 of the
-  same; a script of `echo a >~/a` lines is read to some 110 KB and one
-  of `rm -f ~/...` lines to some 1,800 lines (58 KB). An ordinary tool
-  call comes nowhere near these shapes and sizes.
+  that writes a file, costs more for each path it judges, and can cost
+  more for a path spelled from `~`, under `~/.local`, or with a `=`, a
+  pattern or a leading `-`. With a home of 13 characters, and paths
+  that do not start with `-` and hold, after any leading `~`, only ASCII
+  letters and digits, `.`, `_`, `-` and `/`, `rm -f` is read to its end
+  with some 1,750 to 2,000 paths of 33 characters written out under the
+  home, 1,550 to 1,700 spelled from `~` under `~/.local/state/`, 4,850
+  relative ones of 20 characters or 1,050 to 1,200 of 59 characters
+  written out under the home, and `cp` with some 2,400 to 3,400, 2,150
+  to 2,400, 6,750 or 1,450 to 1,950 of the same; a script of
+  `echo a >~/a` lines is read to some 110 KB and one of
+  `rm -f ~/projects/app/build/out.o` lines to some 1,800 lines (58 KB).
+  An ordinary tool call comes nowhere near these shapes and sizes.
 - A command in which a substitution (`$(...)`, `<(...)`, `>(...)`,
   `${ ...; }`) closes while a here-document opened inside it is still
   open, such as `x=$(cat <<EOF)` with the body on the lines after it,

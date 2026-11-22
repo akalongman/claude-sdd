@@ -122,8 +122,9 @@ const HOME_PREFIX_LENGTH = 8;
 // its process, its first heavy call (six runs); the largest of a hook's scan and its .catch handler's second scan of
 // the same command together was 180 to 194 ms a run the first way and 197 to 222 ms the second way: well inside the
 // 1 second the handler has. A plain script of some 139 KB, a here-document's body of some 480 KB (some 14 MB in lines
-// of 28 characters), or `rm -f` with some 1,850 to 2,000 paths of 33 characters written out under a home of 13
-// characters (some 1,550 to 1,650 spelled from `~` under `~/.local/state/`), is read to its end. Plain means lines
+// of 28 characters), or `rm -f` with some 1,750 to 2,000 paths of 33 characters, ASCII letters and digits, `.`, `_`,
+// `-` and `/` alone, written out under a home of 13 characters (some 1,550 to 1,700 spelled from `~` under
+// `~/.local/state/`, the same characters after the `~`), is read to its end. Plain means lines
 // that each hold one simple command of words made only of ASCII letters and digits, `.`, `_`, `-` and `/`, separated
 // by spaces or tabs, whose first word is no path, reserved word, prefix command or file program: so no quote, `$`,
 // pattern, comment, redirection, here-document, assignment, substitution or operator but the line end. Each feature
