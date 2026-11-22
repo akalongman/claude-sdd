@@ -117,19 +117,20 @@ const HOME_PREFIX_LENGTH = 8;
 // one more for each 32 characters (SKIPPED_SHIFT). Judging an argument as a path is counted where it is done: the
 // argument's characters for the candidates it holds, each candidate's path by its characters, the home's among them
 // when it is spelled from the home, each part matched by its characters, and each turn of the match. Measured with
-// this limit in the plugin kit's runtime on the slowest commands found, the largest scan of a run took 124 to 155 ms
-// with the commands read one after another in one process (three runs), and 137 to 223 ms with each command alone in
+// this limit in the plugin kit's runtime on the slowest commands found, the largest scan of a run took 103 to 111 ms
+// with the commands read one after another in one process (three runs), and 114 to 138 ms with each command alone in
 // its process, its first heavy call (six runs); the largest of a hook's scan and its .catch handler's second scan of
-// the same command together was 218 to 227 ms a run the first way, and the second way 237 to 254 ms in five runs and
-// 347 ms in the sixth: well inside the 1 second the handler has. A plain script of some 139 KB, a here-document's
-// body of some 480 KB (some 14 MB in lines of 28 characters), or a file program with some 2,000 paths of 33
-// characters, is read to its end. Plain means lines that each hold one simple command of words made only of ASCII
-// letters and digits, `.`, `_`, `-` and `/`, separated by spaces or tabs, whose first word is no path, reserved word,
-// prefix command or file program: so no quote, `$`, pattern, comment, redirection, here-document, assignment,
-// substitution or operator but the line end. Each of these was measured alone at its densest, and the densest, one
-// command of one-letter words, is read to 139.5 KB. Any other shape can cost more and be too complex far sooner:
-// one-letter words in a group, some 108 KB; in backticks or in arithmetic with spaces, some 88 KB; a line of 16
-// here-documents with substitutions after them, some 55 KB, since each substitution counts the here-documents still
+// the same command together was 180 to 194 ms a run the first way and 197 to 222 ms the second way: well inside the
+// 1 second the handler has. A plain script of some 139 KB, a here-document's body of some 480 KB (some 14 MB in lines
+// of 28 characters), or `rm -f` with some 1,850 to 2,000 paths of 33 characters written out under a home of 13
+// characters (some 1,550 to 1,650 spelled from `~` under `~/.local/state/`), is read to its end. Plain means lines
+// that each hold one simple command of words made only of ASCII letters and digits, `.`, `_`, `-` and `/`, separated
+// by spaces or tabs, whose first word is no path, reserved word, prefix command or file program: so no quote, `$`,
+// pattern, comment, redirection, here-document, assignment, substitution or operator but the line end. Each feature
+// the class admits was measured alone at its densest, and the densest, one command of one-letter words, is read to
+// 139.5 KB. Any other shape can cost more and be too complex far sooner: one-letter words in a group, some 108 KB; in
+// backticks or in arithmetic with spaces, some 88 KB; a line of 16 here-documents with `$(a)` words after them, some
+// 55 KB, or with words of `$(` nested 50 deep, some 39 KB, since each substitution counts the here-documents still
 // waiting; and each word at a command's start is looked at again for every later word of that command, so 1,000
 // NAME=value words in one command, 4,000 characters, or 705 `!` before one, 1,412 characters, are too complex to read.
 const WORK_LIMIT = 500_000;

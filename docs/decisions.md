@@ -2665,11 +2665,12 @@ where the owner confirms them.
   answered; otherwise a path under any of them is refused as before the
   exception. A `CLAUDE_CONFIG_DIR` spelled with `~` is also a directory by
   where its expanded spelling resolves. A remote given as a path (the
-  first word after `push` but its option holds a `/`, is `.` or `..`, or
-  starts with `~`) makes a push other than a plain one; a branch may hold
-  a `/`. A subagent's refused plan approval gets the role's text, still
-  counted nowhere. A form of `/noask` that switches nothing and could not
-  run says `noask: the command could not run: <message>` with no toast,
+  first word after `push` other than its option, when it holds a `/`, is
+  `.` or `..`, or starts with `~`) makes a push other than a plain one; a
+  branch may hold a `/`. A subagent's refused plan approval gets the
+  role's text, still counted nowhere. A form of `/noask` that switches
+  nothing and could not run says
+  `noask: the command could not run: <message>` with no toast,
   while a switch keeps `noask: the switch could not run: <message>` and
   its toast; the line for a form the owner did not type is now
   `noask: /noask acts only when the owner types it; nothing changed`.
@@ -2683,19 +2684,19 @@ where the owner confirms them.
   always read (plain being lines that each hold one simple command of
   words made only of ASCII letters and digits, `.`, `_`, `-` and `/`,
   separated by spaces or tabs, whose first word is no path, reserved
-  word, prefix command or file program, each of these measured alone at
-  its densest) and what costs more and can be refused far sooner, such
-  as a word at a command's start or a line of here-documents. It also
-  names `rm -rf ~/*` and three more refusals beyond need; says that
-  `global off` leaves a session's own switch on, that the shell tool and
-  the watch tool are the only tools hooked for a command, and that a
-  write through a link the guard cannot follow in time, or to a file not
-  there yet, passes it as it passes the fence; and lists among what
-  passes the spellings, the declaration behind a prefix command, the two
-  quoted substitutions and the here-document layouts that the scan does
-  not read as bash does. The Gates below say which gates ran before the
-  last wording edits; their outputs stay Task 7's. Cost if wrong: one
-  commit to revert per item.
+  word, prefix command or file program; each feature the class admits
+  was measured alone at its densest) and what costs more and can be
+  refused far sooner, such as a word at a command's start or a line of
+  here-documents. It also names `rm -rf ~/*` and four more refusals
+  beyond need; says that `global off` leaves a session's own switch on,
+  that the shell tool and the watch tool are the only tools hooked for a
+  command, and that a write through a link the guard cannot follow in
+  time, or to a file not there yet, passes it as it passes the fence;
+  and lists among what passes the spellings, the declaration behind a
+  prefix command, the two quoted substitutions and the here-document
+  layouts that the scan does not read as bash does. The Gates below say
+  which gates ran before the last wording edits; their outputs stay
+  Task 7's. Cost if wrong: one commit to revert per item.
 
 ### Not covered
 

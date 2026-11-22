@@ -260,10 +260,11 @@ session's own switch is typed in that session.
   path that starts like a configuration directory is refused by its
   spelling, a plan's too. So is a plan's write while its path cannot be
   resolved in time: the path is then judged by its spelling alone, with
-  no exception for `plans/`. Nor is there the exception while a
-  configuration directory itself cannot be resolved (its look refused, or
-  not answered in time), since a `plans` folder that is a link may lead
-  into it: an edit under any of them is then refused, a plan's too.
+  no exception for `plans/`. Nor is there the exception while the home
+  cannot be listed, or while a configuration directory itself cannot be
+  resolved (its look refused, or not answered in time), since a `plans`
+  folder that is a link may lead into it: an edit under any of them is
+  then refused, a plan's too.
 - Two budgets bound the refusals: 6 refused questions and 10 denials, the
   fence's and the guard's included. Once one is spent, a refusal asks the
   main session to end its turn with the list of its rulings and the line
@@ -305,14 +306,14 @@ In every session, under noask or not, the plugin refuses an agent's own:
 A `*`, `?` or `[...]` in such a path is matched part by part, a little
 wider than the shell matches it (a set stands for any one character, and a
 leading dot is matched like any other), so `rm -rf ~/.local/state/*` is
-refused as the removal it is; so is `rm -rf ~/*`, whose `*` the shell does
-not match to `.local`, a refusal beyond need (below). Under noask with the
-fence on, the guard's refusal carries the fence's line and counts as a
-denial; otherwise it carries a line of its own and counts nothing. A call
-wrapped in `sh -c`, a quoted `eval`, a script or an alias passes the
-guard, as it passes the fence: the word to publish is yours against a
-plain call and no further, a stated limit until the wide fence of phase 4
-of the plugin's design.
+refused as the removal it is. `rm -rf ~/*` is refused too, though the
+shell's `*` does not match `.local`: a refusal beyond need (below). Under
+noask with the fence on, the guard's refusal carries the fence's line and
+counts as a denial; otherwise it carries a line of its own and counts
+nothing. A call wrapped in `sh -c`, a quoted `eval`, a script or an alias
+passes the guard, as it passes the fence: the word to publish is yours
+against a plain call and no further, a stated limit until the wide fence
+of phase 4 of the plugin's design.
 
 Two more kinds of shell command are refused in every session, noask on or
 off, since the guard cannot tell what they would run:
@@ -326,10 +327,10 @@ off, since the guard cannot tell what they would run:
   a path, a reserved word (such as `if`, `do` or `time`), a prefix
   command (named below) or a file program (named above); so no quote,
   `$`, pattern, comment, redirection, here-document, assignment,
-  substitution or operator but the line end. Each of these features was
-  measured alone at its densest, and the densest, one command of
-  one-letter words, is read to 139.5 KB. A script of any other shape can
-  cost more and be refused far sooner. One-letter words in a group
+  substitution or operator but the line end. Each feature the class
+  admits was measured alone at its densest, and the densest, one command
+  of one-letter words, is read to 139.5 KB. A script of any other shape
+  can cost more and be refused far sooner. One-letter words in a group
   (`{ a b c ...; }`) or after `!`, `if` or `do` are read to some 108 KB,
   and in a backtick substitution, or as terms of arithmetic written with
   spaces (`(( a + b + c ))`), to some 88 KB. Lines of `a[1]=x`, whose
@@ -338,20 +339,25 @@ off, since the guard cannot tell what they would run:
   `sudo ./install --prefix /usr/local` to some 106 KB, since behind a
   prefix command the scan reads `install`, and a path by its last part,
   as the file program; and one line of 16 here-documents, the most bash
-  5.3 takes on a line, and `$(...)` after them, to some 55 KB, since
-  each substitution counts every here-document still waiting. Each word
-  at a command's start (a `NAME=value` word, `time`, `!`, or a reserved
-  word such as `if` or `do`) is looked at again for every later word of
-  the command, so one command of 1,000 `NAME=value` words, under 4 KB,
-  is refused, and so is one with 705 `!` before its name, 1.4 KB. A
-  file program, or a redirection that writes a file, costs more for each
-  path it judges: `rm -f` is read to its end with some 2,100 absolute
-  paths of 33 characters, 5,000 relative ones of 20 characters or 1,200
-  of 59 characters under the home, `cp` with some 3,000, 7,000 or 1,750
-  of the same, and, with a home of 13 characters, a script of
-  `echo a >~/a` lines to some 110 KB and one of `rm -f ~/...` lines to
-  some 1,800 lines (58 KB). An ordinary tool call comes nowhere near
-  these shapes and sizes.
+  5.3 takes on a line, with `$(a)` words after them, to some 55 KB, and
+  less with empty or nested substitutions, some 49 KB with `$()` words
+  and some 39 KB with words of `$(` nested 50 deep, since each
+  substitution counts every here-document still waiting. Each word at a
+  command's start (a `NAME=value` word, `time` and its options, or one
+  of `!`, `{`, `if`, `then`, `elif`, `else`, `while`, `until` and `do`)
+  is looked at again for every later word of the command, so one command
+  of 1,000 `NAME=value` words, under 4 KB, is refused, and so is one
+  with 705 `!` before its name, 1.4 KB. A file program, or a redirection
+  that writes a file, costs more for each path it judges, and more for a
+  path spelled from `~` or under `~/.local`. With a home of 13
+  characters, `rm -f` is read to its end with some 1,850 to 2,000 paths
+  of 33 characters written out under the home, 1,550 to 1,650 spelled
+  from `~` under `~/.local/state/`, 4,850 relative ones of 20 characters
+  or 1,200 of 59 characters written out under the home, and `cp` with
+  some 2,750 to 3,400, 2,200 to 2,350, 6,750 or 1,750 to 1,950 of the
+  same; a script of `echo a >~/a` lines is read to some 110 KB and one
+  of `rm -f ~/...` lines to some 1,800 lines (58 KB). An ordinary tool
+  call comes nowhere near these shapes and sizes.
 - A command in which a substitution (`$(...)`, `<(...)`, `>(...)`,
   `${ ...; }`) closes while a here-document opened inside it is still
   open, such as `x=$(cat <<EOF)` with the body on the lines after it,
@@ -404,16 +410,16 @@ passes both.
   order that is not always bash's. There a push or a switch on a line
   that bash runs can pass the scan, and a line that bash reads as a
   here-document's body can be refused.
-- In a few more layouts the scan reads lines that bash runs as a
-  here-document's body, so a push or a switch on them passes: after a
-  compound assignment's subscript that holds `<<` (`arr=( [1<<2]=y )`, a
-  shift to bash); after a `<<` with a word after it inside a `((` that
-  follows a `function` or a `coproc` on its line with only words between
-  the two (`function f { (( x = 1<<10 )); }`, `coproc (( x = 1<<10 ))`),
-  a shift to bash, which the scan takes for a here-document's opener
-  since it reads that `((` as two parentheses, unless the `<<` stands
-  inside a `<(` or the `((` inside a substitution; and in a `$(`, alone
-  or inside another, that runs across a line end after a here-document
+- In a few more layouts the scan takes for a here-document's body lines
+  that bash runs, so a push or a switch on them passes: after a compound
+  assignment's subscript that holds `<<` (`arr=( [1<<2]=y )`, a shift to
+  bash); after a `<<` with a word after it inside a `((` that follows a
+  `function` or a `coproc` on its line with only words between the two
+  (`function f { (( x = 1<<10 )); }`, `coproc (( x = 1<<10 ))`), a shift
+  to bash, which the scan takes for a here-document's opener since it
+  reads that `((` as two parentheses, unless the `<<` stands inside a
+  `<(` or `>(` or the `((` inside a substitution; and in a `$(`, alone or
+  inside another, that runs across a line end after a here-document
   opened earlier on its line (`: <<EOF; echo $(true` and the lines
   after), whose body bash reads only after the line the substitution
   closes on.
@@ -439,13 +445,19 @@ same line without the prefix passes. The scan refuses beyond need in a few
 more places, each failing closed: `rm -rf ~/*`, whose `*` it matches to
 `.local` (above); a double parenthesis, which it reads both as arithmetic
 and as commands, so `((git push))`, arithmetic to bash that runs nothing,
-is a push; and two commands it takes for a here-document left open by a
-substitution: an unclosed `$[` before a comment that holds a `$(...)` or
-`${ ...; }` leaving a here-document open (`echo $[ 1 # $(: <<B)`, past
-which bash runs nothing), and a `<<` with a word after it inside a `<(`
-inside a `((` that follows a `function` or a `coproc` on its line with
-only words between the two (`function f { (( n<(1<<10) )); }`), plain,
-inside backticks or inside `$(...)`, which bash reads as arithmetic.
+is a push; the lines after the one a `$(` closes on in the last of the
+here-document layouts above, which bash reads as that here-document's
+body and the scan as commands (`: <<B; y=$(true`, then the lines `B`,
+`)`, `git push` and `B`, is a push); and two kinds of command it takes
+for a here-document left open by a substitution: an unclosed `$[` before
+a comment that holds a `$(...)` or `${ ...; }` leaving a here-document
+open (`echo $[ 1 # $(: <<B)`, past which bash runs nothing), and a `<<`
+with a word after it inside a `((` that follows a `function` or a
+`coproc` on its line with only words between the two, which bash reads
+as arithmetic, when the `<<` stands inside a `<(` or `>(`
+(`function f { (( n<(1<<10) )); }`), plain or inside backticks, or when
+that `((` stands inside `$(...)`, `<(...)`, `>(...)` or `${ ...; }`
+(`z=$(function f { (( x = 1<<10 )); }; f)`).
 
 ### noask and handsoff
 
