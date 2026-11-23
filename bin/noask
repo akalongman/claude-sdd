@@ -141,7 +141,18 @@
 # exits 0 whatever happened short of a kill, and prints nothing without
 # HOME or a clock. session-start answers with the start line as its message
 # and the rule text and where the apply skill's noask reference is as its
-# context; permission, elicitation and stop answer nothing here.
+# context. permission and elicitation are inert also while the
+# permissionHook option is exactly false (CLAUDE_PLUGIN_OPTION_PERMISSIONHOOK);
+# otherwise each counts a denial first, against the denialBudget option
+# (CLAUDE_PLUGIN_OPTION_DENIALBUDGET, 10 when absent or not 1 to 99999), on
+# S's record or, with an agent_id, on its subagent's (it counts nothing
+# without a usable session id or with an agent id of another form); then it
+# answers.
+# permission denies, with PERMISSION_TEXT for the main session and
+# SUBAGENT_TEXT for a subagent, the ending text and SUBAGENT_SPENT_TEXT once
+# the budget is spent, and after it the count's failure or note and an
+# unreadable reading's reason; elicitation declines, whatever the count
+# gave. stop answers nothing here.
 # start-line prints the start line of S (--session), or of a session with no
 # id, and nothing when that reading is off or expired: one line, and the notes
 # that say jq is not on PATH or the rule file could not be read; it reads no
@@ -244,6 +255,12 @@ readonly ROOT RULE
 # (FALLBACK_RULE of hooks/text.ts).
 # shellcheck disable=SC2016 # its backquotes are the text's, not substitutions
 readonly FALLBACK_RULE='noask is on: nobody answers until it is off, and its rule file could not be read, so rule nothing: print `blocked: <what>` for every choice you would ask about, do not commit on a default branch, do not push, do not switch noask, and end every turn on `noask: waiting: <what>`, `noask: done` or `noask: blocked: <why>` as its last line'
+# The permission entry's denial for the main session, Intervention 2's words, <the action> standing as it is.
+# shellcheck disable=SC2016 # its backquotes are the text's, not substitutions
+readonly PERMISSION_TEXT='noask is on: this action needs the owner; print `blocked: <the action>` and continue with the next independent item'
+# A subagent's denial, under its budget and once that is spent (SUBAGENT_TEXT and SUBAGENT_SPENT_TEXT of hooks/text.ts).
+readonly SUBAGENT_TEXT="noask is on: this action needs the owner and is denied; follow your role's rule for a denied tool"
+readonly SUBAGENT_SPENT_TEXT="noask is on: this action needs the owner and is denied, and this agent's noask budget is spent; return under your role's rule for a denied tool"
 
 # Parse the arguments of an `on` after the word on: [handsoff] [<expiry>].
 parse_on() {
@@ -964,7 +981,8 @@ cmd_count() {
 # reads is set here, so none is unset when the exit trap runs.
 input='' usable='' has_jq='' agent_present='' agent_shown='' id_reason='' option_value=''
 reading='' reading_state='' reading_generation='' reading_reason='' reading_level=''
-answered='' failure='' signalled='' rule='' rule_missing='' line=''
+answered='' failure='' signalled='' rule='' rule_missing='' line='' role_text=''
+count_result='' count_cause='' count_continuations='' count_error='' count_note=''
 
 # read_input: read standard input once, as a marker is read (NUL bytes become
 # \001, so such an input is not JSON), to one byte past INPUT_BYTES and
@@ -977,7 +995,6 @@ answered='' failure='' signalled='' rule='' rule_missing='' line=''
 # another type's compact JSON, cut to 64 characters) and id_reason (why the
 # input gives no usable session id, empty when it gives one). A read that
 # fails otherwise gives nothing, as an empty input does.
-# shellcheck disable=SC2034 # agent_present and agent_shown are for the entries that look at an agent id
 read_input() {
   local raw rc kind why=''
   input='' usable='' session='' agent='' agent_present='' agent_shown='' id_reason='' has_jq=''
@@ -1156,17 +1173,78 @@ guard_exit() {
 # passes it, in CLAUDE_PLUGIN_OPTION_<KEY>, or to DEFAULT when that variable
 # is absent. Set, not printed: a command substitution would drop the value's
 # final newlines, and an option is compared to a word exactly.
-# shellcheck disable=SC2329 # for the entries that read an option
 option() {
   local name=CLAUDE_PLUGIN_OPTION_$1
   if [ -n "${!name+set}" ]; then option_value=${!name}; else option_value=$2; fi
 }
 # budget_of KEY DEFAULT: print the budget option KEY, or DEFAULT when the
 # option is absent or its value is not ^[1-9][0-9]{0,4}$.
-# shellcheck disable=SC2329 # for the entries that count
 budget_of() {
   option "$1" "$2"
   if [[ $option_value =~ ^[1-9][0-9]{0,4}$ ]]; then printf '%s\n' "$option_value"; else printf '%s\n' "$2"; fi
+}
+
+# entry_count WORD BUDGET: count WORD (denial, continuation or reset) against
+# BUDGET on the record of the entry's S, or of its subagent, by cmd_count run
+# in a command substitution with its standard error joined to its output: a
+# die there ends that subshell alone, and the entry's own reading stands. Of
+# that output, the line that starts `counted ` or is `off` is the result, and
+# the first line with the `noask: ` head is the error (after a status that is
+# not 0) or the note (after 0). Sets count_result to counted, off (the
+# marker went off or expired after the entry's reading: cmd_count reads it
+# again) or failed; count_cause and count_continuations to the counted line's
+# second and fifth words; count_error after a failure and count_note after a
+# count that succeeded, each that line without its head (a failure without
+# one says how the count exited, as the module's caller does). An entry
+# counts before it answers: under uutils' timeout a bounded read started
+# once answer has ignored TERM is not stopped at its bound.
+# shellcheck disable=SC2034 # count_continuations is for the stop entry
+entry_count() {
+  local out rc=0 l result='' said=''
+  local -a lines=()
+  count_result=failed count_cause='' count_continuations='' count_error='' count_note=''
+  out=$(
+    count_word=$1 budget=$2
+    cmd_count 2>&1
+  ) || rc=$?
+  mapfile -t lines <<< "$out"
+  for l in "${lines[@]}"; do
+    case $l in
+      'counted '* | off) [ -n "$result" ] || result=$l ;;
+      'noask: '*) [ -n "$said" ] || said=${l#noask: } ;;
+    esac
+  done
+  if [ "$rc" -ne 0 ]; then
+    count_error=${said:-the count exited $rc}
+  elif [ "$result" = off ]; then
+    count_result=off
+  elif [[ $result =~ ^counted\ (none|question|permission|continuation)\ [0-9]+\ [0-9]+\ ([0-9]+)$ ]]; then
+    count_result=counted count_cause=${BASH_REMATCH[1]} count_continuations=${BASH_REMATCH[2]} count_note=$said
+  else
+    count_error='the count printed no result'
+  fi
+}
+
+# count_denial: count a denial for the permission or the elicitation entry
+# against the denialBudget option, by entry_count; or, where there is no
+# record to count on, set count_result to failed with why and count nothing:
+# without a usable session id, and with an agent id of another form (the
+# session's own record is not touched then either).
+count_denial() {
+  if [ -z "$session" ]; then
+    count_result=failed count_error='no session id'
+  elif [ -n "$agent_present" ] && [ -z "$agent" ]; then
+    count_result=failed count_error="the agent id is not usable ($agent_shown)"
+  else
+    entry_count denial "$(budget_of DENIALBUDGET 10)"
+  fi
+}
+
+# ending_text WHICH: the main session's text once the budget WHICH is spent
+# (endingText of hooks/text.ts).
+# shellcheck disable=SC2016 # its backquotes are the text's, not substitutions
+ending_text() {
+  printf 'end this turn with the list Rulings I made and the line `noask: blocked: %s budget exhausted`' "$1"
 }
 
 # start_line: set line to the line a session shows at its start under the
@@ -1251,11 +1329,75 @@ hook_session_start() {
   session_start_answer "sdd: $line" "$rule"$'\n\n'"The noask reference of the apply skill is $ROOT/skills/apply/references/noask.md. If you drive an apply run, re-read the noask reference now."
 }
 
-# hook EVENT: the entry of EVENT; permission, elicitation and stop answer
-# nothing here.
+# permission_answer TEXT: answer the PermissionRequest deny object, its
+# message TEXT with an unreadable reading's reason after it.
+permission_answer() {
+  local text=$1 json
+  [ "$reading_state" != unreadable ] || text+=" (noask marker unreadable: $reading_reason; treated as on)"
+  printf -v json '{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"deny","message":%s}}}' \
+    "$(json_string "$text")"
+  answer "$json"
+}
+# The permission entry's failure answer, for the message MESSAGE: the role's
+# text with why the hook failed. It counts nothing: under uutils' timeout a
+# bounded read started after the exit trap has ignored TERM is not stopped at
+# its bound.
+# shellcheck disable=SC2329 # guard_entry's exit trap calls it
+permission_failed() {
+  permission_answer "$role_text (noask hook failed: $1)"
+}
+# hook permission: under a reading of on or unreadable, with the
+# permissionHook option not exactly false, count the denial, then deny: the
+# role's text (PERMISSION_TEXT for the main session, SUBAGENT_TEXT for a
+# subagent, by an agent_id that is there), or once the budget is spent the
+# ending text for its cause or SUBAGENT_SPENT_TEXT, then the count's failure
+# or its note. A count that gave off leaves the role's text and the entry's
+# own reading.
+hook_permission() {
+  local text
+  read_input
+  entry_reading
+  case $reading_state in off | expired) return 0 ;; esac # inert: nothing printed, no file made, no lock taken
+  option PERMISSIONHOOK true
+  [ "$option_value" != false ] || return 0 # inert: the owner turned the hook off
+  if [ -n "$agent_present" ]; then role_text=$SUBAGENT_TEXT; else role_text=$PERMISSION_TEXT; fi
+  guard_entry permission_failed
+  count_denial
+  text=$role_text
+  if [ "$count_result" = counted ] && [ "$count_cause" != none ]; then
+    if [ -n "$agent_present" ]; then text=$SUBAGENT_SPENT_TEXT; else text=$(ending_text "$count_cause"); fi
+  fi
+  case $count_result in
+    failed) text+=" (noask count failed: $count_error)" ;;
+    counted) [ -z "$count_note" ] || text+=" (noask count: $count_note)" ;;
+  esac
+  permission_answer "$text"
+}
+
+# elicitation_decline: answer the Elicitation decline object, which carries
+# no text; it is also the entry's failure answer, for any message.
+elicitation_decline() {
+  answer '{"hookSpecificOutput":{"hookEventName":"Elicitation","action":"decline"}}'
+}
+# hook elicitation: as hook permission up to the count, then decline whatever
+# the count gave: the host shows a reason to nobody at this event.
+hook_elicitation() {
+  read_input
+  entry_reading
+  case $reading_state in off | expired) return 0 ;; esac # inert: nothing printed, no file made, no lock taken
+  option PERMISSIONHOOK true
+  [ "$option_value" != false ] || return 0 # inert: the owner turned the hook off
+  guard_entry elicitation_decline
+  count_denial
+  elicitation_decline
+}
+
+# hook EVENT: the entry of EVENT; stop answers nothing here.
 cmd_hook() {
   case $event in
     session-start) hook_session_start ;;
+    permission) hook_permission ;;
+    elicitation) hook_elicitation ;;
   esac
 }
 

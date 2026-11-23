@@ -7,18 +7,20 @@
 # CLAUDE_CODE_SESSION_ID, CLAUDE_PLUGIN_OPTION_TERMINAL, CLAUDE_CONFIG_DIR and
 # SDD_NOASK_LOCK_WAIT unset unless the case sets one, so no case touches the
 # real markers or records or reads the session this test runs in. The hook
-# entries (cases 49 on) run with every CLAUDE_PLUGIN_OPTION_* variable and
-# CLAUDE_PLUGIN_DATA unset too, and read the hook inputs of
-# tests/fixtures/hook-inputs, the probes' own with the home rewritten. Each
-# command runs under `timeout 10` (case 27's and case 42's, and case 45's
-# generator, under `timeout 120`), so a hang fails its case instead of the
-# run. Prints "ok <n>" or "FAIL <n> (<broken parts>)" per case and "skip <n>
-# (<reason>)" for a case that cannot run; exits 1 when any case fails. Cases
-# 1 to 30 are those of the phase 2 plan (a local working document), Task 2;
-# cases 31 to 45 those of the plan of noask's first step, a local working
-# document, Tasks 1 (31 to 36), 2 (37 to 44), 4 and 6 (45), and case 46 that
-# of a later fix to count read; case 16 (replaced) and cases 47 to 51 those
-# of the plan of noask's second step, a local working document, Task 1. Case
+# entries (cases 49 on) run with CLAUDE_PLUGIN_DATA unset too, and with
+# every CLAUDE_PLUGIN_OPTION_* variable unset unless the case sets one, and
+# read the hook inputs of tests/fixtures/hook-inputs, the probes' own with
+# the home rewritten. Each command runs under `timeout 10` (case 27's and
+# case 42's, and case 45's generator, under `timeout 120`; case 58's entries
+# that wait 17 seconds for the records' lock under `timeout 30`), so a hang
+# fails its case instead of the run. Prints "ok <n>" or "FAIL <n> (<broken
+# parts>)" per case and "skip <n> (<reason>)" for a case that cannot run;
+# exits 1 when any case fails. Cases 1 to 30 are those of the phase 2 plan
+# (a local working document), Task 2; cases 31 to 45 those of the plan of
+# noask's first step, a local working document, Tasks 1 (31 to 36), 2 (37 to
+# 44), 4 and 6 (45), and case 46 that of a later fix to count read; case 16
+# (replaced) and cases 47 to 51 those of the plan of noask's second step, a
+# local working document, Task 1, and cases 52 to 58 its Task 2. Case
 # 45 runs tests/gen-marker-fixtures.sh on SCRIPT, which makes its own
 # temporary HOMEs, and reads hooks/text.ts and
 # skills/apply/references/noask.md beside this script's directory; case 49
@@ -32,10 +34,10 @@
 #   unit controller's overrides from the same plugin root,
 #   skills/apply/prompts/unit-controller-overrides.md.
 # Case 29, case 10's mode-000 sub-case, case 43's mode-500 and mode-000
-# sub-cases, case 44's sub-cases with noask.d at 300 and 400 and case 48's
-# with noask.d at 000 need a user that file modes bind, so they are skipped
-# when the tests run as root: case 29 prints a skip line, the others a note
-# line after their verdict.
+# sub-cases, case 44's sub-cases with noask.d at 300 and 400, case 48's and
+# case 52's with noask.d at 000 and case 58's with budgets.d at 500 need a
+# user that file modes bind, so they are skipped when the tests run as root:
+# case 29 prints a skip line, the others a note line after their verdict.
 set -uo pipefail
 
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -197,13 +199,14 @@ entry_read() {
   rm -f -- "$1" "$2"
 }
 # entry EVENT FILE: run `noask hook EVENT` with FILE on standard input, in this shell, under the case's limit, its
-# standard output to a file; sets out, err, rc and bytes.
+# standard output to a file of this process's own, so two can run at once; sets out, err, rc and bytes.
 entry() {
   local -a cmd
+  local o=$tmp/entry-out.$BASHPID e=$tmp/entry-err.$BASHPID
   entry_cmd
   rc=0
-  timeout "$limit" "${cmd[@]}" "$script" hook "$1" < "$2" > "$tmp/entry-out" 2> "$tmp/entry-err" || rc=$?
-  entry_read "$tmp/entry-out" "$tmp/entry-err"
+  timeout "$limit" "${cmd[@]}" "$script" hook "$1" < "$2" > "$o" 2> "$e" || rc=$?
+  entry_read "$o" "$e"
 }
 # entry_bg EVENT FILE: start what entry runs in the background; entry_job is timeout's process and entry_pid the
 # entry's own bash, timeout's child (env and the script's #! line exec in place). entry_end collects it.
@@ -1664,5 +1667,494 @@ printf '%s' "${ctx%"$ref_tail"}" > "$tmp/c51-got"
 printf '%s' "$(cat -- "$copy51/scripts/noask-rule.md")" > "$tmp/c51-want"
 { [ -s "$tmp/c51-want" ] && cmp -s -- "$tmp/c51-got" "$tmp/c51-want"; } || broken+=" rule-bytes"
 verdict 51
+
+# The permission and elicitation entries' texts and helpers (cases 52 to 58): PERMISSION_TEXT, Intervention 2's
+# words; SUBAGENT_TEXT and SUBAGENT_SPENT_TEXT of hooks/text.ts; endingText's for the budget WHICH; the suffix of a
+# one-line global or session marker; the decline object.
+# shellcheck disable=SC2016 # its backquotes are the text's, not substitutions
+permission_text='noask is on: this action needs the owner; print `blocked: <the action>` and continue with the next independent item'
+subagent_text="noask is on: this action needs the owner and is denied; follow your role's rule for a denied tool"
+subagent_spent_text="noask is on: this action needs the owner and is denied, and this agent's noask budget is spent; return under your role's rule for a denied tool"
+# shellcheck disable=SC2016 # its backquotes are the text's, not substitutions
+ending() { printf 'end this turn with the list Rulings I made and the line `noask: blocked: %s budget exhausted`' "$1"; }
+one_line=' (noask marker unreadable: the marker has 1 line, not 4; treated as on)'
+decline='{"hookSpecificOutput":{"hookEventName":"Elicitation","action":"decline"}}'
+empty_input=$tmp/empty-input
+not_json=$tmp/not-json
+: > "$empty_input"
+printf 'not json\n' > "$not_json"
+# denied PART TEXT: the last entry answered once with the PermissionRequest deny object, its message exactly TEXT.
+denied() {
+  one_answer "$1"
+  [ "$out" = "$(jq -cn --arg m "$2" \
+    '{hookSpecificOutput: {hookEventName: "PermissionRequest", decision: {behavior: "deny", message: $m}}}')" ] ||
+    broken+=" $1-denial"
+}
+# declined PART: the last entry answered once with the Elicitation decline object.
+declined() {
+  one_answer "$1"
+  [ "$out" = "$decline" ] || broken+=" $1-decline"
+}
+# inert PART PERMISSION_FILE ELICITATION_FILE: each entry on its file prints nothing, and no budgets.d is made.
+inert() {
+  entry permission "$2"
+  silent "$1-permission"
+  entry elicitation "$3"
+  silent "$1-elicitation"
+  [ ! -e "$B" ] || broken+=" $1-budgets.d"
+}
+# seed FILE GENERATION DENIALS SPENT: a record written by hand, budgets.d made first.
+seed() {
+  own_dir "${1%/*}"
+  printf '%s\n' "generation=$2" refusals=0 "denials=$3" continuations=0 "spent=$4" > "$1"
+}
+# record_reads PART FILE DENIALS SPENT: the record FILE holds that many denials and that spent.
+record_reads() {
+  marker "$2"
+  { [ "${m[2]-}" = "denials=$3" ] && [ "${m[4]-}" = "spent=$4" ]; } || broken+=" $1"
+}
+# lock_hold PART: another process holds the records' lock (budgets.d made first) until lock_free.
+lock_hold() {
+  local line=''
+  own_dir "$B"
+  rm -f -- "$tmp/lock-held" "$tmp/lock-free"
+  mkfifo -- "$tmp/lock-held" "$tmp/lock-free"
+  exec {held_fd}<>"$tmp/lock-held" {free_fd}<>"$tmp/lock-free"
+  flock "$B/.lock" bash -c 'echo held; read -r -t 30 _' > "$tmp/lock-held" <&"$free_fd" &
+  holder=$!
+  read -r -t 10 -u "$held_fd" line
+  [ "$line" = held ] || broken+=" $1-holder"
+}
+lock_free() {
+  echo free >&"$free_fd"
+  wait "$holder"
+  exec {held_fd}<&- {free_fd}<&-
+}
+# lock_waiting PART: wait up to 10 seconds until a count waits for the records' lock for 17 seconds.
+lock_waiting() {
+  for _ in $(seq 1 100); do
+    pgrep -xf 'flock -w 17 8' > /dev/null && return 0
+    sleep 0.1
+  done
+  broken+=" $1-not-waiting"
+}
+
+# 52. The permission and elicitation entries are inert without the marker:
+#     with no marker, under an expired global marker and under another
+#     session's on, each prints nothing and makes no budgets.d; so does each
+#     on an input without a usable session id while no marker is on, and
+#     under a session's on with the permissionHook option exactly false (a
+#     value that is not exactly the word leaves it on). An unreadable session
+#     marker, and one without an until, read on: the prompt is denied with
+#     the reason, the question declined. Without a usable session id there is
+#     no record: under the global on the prompt is denied with the count's
+#     failure, and no record a name of the id's would print is touched;
+#     noask.d at mode 000 reads unreadable (left out as root, with a note
+#     line after the verdict). An inherited CLAUDE_CODE_SESSION_ID is never
+#     the id.
+fresh 52
+inert none "$(feed permission-main.json)" "$(feed elicitation.json)"
+step expiring global on 30m
+now=$T1 # 23:30:12, the marker's until
+inert expired "$(feed permission-main.json)" "$(feed elicitation.json)"
+fresh 52-other
+step other --session s-other on 2h
+inert other "$(feed permission-main.json)" "$(feed elicitation.json)"
+fresh 52-no-id
+inert empty "$empty_input" "$empty_input"
+inert not-json "$not_json" "$not_json"
+inert a-b "$(feed permission-main.json '.session_id = "a b"')" "$(feed elicitation.json '.session_id = "a b"')"
+envs=("PATH=$bin16")
+inert no-jq "$(feed permission-main.json)" "$(feed elicitation.json)"
+envs=()
+fresh 52-option
+step on --session "$sid" on 2h
+envs=(CLAUDE_PLUGIN_OPTION_PERMISSIONHOOK=false)
+inert option-false "$(feed permission-main.json)" "$(feed elicitation.json)"
+for v in no 0 empty false-newline; do
+  case $v in
+    empty) envs=(CLAUDE_PLUGIN_OPTION_PERMISSIONHOOK=) ;;
+    false-newline) envs=("CLAUDE_PLUGIN_OPTION_PERMISSIONHOOK=false"$'\n') ;;
+    *) envs=("CLAUDE_PLUGIN_OPTION_PERMISSIONHOOK=$v") ;;
+  esac
+  entry permission "$(feed permission-main.json)"
+  denied "option-$v" "$permission_text"
+  entry elicitation "$(feed elicitation.json)"
+  declined "option-$v-elicitation"
+done
+envs=()
+fresh 52-session-bad
+own_dir "$D"
+printf 'x\n' > "$D/$sid"
+entry permission "$(feed permission-main.json)"
+denied session-bad "$permission_text$one_line"
+entry elicitation "$(feed elicitation.json)"
+declined session-bad-elicitation
+fresh 52-no-until
+own_dir "$D"
+printf '%s\n' "$gl" "$sl" until= level=noask > "$D/$sid"
+entry permission "$(feed permission-main.json)"
+denied no-until "$permission_text (noask marker unreadable: a session's marker without an until; treated as on)"
+entry elicitation "$(feed elicitation.json)"
+declined no-until-elicitation
+if [ -z "$as_root" ]; then
+  fresh 52-000
+  own_dir "$D"
+  chmod 000 -- "$D"
+  entry permission "$not_json"
+  denied noask.d-000 \
+    "$permission_text (noask count failed: no session id) (noask marker unreadable: noask.d cannot be listed or searched; treated as on)"
+  entry elicitation "$not_json"
+  declined noask.d-000-elicitation
+  chmod 700 -- "$D"
+fi
+fresh 52-records
+step on global on
+gen=$(gen_of "$G")
+for r in null 7 s-1; do
+  seed "$B/$r" "$gen" 3 none
+  cp -- "$B/$r" "$tmp/c52-$r" 2>/dev/null
+done
+for v in 'null|.session_id = null' 'missing|del(.session_id)' 'number|.session_id = 7' \
+  'newline|.session_id = "s-1\n"'; do
+  entry permission "$(feed permission-main.json "${v#*|}")"
+  denied "id-${v%%|*}" "$permission_text (noask count failed: no session id)"
+done
+for r in null 7 s-1; do
+  cmp -s -- "$B/$r" "$tmp/c52-$r" || broken+=" record-$r-touched"
+done
+fresh 52-inherited
+step on --session s-on on 2h
+envs=(CLAUDE_CODE_SESSION_ID=s-on)
+inert inherited "$(feed permission-main.json)" "$(feed elicitation.json)"
+envs=()
+verdict 52
+[ -z "$as_root" ] || echo 'note 52 (the noask.d mode-000 sub-case needs a user that file modes bind)'
+
+# 53. The denial under a global on: one line, the PermissionRequest deny
+#     object with PERMISSION_TEXT, and the record then reads denials=1. Under
+#     both switches the record carries the global marker's generation. A
+#     one-line global marker adds its reason.
+fresh 53
+step on global on
+entry permission "$(feed permission-main.json)"
+denied main "$permission_text"
+record_reads main-record "$B/$sid" 1 none
+fresh 53-both
+step global global on
+step on --session "$sid" on 2h
+entry permission "$(feed permission-main.json)"
+denied both "$permission_text"
+gen=$(gen_of "$G")
+{ [ -n "$gen" ] && [ "$(gen_of "$B/$sid")" = "$gen" ]; } || broken+=" both-generation"
+fresh 53-unreadable
+own_dir "$st"
+printf 'x\n' > "$G"
+entry permission "$(feed permission-main.json)"
+denied unreadable "$permission_text$one_line"
+verdict 53
+
+# 54. The budget: the denial that spends it and every one after carry the
+#     ending text for its cause, and change no counter; a budget variable
+#     that is not 1 to 99999 counts against 10; under an unreadable reading
+#     the ending text comes with the reason. A record that does not parse:
+#     the count's note, the record started again; a FIFO in its place: the
+#     count's failure, within the limit, nothing counted. Two prompts at once
+#     each count, in turn.
+fresh 54
+step on global on
+gen=$(gen_of "$G")
+p=$(feed permission-main.json)
+envs=(CLAUDE_PLUGIN_OPTION_DENIALBUDGET=3)
+entry permission "$p"
+denied first "$permission_text"
+entry permission "$p"
+denied second "$permission_text"
+entry permission "$p"
+denied third "$(ending permission)"
+record_reads third-record "$B/$sid" 3 permission
+cp -- "$B/$sid" "$tmp/c54" 2>/dev/null
+entry permission "$p"
+denied fourth "$(ending permission)"
+cmp -s -- "$B/$sid" "$tmp/c54" || broken+=" fourth-record"
+seed "$B/$sid" "$gen" 0 question
+entry permission "$p"
+denied spent-question "$(ending question)"
+for v in abc 0 100000 empty; do
+  if [ "$v" = empty ]; then
+    envs=(CLAUDE_PLUGIN_OPTION_DENIALBUDGET=)
+  else
+    envs=("CLAUDE_PLUGIN_OPTION_DENIALBUDGET=$v")
+  fi
+  seed "$B/$sid" "$gen" 8 none
+  entry permission "$p"
+  denied "budget-$v-ninth" "$permission_text"
+  entry permission "$p"
+  denied "budget-$v-tenth" "$(ending permission)"
+done
+envs=()
+fresh 54-unreadable
+own_dir "$st"
+printf 'x\n' > "$G"
+p=$(feed permission-main.json)
+seed "$B/$sid" '' 0 question
+entry permission "$p"
+denied unreadable-spent "$(ending question)$one_line"
+seed "$B/$sid" '' 9 none
+entry permission "$p"
+denied unreadable-tenth "$(ending permission)$one_line"
+fresh 54-records
+step on global on
+p=$(feed permission-main.json)
+own_dir "$B"
+printf 'x\n' > "$B/$sid"
+entry permission "$p"
+denied not-parsed \
+  "$permission_text (noask count: the record $B/$sid did not parse (the record has 1 line, not 5); started again)"
+record_reads not-parsed-record "$B/$sid" 1 none
+rm -f -- "$B/$sid" && mkfifo -- "$B/$sid"
+entry permission "$p"
+denied fifo "$permission_text (noask count failed: cannot read $B/$sid (the record read timed out))"
+[ -p "$B/$sid" ] || broken+=" fifo-replaced"
+# two_at_once PART FILE: the permission entry on FILE twice at once, each run to files of its own; each must answer
+# once (PART-run-<n>); sets msgs to their two messages, sorted, a line each.
+two_at_once() {
+  local i runs=$tmp/c54-runs
+  rm -rf -- "$runs" && mkdir -p -- "$runs"
+  for i in 1 2; do
+    {
+      entry permission "$2"
+      printf '%s\n' "$rc" "$bytes" > "$runs/$i.rc"
+      printf '%s' "$out" > "$runs/$i.out"
+      printf '%s' "$err" > "$runs/$i.err"
+    } &
+  done
+  wait
+  msgs=''
+  for i in 1 2; do
+    rc='' bytes=''
+    { read -r rc; read -r bytes; } < "$runs/$i.rc"
+    out=$(cat -- "$runs/$i.out") err=$(cat -- "$runs/$i.err")
+    one_answer "$1-run-$i"
+    msgs+=$(jq -r .hookSpecificOutput.decision.message <<< "$out" 2>/dev/null)$'\n'
+  done
+  msgs=$(sort <<< "${msgs%$'\n'}")
+}
+fresh 54-at-once
+step on global on
+gen=$(gen_of "$G")
+p=$(feed permission-main.json)
+seed "$B/$sid" "$gen" 8 none
+two_at_once at-8 "$p"
+[ "$msgs" = "$(printf '%s\n' "$permission_text" "$(ending permission)" | sort)" ] || broken+=" at-8-messages"
+record_reads at-8-record "$B/$sid" 10 permission
+seed "$B/$sid" "$gen" 9 none
+two_at_once at-9 "$p"
+[ "$msgs" = "$(printf '%s\n' "$(ending permission)" "$(ending permission)")" ] || broken+=" at-9-messages"
+verdict 54
+
+# 55. A subagent's prompt: SUBAGENT_TEXT, counted on the agent's own record
+#     with the session's left absent; at the budget SUBAGENT_SPENT_TEXT; a
+#     main count reset leaves the agent's record as it was. An agent id of
+#     another form, or of another type, gives SUBAGENT_TEXT with the count's
+#     failure and changes nothing under HOME, the session's record included.
+fresh 55
+step on global on
+a=$(feed permission-subagent.json)
+agent_id=$(jq -r .agent_id -- "$fixtures/permission-subagent.json")
+entry permission "$a"
+denied agent "$subagent_text"
+record_reads agent-record "$B/$sid.$agent_id" 1 none
+[ ! -e "$B/$sid" ] || broken+=" agent-session-record"
+envs=(CLAUDE_PLUGIN_OPTION_DENIALBUDGET=2)
+entry permission "$a"
+denied agent-spent "$subagent_spent_text"
+record_reads agent-spent-record "$B/$sid.$agent_id" 2 permission
+envs=()
+cp -- "$B/$sid.$agent_id" "$tmp/c55" 2>/dev/null
+step reset --session "$sid" count reset
+cmp -s -- "$B/$sid.$agent_id" "$tmp/c55" || broken+=" reset-touched"
+fresh 55-unusable
+step on global on
+entry permission "$(feed permission-main.json)"
+denied main "$permission_text"
+# Each: the part's name, the id the text shows, the filter.
+for v in 'a-b|a b|.agent_id = "a b"' 'number|7|.agent_id = 7'; do
+  name=${v%%|*} v=${v#*|}
+  before=$(listing)
+  entry permission "$(feed permission-subagent.json "${v#*|}")"
+  denied "agent-$name" "$subagent_text (noask count failed: the agent id is not usable (${v%%|*}))"
+  [ "$(listing)" = "$before" ] || broken+=" agent-$name-wrote"
+done
+verdict 55
+
+# 56. One record for both runtimes: the module's count and then the entry
+#     leave denials=2. Under a session's own switch, an off and a new on
+#     between two denials start the record again under the new generation
+#     (planted back after the off's sweep removed it, as case 40 does); a
+#     renewal between them keeps the generation and the count.
+fresh 56
+step on global on
+step module --session "$sid" count denial 10
+entry permission "$(feed permission-main.json)"
+denied entry "$permission_text"
+record_reads both-runtimes "$B/$sid" 2 none
+fresh 56-generation
+step on --session "$sid" on 2h
+p=$(feed permission-main.json)
+entry permission "$p"
+denied first "$permission_text"
+cp -- "$B/$sid" "$tmp/c56" 2>/dev/null
+step off --session "$sid" off
+step again --session "$sid" on 2h
+cp -- "$tmp/c56" "$B/$sid" 2>/dev/null
+entry permission "$p"
+denied new-generation "$permission_text"
+record_reads new-generation-record "$B/$sid" 1 none
+gen=$(gen_of "$D/$sid")
+{ [ -n "$gen" ] && [ "$(gen_of "$B/$sid")" = "$gen" ] && [ "$gen" != "$(gen_of "$tmp/c56")" ]; } ||
+  broken+=" new-generation-generation"
+step renew --session "$sid" on 3h
+entry permission "$p"
+denied renewed "$permission_text"
+record_reads renewed-record "$B/$sid" 2 none
+[ "$(gen_of "$B/$sid")" = "$gen" ] || broken+=" renewed-generation"
+verdict 56
+
+# 57. The elicitation entry: the decline object exactly, a denial counted,
+#     nothing else printed; two shapes the probe did not see, a url mode and
+#     an input with an agent id (counted on the agent's record), declined the
+#     same way; an input without a usable session id, and a machine without
+#     jq, under the global on: declined, nothing counted.
+fresh 57
+step on global on
+entry elicitation "$(feed elicitation.json)"
+declined decline
+record_reads decline-record "$B/$sid" 1 none
+entry elicitation "$(feed elicitation.json '.mode = "url"')"
+declined unseen-url-mode
+record_reads unseen-url-mode-record "$B/$sid" 2 none
+entry elicitation "$(feed elicitation.json '.agent_id = "a1"')"
+declined unseen-agent-id
+record_reads unseen-agent-id-record "$B/$sid.a1" 1 none
+record_reads unseen-agent-id-session "$B/$sid" 2 none
+fresh 57-no-id
+step on global on
+entry elicitation "$empty_input"
+declined empty
+entry elicitation "$not_json"
+declined not-json
+entry elicitation "$(feed elicitation.json '.session_id = "a b"')"
+declined a-b
+envs=("PATH=$bin16")
+entry elicitation "$(feed elicitation.json)"
+declined no-jq
+envs=()
+[ ! -e "$B" ] || broken+=" no-id-counted"
+verdict 57
+
+# 58. It cannot fail open. A count that fails (the records' lock held
+#     elsewhere; budgets.d at mode 500, left out as root with a note line
+#     after the verdict; flock off PATH) still gives the denial, once, with
+#     the count's failure, and leaves the record as it was; the elicitation
+#     entry declines under the held lock. A TERM while the entry waits on the
+#     lock, or reads a FIFO in the record's place, gives the failure answer,
+#     once. Nothing is answered before the count. A marker taken away during
+#     the lock's wait leaves the entry's own reading and makes no record.
+#     Without jq, under another session's on, the denial says why it counted
+#     nothing and why it is on.
+fresh 58
+step on global on
+p=$(feed permission-main.json)
+e=$(feed elicitation.json)
+entry permission "$p"
+denied first "$permission_text"
+cp -- "$B/$sid" "$tmp/c58" 2>/dev/null
+lock_hold locked
+envs=(SDD_NOASK_LOCK_WAIT=1)
+entry permission "$p"
+denied locked "$permission_text (noask count failed: the records are locked by another noask command)"
+entry elicitation "$e"
+declined locked-elicitation
+envs=()
+lock_free
+cmp -s -- "$B/$sid" "$tmp/c58" || broken+=" locked-counted"
+if [ -z "$as_root" ]; then
+  chmod 500 -- "$B"
+  entry permission "$p"
+  denied mode-500 "$permission_text (noask count failed: cannot write $B/$sid)"
+  chmod 700 -- "$B"
+  cmp -s -- "$B/$sid" "$tmp/c58" || broken+=" mode-500-counted"
+fi
+bin58=$tmp/bin58
+mkdir -p -- "$bin58"
+for t in bash date env realpath dirname timeout head tr mkdir mktemp mv rm od cat stat chmod jq; do
+  if tp=$(command -v "$t"); then ln -s -- "$tp" "$bin58/$t"; else broken+=" link-$t"; fi
+done
+! env PATH="$bin58" bash -c 'command -v flock' > /dev/null 2>&1 || broken+=" flock-on-path"
+envs=("PATH=$bin58")
+entry permission "$p"
+denied no-flock "$permission_text (noask count failed: cannot take the lock $B/.lock)"
+envs=()
+cmp -s -- "$B/$sid" "$tmp/c58" || broken+=" no-flock-counted"
+for ev in permission elicitation; do
+  lock_hold "term-$ev"
+  envs=(SDD_NOASK_LOCK_WAIT=17) limit=30
+  entry_bg "$ev" "$(feed "${ev/permission/permission-main}.json")"
+  lock_waiting "term-$ev"
+  kill -TERM "$entry_pid" 2>/dev/null || broken+=" term-$ev-not-sent"
+  lock_free
+  entry_end
+  envs=() limit=10
+  if [ "$ev" = permission ]; then
+    denied term "$permission_text (noask hook failed: ended by a signal)"
+  else
+    declined term-elicitation
+  fi
+done
+lock_hold early
+envs=(SDD_NOASK_LOCK_WAIT=2)
+for ev in permission elicitation; do
+  entry_bg "$ev" "$(feed "${ev/permission/permission-main}.json")"
+  sleep 1
+  [ ! -s "$tmp/bg-out" ] || broken+=" early-$ev"
+  entry_end
+  if [ "$ev" = permission ]; then
+    denied late "$permission_text (noask count failed: the records are locked by another noask command)"
+  else
+    declined late-elicitation
+  fi
+done
+envs=()
+lock_free
+fresh 58-fifo
+step on global on
+own_dir "$B"
+mkfifo -- "$B/$sid"
+entry_bg permission "$(feed permission-main.json)"
+reading_file "$B/$sid" || broken+=" fifo-not-reading"
+kill -TERM "$entry_pid" 2>/dev/null || broken+=" fifo-not-sent"
+entry_end
+denied fifo-term "$permission_text (noask hook failed: ended by a signal)"
+fresh 58-late-off
+step on global on
+lock_hold late-off
+envs=(SDD_NOASK_LOCK_WAIT=17) limit=30
+entry_bg permission "$(feed permission-main.json)"
+lock_waiting late-off
+envs=() limit=10
+step late-off-switch global off
+lock_free
+entry_end
+denied late-off "$permission_text"
+[ ! -e "$B/$sid" ] || broken+=" late-off-record"
+fresh 58-no-jq
+step other --session s-other on 2h
+envs=("PATH=$bin16")
+entry permission "$(feed permission-main.json)"
+envs=()
+denied no-jq "$permission_text (noask count failed: no session id) (noask marker unreadable: this session's id could not be read (jq is missing) while a session's own switch is on; treated as on)"
+verdict 58
+[ -z "$as_root" ] || echo 'note 58 (the budgets.d mode-500 sub-case needs a user that file modes bind)'
 
 exit "$fail"
