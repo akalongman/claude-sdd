@@ -6,7 +6,10 @@
 # (2026-11-11T23:00:12+04:00) unless the case moves the clock, and with
 # CLAUDE_CODE_SESSION_ID, CLAUDE_PLUGIN_OPTION_TERMINAL, CLAUDE_CONFIG_DIR and
 # SDD_NOASK_LOCK_WAIT unset unless the case sets one, so no case touches the
-# real markers or records or reads the session this test runs in. Each
+# real markers or records or reads the session this test runs in. The hook
+# entries (cases 49 on) run with every CLAUDE_PLUGIN_OPTION_* variable and
+# CLAUDE_PLUGIN_DATA unset too, and read the hook inputs of
+# tests/fixtures/hook-inputs, the probes' own with the home rewritten. Each
 # command runs under `timeout 10` (case 27's and case 42's, and case 45's
 # generator, under `timeout 120`), so a hang fails its case instead of the
 # run. Prints "ok <n>" or "FAIL <n> (<broken parts>)" per case and "skip <n>
@@ -14,20 +17,25 @@
 # 1 to 30 are those of the phase 2 plan (a local working document), Task 2;
 # cases 31 to 45 those of the plan of noask's first step, a local working
 # document, Tasks 1 (31 to 36), 2 (37 to 44), 4 and 6 (45), and case 46 that
-# of a later fix to count read. Case 45 runs tests/gen-marker-fixtures.sh on
-# SCRIPT, which makes its own temporary HOMEs, and reads hooks/text.ts and
-# skills/apply/references/noask.md beside this script's directory.
+# of a later fix to count read; case 16 (replaced) and cases 47 to 51 those
+# of the plan of noask's second step, a local working document, Task 1. Case
+# 45 runs tests/gen-marker-fixtures.sh on SCRIPT, which makes its own
+# temporary HOMEs, and reads hooks/text.ts and
+# skills/apply/references/noask.md beside this script's directory; case 49
+# reads the built-in rule text from that hooks/text.ts too. A case that
+# sends a signal waits until pgrep shows the entry at the wait it means.
 #
 # Usage: bash tests/test-noask.sh [SCRIPT]
 #   Default SCRIPT: bin/noask in the plugin root, the parent of this script's
 #   directory. The rule text is read from scripts/ beside SCRIPT's bin/, and
-#   case 14 copies those two directories. Case 15 also reads the unit
-#   controller's overrides from the same plugin root,
+#   cases 14, 49 and 51 copy those two directories. Case 15 also reads the
+#   unit controller's overrides from the same plugin root,
 #   skills/apply/prompts/unit-controller-overrides.md.
 # Case 29, case 10's mode-000 sub-case, case 43's mode-500 and mode-000
-# sub-cases and case 44's sub-cases with noask.d at 300 and 400 need a user
-# that file modes bind, so they are skipped when the tests run as root: case
-# 29 prints a skip line, the others a note line after their verdict.
+# sub-cases, case 44's sub-cases with noask.d at 300 and 400 and case 48's
+# with noask.d at 000 need a user that file modes bind, so they are skipped
+# when the tests run as root: case 29 prints a skip line, the others a note
+# line after their verdict.
 set -uo pipefail
 
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -57,7 +65,7 @@ sl=since=2026-11-11T23:00:12+04:00
 # fresh NAME: a new, empty HOME for the case or sub-case NAME, at the default
 # clock, with no extra variables and the default time limit; st, G, D and B
 # are its state directory, global marker, session marker directory and the
-# sessions' records' directory.
+# sessions' records' directory, and sid (s-NAME) the session id feed gives.
 fresh() {
   home=$tmp/home-$1
   mkdir -p "$home"
@@ -65,7 +73,7 @@ fresh() {
   G=$st/noask
   D=$st/noask.d
   B=$st/budgets.d
-  now=$T0 envs=() limit=10 nohome=
+  now=$T0 envs=() limit=10 nohome='' sid=s-$1
 }
 # noask ARG...: run the script under the case's HOME (unset when nohome is
 # set), clock and extra NAME=VALUE words (envs); sets out, err and rc.
@@ -137,6 +145,101 @@ verdict() {
   fi
   broken='' rc=0 out='' err=''
 }
+
+# The entries' helpers and texts (cases 49 on). The hook inputs are the probes' own, one JSON object per file.
+fixtures=$here/fixtures/hook-inputs
+global_tail='; sessions rule on their own recommendations and never wait; noask global off to end it'
+session_tail='; it rules on its own recommendations and never waits; /noask off to end it'
+handsoff_tail='; it rules on its own recommendations, never waits, and may push and open a request; /noask off to end it'
+jq_note=" jq is not on PATH, so noask's hooks cannot tell this session from another: while any noask switch is on they act in every session, and a stop is continued once."
+rule_note=' The rule file could not be read, so sessions rule nothing and block every choice.'
+# The built-in rule text, FALLBACK_RULE of hooks/text.ts, its quoted pieces joined.
+fallback=$(sed -n "/^export const FALLBACK_RULE =\$/,/;\$/{s/^ *'\\([^']*\\)'.*\$/\\1/p;}" -- "$here/../hooks/text.ts" |
+  tr -d '\n')
+# ref_line ROOT: the sentence that ends the session start's context, for the plugin root ROOT.
+ref_line() {
+  printf 'The noask reference of the apply skill is %s/skills/apply/references/noask.md. If you drive an apply run, re-read the noask reference now.' "$1"
+}
+# plugin_copy DIR: a copy of the plugin's bin and scripts directories in DIR, as case 14 makes it.
+plugin_copy() {
+  mkdir -p -- "$1"
+  cp -Rp -- "$src/bin" "$src/scripts" "$1/" 2>/dev/null
+}
+# listing: every path under the case's HOME with its type, mode, size and modification time, sorted.
+listing() { find "$home" -printf '%P %y %m %s %T@\n' 2>/dev/null | LC_ALL=C sort; }
+# feed [-k] FIXTURE [FILTER]: write the hook input FIXTURE, its session_id set to the case's id (kept as the fixture
+# has it with -k) and then FILTER applied, to a new file of the case; print the file's path.
+feed() {
+  # shellcheck disable=SC2016 # $id is jq's variable
+  local set='.session_id = $id | ' file
+  if [ "$1" = -k ]; then
+    set=''
+    shift
+  fi
+  file=$(mktemp -- "$tmp/feed.XXXXXX") || return 1
+  jq -c --arg id "$sid" "$set${2:-.}" "$fixtures/$1" > "$file" || return 1
+  printf '%s\n' "$file"
+}
+# entry_cmd: set cmd to the words the entries run the script under: the inherited variables removed, the four option
+# variables and CLAUDE_PLUGIN_DATA among them, then the case's HOME (unset when nohome is set), clock and envs.
+entry_cmd() {
+  cmd=(env -u CLAUDE_CODE_SESSION_ID -u CLAUDE_PLUGIN_OPTION_TERMINAL -u CLAUDE_PLUGIN_OPTION_DENIALBUDGET
+    -u CLAUDE_PLUGIN_OPTION_CONTINUATIONBUDGET -u CLAUDE_PLUGIN_OPTION_PERMISSIONHOOK -u CLAUDE_CONFIG_DIR
+    -u SDD_NOASK_LOCK_WAIT -u CLAUDE_PLUGIN_DATA)
+  if [ -n "$nohome" ]; then cmd+=(-u HOME); else cmd+=("HOME=$home"); fi
+  cmd+=(TZ=Etc/GMT-4 "SDD_NOASK_NOW=$now" "${envs[@]}")
+}
+# entry_read OUT ERR: set out and err to the files OUT and ERR, bytes to OUT's size, and remove both.
+entry_read() {
+  out=$(cat -- "$1")
+  err=$(cat -- "$2")
+  bytes=$(stat -c %s -- "$1")
+  rm -f -- "$1" "$2"
+}
+# entry EVENT FILE: run `noask hook EVENT` with FILE on standard input, in this shell, under the case's limit, its
+# standard output to a file; sets out, err, rc and bytes.
+entry() {
+  local -a cmd
+  entry_cmd
+  rc=0
+  timeout "$limit" "${cmd[@]}" "$script" hook "$1" < "$2" > "$tmp/entry-out" 2> "$tmp/entry-err" || rc=$?
+  entry_read "$tmp/entry-out" "$tmp/entry-err"
+}
+# entry_bg EVENT FILE: start what entry runs in the background; entry_job is timeout's process and entry_pid the
+# entry's own bash, timeout's child (env and the script's #! line exec in place). entry_end collects it.
+entry_bg() {
+  local -a cmd
+  entry_cmd
+  timeout "$limit" "${cmd[@]}" "$script" hook "$1" < "$2" > "$tmp/bg-out" 2> "$tmp/bg-err" &
+  entry_job=$! entry_pid=
+  for _ in $(seq 1 100); do
+    entry_pid=$(pgrep -P "$entry_job") && break
+    sleep 0.05
+  done
+}
+# entry_end: wait for the entry entry_bg started; sets out, err, rc and bytes as entry does.
+entry_end() {
+  rc=0
+  wait "$entry_job" || rc=$?
+  entry_read "$tmp/bg-out" "$tmp/bg-err"
+}
+# reading_file FILE: wait up to 10 seconds until a head process reads FILE (the bounded read of a marker or the rule).
+reading_file() {
+  for _ in $(seq 1 100); do
+    pgrep -f -- "^head -c [0-9]+ -- $1\$" > /dev/null && return 0
+    sleep 0.1
+  done
+  return 1
+}
+# one_answer PART: the last entry exited 0 with nothing on stderr and printed one line of JSON, and nothing else.
+one_answer() {
+  { [ "$rc" -eq 0 ] && [ -z "$err" ] && [[ $out != *$'\n'* ]] && [ "$(wc -c <<< "$out")" -eq "$bytes" ] &&
+    jq -e . <<< "$out" > /dev/null 2>&1; } || broken+=" $1"
+}
+# silent PART: the last entry exited 0 and printed nothing, zero bytes on standard output.
+silent() { { [ "$rc" -eq 0 ] && [ "$bytes" -eq 0 ] && [ -z "$err" ]; } || broken+=" $1"; }
+msg_of() { jq -r .systemMessage <<< "$out" 2>/dev/null; } # the last answer's message
+ctx_of() { jq -r .hookSpecificOutput.additionalContext <<< "$out" 2>/dev/null; } # the last answer's context
 
 # 1. No marker: off in every form; with HOME unset, or set and empty, both
 #    readers read off and a switching command fails.
@@ -415,8 +518,48 @@ for s in 'is never a ruling' 'parked (outside the worktree:'; do
 done
 verdict 15
 
-# 16. The command calls no jq.
-{ [ -f "$script" ] && ! grep -qw jq -- "$script"; } || broken+=" jq"
+# 16. Only the hook entries call jq: with a PATH that holds the command's
+#     tools and flock but no jq, a global on, a session's on, status, the
+#     bare command in a session and in a terminal, and each count word give
+#     what they give with jq, each run on the same HOME as the other; and
+#     start-line gives the same line with the jq note after it.
+fresh 16
+bin16=$tmp/bin16
+mkdir -p -- "$bin16"
+for t in bash date env realpath dirname timeout head tr mkdir mktemp mv rm od cat stat chmod flock; do
+  if p=$(command -v "$t"); then ln -s -- "$p" "$bin16/$t"; else broken+=" link-$t"; fi
+done
+! env PATH="$bin16" bash -c 'command -v jq' > /dev/null 2>&1 || broken+=" jq-on-path"
+# both PART ARG...: noask ARG... with jq on PATH and then without it, each from the HOME as it stood before; both
+# exit 0 and print the same lines on either stream. The HOME is left as the second run left it.
+both() {
+  local part=$1 with
+  shift
+  rm -rf -- "$tmp/c16" && cp -a -- "$home" "$tmp/c16"
+  noask "$@"
+  with="$rc|$out|$err"
+  rm -rf -- "$home" && cp -a -- "$tmp/c16" "$home"
+  envs=("PATH=$bin16")
+  noask "$@"
+  envs=()
+  { [ "$rc" -eq 0 ] && [ "$rc|$out|$err" = "$with" ]; } || broken+=" $part"
+}
+both global-on global on
+both session-on --session s-1 on 2h
+both status --session s-1 status
+both plain --session s-1
+both terminal
+for w in 'question 6' 'denial 10' 'continuation 20' reset read; do
+  read -ra words <<< "$w"
+  both "count-${w%% *}" --session s-1 count "${words[@]}"
+done
+noask --session s-1 start-line
+with=$out
+envs=("PATH=$bin16")
+noask --session s-1 start-line
+envs=()
+{ [ -n "$with" ] && [[ $with != *"$jq_note"* ]]; } || broken+=" start-line"
+is start-line-no-jq 0 "$with$jq_note"
 verdict 16
 
 # 17. A session's on: 8 hours by default, the printed lines, no global
@@ -1246,5 +1389,280 @@ note="noask: the record $B/s-1 did not parse (the record has 1 line, not 5)"
   broken+=" read"
 cmp -s -- "$B/s-1" "$tmp/c46" || broken+=" read-written"
 verdict 46
+
+# 47. The hook form takes no --session and exactly one of its four events; a
+#     wrong form is refused with the usage and touches nothing. hook is no
+#     reserved word, so --session hook names a session.
+fresh 47
+refused session-hook usage --session s-1 hook stop
+refused hook-alone usage hook
+refused hook-nothing usage hook nothing
+refused hook-extra usage hook stop extra
+noask --session hook status; is session-named-hook 0 off
+verdict 47
+
+# 48. start-line: the line a session shows at its start, from each reading,
+#     with and without --session, its two notes, and nothing when the reading
+#     is off or expired; no call changes anything under HOME. noask.d at mode
+#     000 is left out as root, with a note line after the verdict.
+# line_is PART WANT ARG...: noask ARG... start-line exits 0 with nothing on
+# stderr, prints the line WANT (nothing when WANT is empty), and leaves the
+# listing of HOME as it was.
+line_is() {
+  local part=$1 want=$2 before
+  shift 2
+  before=$(listing)
+  noask "$@" start-line
+  [ "$(listing)" = "$before" ] || broken+=" $part-wrote"
+  if [ -n "$want" ]; then is "$part" 0 "$want"; else is "$part" 0; fi
+}
+g_line="noask is ON for every session since 23:00 until 2026-11-12 07:30$global_tail"
+s_line="noask is ON for this session since 23:00 until 2026-11-12 01:00$session_tail"
+h_line="noask is ON with handsoff for this session since 23:00 until 2026-11-12 01:00$handsoff_tail"
+g_bad="noask is ON for every session (noask marker unreadable: the marker has 1 line, not 4; treated as on)$global_tail"
+own_too=" This session's own switch is on too until 2026-11-12 01:00; /noask off ends that one."
+own_handsoff=" This session's own switch is on too, with handsoff, until 2026-11-12 01:00: it may push and open a request; /noask off ends that one."
+no_id_line="noask treats this session as ON: this session's id could not be read (no id was given) while a session's own switch is on"
+fresh 48
+line_is none '' --session "$sid"
+line_is none-no-id ''
+step global global on until 07:30
+line_is global "$g_line" --session "$sid"
+line_is global-no-id "$g_line"
+fresh 48-session
+step on --session "$sid" on 2h
+line_is session "$s_line" --session "$sid"
+line_is session-no-id "$no_id_line"
+envs=("CLAUDE_CODE_SESSION_ID=$sid")
+line_is session-no-id-inherited "$no_id_line"
+envs=()
+fresh 48-handsoff
+step on --session "$sid" on handsoff 2h
+line_is handsoff "$h_line" --session "$sid"
+fresh 48-both
+step global global on until 07:30
+step on --session "$sid" on 2h
+step handsoff --session s-2 on handsoff 2h
+line_is both "$g_line$own_too" --session "$sid"
+line_is both-handsoff "$g_line$own_handsoff" --session s-2
+fresh 48-expired
+step on --session "$sid" on 30m
+now=$T1
+line_is expired '' --session "$sid"
+fresh 48-global-bad
+own_dir "$st"
+printf 'x\n' > "$G"
+line_is global-bad "$g_bad" --session "$sid"
+step handsoff --session "$sid" on handsoff 2h
+line_is global-bad-handsoff "$g_bad$own_handsoff" --session "$sid"
+fresh 48-session-bad
+own_dir "$D"
+printf 'x\n' > "$D/$sid"
+line_is session-bad \
+  "noask is ON for this session (noask marker unreadable: the marker has 1 line, not 4; treated as on)$session_tail" \
+  --session "$sid"
+step global global on
+line_is session-bad-global "noask is ON for every session since 23:00$global_tail" --session "$sid"
+if [ -z "$as_root" ]; then
+  fresh 48-000
+  own_dir "$D"
+  chmod 000 -- "$D"
+  line_is noask.d-000 'noask treats this session as ON: noask.d cannot be listed or searched'
+  chmod 700 -- "$D"
+fi
+fresh 48-no-jq
+step global global on until 07:30
+envs=("PATH=$bin16")
+line_is no-jq "$g_line$jq_note" --session "$sid"
+envs=()
+fresh 48-no-rule
+step global global on until 07:30
+own=$script
+script=$copy/bin/noask
+line_is no-rule "$g_line$rule_note" --session "$sid"
+script=$own
+nohome=1
+line_is no-home '' --session "$sid"
+nohome='' envs=(SDD_NOASK_NOW=x)
+line_is no-clock '' --session "$sid"
+verdict 48
+[ -z "$as_root" ] || echo 'note 48 (the noask.d mode-000 sub-case needs a user that file modes bind)'
+
+# 49. The session-start entry: nothing without the marker; under a
+#     session's on, each of the three sources (each fixture fed once as it
+#     is, under its own id's marker) answers once with the start line and the
+#     rule text and reference sentence as its context; with the rule file
+#     moved away, and with a FIFO in its place, the rule note and the built-in
+#     text; a TERM while that FIFO is read gives the failure answer, once;
+#     nothing under an expired marker, without HOME or without a clock; the
+#     unreadable line beside the rule text under a one-line global marker.
+fresh 49
+entry session-start "$(feed session-start-startup.json)"; silent none
+for f in startup clear compact; do
+  id=$(jq -r .session_id -- "$fixtures/session-start-$f.json")
+  step "on-$f" --session "$id" on 2h
+  entry session-start "$(feed -k "session-start-$f.json")"
+  one_answer "$f"
+  [ "$(jq -r .hookSpecificOutput.hookEventName <<< "$out" 2>/dev/null)" = SessionStart ] || broken+=" $f-event"
+  [ "$(msg_of)" = "sdd: $s_line" ] || broken+=" $f-message"
+  ctx=$(ctx_of)
+  { [ -n "$first" ] && [[ $ctx == "$first"* ]] && [[ $ctx == *"$(ref_line "$src")" ]] &&
+    [ "$ctx" = "$(cat -- "$rule")"$'\n\n'"$(ref_line "$src")" ]; } || broken+=" $f-context"
+done
+fresh 49-no-rule
+copy49=$tmp/copy49
+plugin_copy "$copy49"
+rm -f -- "$copy49/scripts/noask-rule.md"
+step on --session "$sid" on 2h
+own=$script
+script=$copy49/bin/noask
+entry session-start "$(feed session-start-startup.json)"
+one_answer moved
+[ "$(msg_of)" = "sdd: $s_line$rule_note" ] || broken+=" moved-message"
+{ [ -n "$fallback" ] && [ "$(ctx_of)" = "$fallback"$'\n\n'"$(ref_line "$copy49")" ]; } || broken+=" moved-context"
+moved=$out
+mkfifo -- "$copy49/scripts/noask-rule.md"
+entry session-start "$(feed session-start-startup.json)"
+one_answer fifo
+[ "$out" = "$moved" ] || broken+=" fifo-answer"
+entry_bg session-start "$(feed session-start-startup.json)"
+reading_file "$copy49/scripts/noask-rule.md" || broken+=" signal-not-reading"
+kill -TERM "$entry_pid" 2>/dev/null || broken+=" signal-not-sent"
+entry_end
+one_answer signal
+[ "$(jq -r .hookSpecificOutput.hookEventName <<< "$out" 2>/dev/null)" = SessionStart ] || broken+=" signal-event"
+[ "$(msg_of)" = 'sdd: noask is ON (noask hook failed: ended by a signal)' ] || broken+=" signal-message"
+{ [ -n "$fallback" ] && [ "$(ctx_of)" = "$fallback" ]; } || broken+=" signal-context"
+script=$own
+fresh 49-expired
+step on global on 30m
+now=$T1
+entry session-start "$(feed session-start-startup.json)"; silent expired
+fresh 49-unreadable
+own_dir "$st"
+printf 'x\n' > "$G"
+entry session-start "$(feed session-start-startup.json)"
+one_answer unreadable
+[ "$(msg_of)" = "sdd: $g_bad" ] || broken+=" unreadable-message"
+[ "$(ctx_of)" = "$(cat -- "$rule")"$'\n\n'"$(ref_line "$src")" ] || broken+=" unreadable-context"
+nohome=1
+entry session-start "$(feed session-start-startup.json)"; silent no-home
+nohome='' envs=(SDD_NOASK_NOW=x)
+entry session-start "$(feed session-start-startup.json)"; silent no-clock
+verdict 49
+
+# 50. An input without a usable session id takes the no-id reading: the
+#     no-id line under a session's on (never the own line of a marker named
+#     as a null or a number would print), the global line under the global
+#     marker alone, nothing with no marker; without jq the line says so. An
+#     inherited CLAUDE_CODE_SESSION_ID is never the id. A FIFO among the
+#     markers, an input past 4 MiB and an input that never ends each still
+#     answer, once, within the limit; a TERM before the guard ends the entry
+#     with nothing printed and status 0.
+# no_id PART FILE REASON [ID...]: the entry on FILE, under the case's
+# session's on (and the IDs' sessions' too), prints the no-id line with
+# REASON; under the global marker alone, the global line; with no marker,
+# nothing.
+no_id() {
+  local part=$1 file=$2 reason=$3 id
+  shift 3
+  fresh "50-$part"
+  step "$part-on" --session "$sid" on 2h
+  for id in "$@"; do step "$part-on-$id" --session "$id" on 2h; done
+  entry session-start "$file"
+  one_answer "$part"
+  [ "$(msg_of)" = "sdd: noask treats this session as ON: $reason while a session's own switch is on" ] ||
+    broken+=" $part-line"
+  fresh "50-$part-global"
+  step "$part-global-on" global on
+  entry session-start "$file"
+  one_answer "$part-global"
+  [ "$(msg_of)" = "sdd: noask is ON for every session since 23:00$global_tail" ] || broken+=" $part-global-line"
+  fresh "50-$part-none"
+  entry session-start "$file"
+  silent "$part-none"
+}
+unread="this session's id could not be read"
+fresh 50-no-jq
+step on --session "$sid" on 2h
+envs=("PATH=$bin16")
+entry session-start "$(feed session-start-startup.json)"
+one_answer no-jq
+[ "$(msg_of)" = "sdd: noask treats this session as ON: $unread (jq is missing) while a session's own switch is on$jq_note" ] ||
+  broken+=" no-jq-line"
+fresh 50-no-jq-global
+step on global on
+envs=("PATH=$bin16")
+entry session-start "$(feed session-start-startup.json)"
+one_answer no-jq-global
+[ "$(msg_of)" = "sdd: noask is ON for every session since 23:00$global_tail$jq_note" ] || broken+=" no-jq-global-line"
+fresh 50-no-jq-none
+envs=("PATH=$bin16")
+entry session-start "$(feed session-start-startup.json)"; silent no-jq-none
+printf 'not json\n' > "$tmp/c50-not-json"
+: > "$tmp/c50-empty"
+no_id not-json "$tmp/c50-not-json" "$unread (the input is not JSON)"
+no_id empty "$tmp/c50-empty" "$unread (the input is empty)"
+no_id a-b "$(feed session-start-startup.json '.session_id = "a b"')" "this session's id is not usable (a b)"
+no_id null "$(feed session-start-startup.json '.session_id = null')" "$unread (the input has no session_id)" null 7
+no_id missing "$(feed session-start-startup.json 'del(.session_id)')" "$unread (the input has no session_id)" null 7
+no_id number "$(feed session-start-startup.json '.session_id = 7')" "$unread (the input has no session_id)" null 7
+fresh 50-inherited
+step on --session s-on on 2h
+envs=(CLAUDE_CODE_SESSION_ID=s-on)
+entry session-start "$(feed session-start-startup.json)"; silent inherited
+fresh 50-fifo-marker
+own_dir "$D"
+mkfifo -- "$D/s-fifo"
+entry session-start "$tmp/c50-not-json"
+one_answer fifo-marker
+[ "$(msg_of)" = "sdd: noask treats this session as ON: $unread (the input is not JSON) while a session's own marker is unreadable" ] ||
+  broken+=" fifo-marker-line"
+fresh 50-long
+step on --session "$sid" on 2h
+{ printf '{"session_id":"%s","pad":"' "$sid" && head -c 4194304 /dev/zero | tr '\0' x && printf '"}\n'; } > "$tmp/c50-long"
+entry session-start "$tmp/c50-long"
+one_answer long
+[ "$(msg_of)" = "sdd: noask treats this session as ON: $unread (the input is longer than 4 MiB) while a session's own switch is on" ] ||
+  broken+=" long-line"
+fresh 50-open
+step on --session "$sid" on 2h
+mkfifo -- "$tmp/c50-open"
+exec {hold}<>"$tmp/c50-open"
+entry session-start "$tmp/c50-open"
+exec {hold}<&-
+one_answer open
+[ "$(msg_of)" = "sdd: noask treats this session as ON: $unread (the input read timed out) while a session's own switch is on" ] ||
+  broken+=" open-line"
+fresh 50-term
+own_dir "$D"
+mkfifo -- "$D/$sid"
+entry_bg session-start "$(feed session-start-startup.json)"
+reading_file "$D/$sid" || broken+=" term-not-reading"
+kill -TERM "$entry_pid" 2>/dev/null || broken+=" term-not-sent"
+entry_end
+silent term
+verdict 50
+
+# 51. json_string: a rule text that holds a quote, a backslash, a tab and a
+#     line of a two-byte character comes back from the context, byte for
+#     byte, up to the empty line before the reference sentence.
+fresh 51
+copy51=$tmp/copy51
+plugin_copy "$copy51"
+printf 'say "yes" or \\ no\tand a tab\n%s\n\n' 'éééé' > "$copy51/scripts/noask-rule.md"
+step on --session "$sid" on 2h
+own=$script
+script=$copy51/bin/noask
+entry session-start "$(feed session-start-startup.json)"
+script=$own
+one_answer answer
+ctx=$(ctx_of)
+ref_tail=$'\n\n'$(ref_line "$copy51")
+[[ $ctx == *"$ref_tail" ]] || broken+=" reference"
+printf '%s' "${ctx%"$ref_tail"}" > "$tmp/c51-got"
+printf '%s' "$(cat -- "$copy51/scripts/noask-rule.md")" > "$tmp/c51-want"
+{ [ -s "$tmp/c51-want" ] && cmp -s -- "$tmp/c51-got" "$tmp/c51-want"; } || broken+=" rule-bytes"
+verdict 51
 
 exit "$fail"
