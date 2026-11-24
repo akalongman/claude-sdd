@@ -298,13 +298,15 @@ async function startLineRun(
 // The start line at a resume and a fork, where the command hook's answer reaches neither the screen nor the agent,
 // shown once for a session. While `sdd.startLine` holds nothing: a transcript with no message (a new session, which
 // the command hook spoke to) marks the start seen and shows nothing; one that holds a message (a resumed or a forked
-// session) runs `start-line`, after `--session <the session's id>` while the session has a usable id. An exit 0 with
-// a line shows the line and marks the start shown; an exit 0 with none (noask off) marks it seen, so a reload after a
-// later `on` shows no late line. The line is shown before the state is written: a write that fails lets a reload show
-// it again, which is preferred to a line never shown. Every other failure on the way (a call that rejects or does not
-// answer in time, an exit other than 0, a run past its limit) shows and marks nothing, so a reload, which runs
-// session.start again in a running session, tries again. Each `$` call but the run is bounded by inTime: at most four
-// such bounds and the run's own 7 seconds. Never rejects.
+// session) runs `start-line`, after `--session <the session's id>` while the session has a usable id. A read of the id
+// that rejects or does not answer in time counts as no usable id: `start-line` then runs without `--session`, and its
+// line is shown and the start marked as for any other line. An exit 0 with a line shows the line and marks the start
+// shown; an exit 0 with none (noask off) marks it seen, so a reload after a later `on` shows no late line. The line is
+// shown before the state is written: a write that fails lets a reload show it again, which is preferred to a line
+// never shown. Every other failure on the way (a read of the state or the transcript that rejects or does not answer
+// in time, a run of the command that rejects or does not answer in time, an exit other than 0, a log that throws)
+// shows and marks nothing, so a reload, which runs session.start again in a running session, tries again. Each `$`
+// call but the run is bounded by inTime: at most four such bounds and the run's own 7 seconds. Never rejects.
 async function showStartLine(
     $: Pick<EngineInterface, 'state' | 'session' | 'process' | 'plugin' | 'clock' | 'ui'>,
 ): Promise<void> {

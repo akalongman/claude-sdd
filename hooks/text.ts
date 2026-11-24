@@ -70,7 +70,9 @@ export const LEFT_OPEN_TEXT =
     "is still open; put the here-document's body and its delimiter line before the substitution's close";
 
 // The three lines a turn under noask ends on, and the text for a turn that ends on waiting with nothing of its own
-// running; step two's Stop entry uses them, and they are held equal to the apply skill's reference from this release.
+// running: the command's Stop entry reads a message's last line for the three and continues such a turn with the
+// text, from copies of its own that tests/test-noask.sh holds to these, and the three are held equal to the apply
+// skill's noask reference.
 export const WAITING_LINE = 'noask: waiting:';
 export const DONE_LINE = 'noask: done';
 export const BLOCKED_LINE = 'noask: blocked:';
@@ -96,8 +98,10 @@ export const STOP_UNREADABLE_TEXT =
     '`noask: blocked: stop hook unreadable`';
 
 // The session start's line, which the session-start entry shows after `sdd: ` and the module at a resume and a fork as
-// it is: the scope and the way out, then the notes that hold, each after one space. START_FAILED_LINE stands in its
-// place in the entry's failure answer when the line was not built. The tails are the line's after its scope and times.
+// it is: the scope and the way out, then the sentences that follow it (a session's own switch after the global
+// marker's line, and the notes that hold). When any follows, a full stop ends the line, and each sentence follows after
+// one space; a line with none after it ends as it is. START_FAILED_LINE stands in its place in the entry's failure
+// answer when the line was not built. The tails are the line's after its scope and times.
 export const START_JQ_NOTE =
     "jq is not on PATH, so noask's hooks cannot tell this session from another: while any noask switch is on they " +
     'act in every session, and a stop is continued once.';
@@ -120,7 +124,7 @@ export type StartTimes = { readonly since: string; readonly until?: string; read
 // A session's own switch, named after the global marker's line: its until and its level.
 export type OwnSwitch = { readonly until: string; readonly level: 'noask' | 'handsoff' };
 
-// The sentence a session's own switch adds after the global marker's line.
+// The sentence a session's own switch adds after the global marker's line, after the full stop that ends the line.
 function ownSentence({ until, level }: OwnSwitch): string {
     return level === 'handsoff'
         ? ` This session's own switch is on too, with handsoff, until ${until}: it may push and open a request; ` +
@@ -152,7 +156,7 @@ export function startLine(scope: StartScope, times: StartTimes): string {
         case 'bothHandsoff':
             return times.own === undefined
                 ? global
-                : `${global}${ownSentence({ until: times.own, level: scope === 'both' ? 'noask' : 'handsoff' })}`;
+                : `${global}.${ownSentence({ until: times.own, level: scope === 'both' ? 'noask' : 'handsoff' })}`;
         default: {
             const exhaustive: never = scope;
             return exhaustive;
@@ -168,7 +172,7 @@ export function startUnreadableLine(scope: 'global' | 'session', reason: string,
     const unreadable: Reading = { kind: 'unreadable', error: reason };
     return scope === 'session'
         ? `${withError(THIS_SESSION, unreadable)}${SESSION_TAIL}`
-        : `${withError(EVERY_SESSION, unreadable)}${GLOBAL_TAIL}${own === undefined ? '' : ownSentence(own)}`;
+        : `${withError(EVERY_SESSION, unreadable)}${GLOBAL_TAIL}${own === undefined ? '' : `.${ownSentence(own)}`}`;
 }
 
 // The start line of a session without a usable id that reads on: why it is treated as under noask.

@@ -1079,6 +1079,7 @@ read_input() {
     esac
   fi
   if [ -n "$usable" ]; then
+    # Each { ...; } 2>/dev/null silences bash's ignored null byte warning, for an id's \u0000 (the read made NULs \001).
     case ${kind%%$'\n'*} in
       none) why='the input has no session_id' ;;
       good)
@@ -1299,13 +1300,15 @@ ending_text() {
 }
 
 # start_line: set line to the line a session shows at its start under the
-# reading entry_reading took, then the notes that hold (jq not on PATH, by
-# has_jq; the rule file unreadable, by rule_missing), each after one space;
-# or to nothing when the reading is off or expired. Under the global
-# marker's reading S's own switch that reads on adds its sentence. line is
-# set once, when it is whole.
+# reading entry_reading took, then the sentences that follow it: under the
+# global marker's reading, S's own switch that reads on; then the notes that
+# hold (jq not on PATH, by has_jq; the rule file unreadable, by
+# rule_missing). When any follows, a full stop ends the line, and each
+# sentence follows after one space; a line with none after it ends as it
+# is. line is set to nothing when the reading is off or expired, and once,
+# when it is whole.
 start_line() {
-  local text=''
+  local text='' more=''
   line=''
   case $reading_state in off | expired) return 0 ;; esac
   case $reading in
@@ -1318,9 +1321,9 @@ start_line() {
       fi
       text+='; sessions rule on their own recommendations and never wait; noask global off to end it'
       if [ -n "$session" ] && [ "${sm[state]}" = on ] && [ "${sm[level]}" = handsoff ]; then
-        text+=" This session's own switch is on too, with handsoff, until ${sm[until_at]}: it may push and open a request; /noask off ends that one."
+        more+=" This session's own switch is on too, with handsoff, until ${sm[until_at]}: it may push and open a request; /noask off ends that one."
       elif [ -n "$session" ] && [ "${sm[state]}" = on ]; then
-        text+=" This session's own switch is on too until ${sm[until_at]}; /noask off ends that one."
+        more+=" This session's own switch is on too until ${sm[until_at]}; /noask off ends that one."
       fi
       ;;
     sm)
@@ -1334,9 +1337,9 @@ start_line() {
       ;;
   esac
   [ -n "$has_jq" ] ||
-    text+=" jq is not on PATH, so noask's hooks cannot tell this session from another: while any noask switch is on they act in every session, and a stop is continued once."
-  [ -z "$rule_missing" ] || text+=' The rule file could not be read, so sessions rule nothing and block every choice.'
-  line=$text
+    more+=" jq is not on PATH, so noask's hooks cannot tell this session from another: while any noask switch is on they act in every session, and a stop is continued once."
+  [ -z "$rule_missing" ] || more+=' The rule file could not be read, so sessions rule nothing and block every choice.'
+  line=$text${more:+.$more}
 }
 
 # start-line: S's start line, or a session's with no id, with its notes;
@@ -1440,9 +1443,10 @@ terminal_link() {
     link=refused
   else
     bounded mkdir -p -- "${user%/*}" || return 0
-    # No -f: when another start made the link first, ln fails and the link is read again. A failed ln with
-    # nothing in the way failed for another reason, and ends the step.
-    if bounded ln -s -- "$data/bin/noask" "$user"; then
+    # No -f: when another start made the link first, ln fails and the link is read again. -T: a folder that
+    # appeared there meanwhile makes ln fail too, where plain -s would put the link inside it, and is read again as
+    # refused. A failed ln with nothing in the way failed for another reason, and ends the step.
+    if bounded ln -sT -- "$data/bin/noask" "$user"; then
       notice "$TERMINAL_ADDED_TEXT"
       link=own
     else
@@ -1598,8 +1602,10 @@ hook_elicitation() {
 # between), one closing period, and the blanks at both ends again. stripped
 # is empty for a blank line, and for one that holds no token by ruling 7:
 # one longer than LINE_BYTES, and one the last of STRIP_PASSES passes still
-# changed. Nothing runs but the shell's own expansions, each over at most
-# LINE_BYTES.
+# changed. Nothing runs but the shell's own expansions: the copy of LINE
+# into s, the test and drop of its carriage return and the test of its
+# length run over the whole line, and every one after that test over at
+# most LINE_BYTES.
 strip_line() {
   local s=$1 was mark n pass
   stripped=''

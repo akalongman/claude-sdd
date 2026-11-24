@@ -1454,8 +1454,8 @@ fresh 48-both
 step global global on until 07:30
 step on --session "$sid" on 2h
 step handsoff --session s-2 on handsoff 2h
-line_is both "$g_line$own_too" --session "$sid"
-line_is both-handsoff "$g_line$own_handsoff" --session s-2
+line_is both "$g_line.$own_too" --session "$sid"
+line_is both-handsoff "$g_line.$own_handsoff" --session s-2
 fresh 48-expired
 step on --session "$sid" on 30m
 now=$T1
@@ -1465,7 +1465,7 @@ own_dir "$st"
 printf 'x\n' > "$G"
 line_is global-bad "$g_bad" --session "$sid"
 step handsoff --session "$sid" on handsoff 2h
-line_is global-bad-handsoff "$g_bad$own_handsoff" --session "$sid"
+line_is global-bad-handsoff "$g_bad.$own_handsoff" --session "$sid"
 fresh 48-session-bad
 own_dir "$D"
 printf 'x\n' > "$D/$sid"
@@ -1484,13 +1484,13 @@ fi
 fresh 48-no-jq
 step global global on until 07:30
 envs=("PATH=$bin16")
-line_is no-jq "$g_line$jq_note" --session "$sid"
+line_is no-jq "$g_line.$jq_note" --session "$sid"
 envs=()
 fresh 48-no-rule
 step global global on until 07:30
 own=$script
 script=$copy/bin/noask
-line_is no-rule "$g_line$rule_note" --session "$sid"
+line_is no-rule "$g_line.$rule_note" --session "$sid"
 script=$own
 nohome=1
 line_is no-home '' --session "$sid"
@@ -1529,7 +1529,7 @@ own=$script
 script=$copy49/bin/noask
 entry session-start "$(feed session-start-startup.json)"
 one_answer moved
-[ "$(msg_of)" = "sdd: $s_line$rule_note" ] || broken+=" moved-message"
+[ "$(msg_of)" = "sdd: $s_line.$rule_note" ] || broken+=" moved-message"
 { [ -n "$fallback" ] && [ "$(ctx_of)" = "$fallback"$'\n\n'"$(ref_line "$copy49")" ]; } || broken+=" moved-context"
 moved=$out
 mkfifo -- "$copy49/scripts/noask-rule.md"
@@ -1599,14 +1599,14 @@ step on --session "$sid" on 2h
 envs=("PATH=$bin16")
 entry session-start "$(feed session-start-startup.json)"
 one_answer no-jq
-[ "$(msg_of)" = "sdd: noask treats this session as ON: $unread (jq is missing) while a session's own switch is on$jq_note" ] ||
+[ "$(msg_of)" = "sdd: noask treats this session as ON: $unread (jq is missing) while a session's own switch is on.$jq_note" ] ||
   broken+=" no-jq-line"
 fresh 50-no-jq-global
 step on global on
 envs=("PATH=$bin16")
 entry session-start "$(feed session-start-startup.json)"
 one_answer no-jq-global
-[ "$(msg_of)" = "sdd: noask is ON for every session since 23:00$global_tail$jq_note" ] || broken+=" no-jq-global-line"
+[ "$(msg_of)" = "sdd: noask is ON for every session since 23:00$global_tail.$jq_note" ] || broken+=" no-jq-global-line"
 fresh 50-no-jq-none
 envs=("PATH=$bin16")
 entry session-start "$(feed session-start-startup.json)"; silent no-jq-none
@@ -2475,8 +2475,11 @@ verdict 65
 # 66. The budget: the continuation that spends it carries the ending text
 #     alone and the next stop is allowed; a budget variable that is not 1 to
 #     99999 counts against 20. Twenty stops at once (case 42's form) each
-#     exit 0 and end the record at 20, spent. Two stops on a record at 19,
-#     the second looking after the first has looked and before it counts:
+#     exit 0 and end the record at 20, spent, and exactly one carries the
+#     ending text: each looks before the twentieth count, so each counts,
+#     and only the count that reaches 20 prints the spent cause. Two stops
+#     on a record at 19, the second looking after the first has looked and
+#     before it counts:
 #     both carry the ending text; two started together: each the ending text
 #     or nothing, one at least the ending text.
 fresh 66
@@ -2528,7 +2531,7 @@ for i in $(seq 1 20); do
     broken+=" twenty-run-$i-context"
   fi
 done
-[ "$endings" -ge 1 ] || broken+=" twenty-ending"
+[ "$endings" -eq 1 ] || broken+=" twenty-ending"
 record_is twenty-record "$B/$sid" 0 0 20 continuation
 fresh 66-two
 step on global on

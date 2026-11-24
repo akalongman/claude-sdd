@@ -992,8 +992,10 @@ test('a switch typed through the bridge runs as one typed at the prompt', async 
 // The start line at a resume and a fork. At the session's start, once /noask is registered, a session whose start was
 // not seen yet (`sdd.startLine` holds nothing) and whose transcript holds a message, a resumed or a forked one, runs
 // `start-line` and shows the line the command prints, or marks the start seen when it prints none; a session whose
-// transcript is empty, a new one, was spoken to by the command hook, and its start is marked seen. A failure on the
-// way shows and marks nothing, so a reload, which runs session.start again in the same session, tries again.
+// transcript is empty, a new one, was spoken to by the command hook, and its start is marked seen. A read of the
+// session's id that rejects or does not answer in time counts as no usable id, and the command runs without
+// `--session`; any other failure on the way shows and marks nothing, so a reload, which runs session.start again in the
+// same session, tries again.
 
 const START_LINE =
     'noask is ON for this session since 23:00 until 2026-11-12 07:00; it rules on its own recommendations and never ' +
@@ -1179,7 +1181,7 @@ test('a state write that fails after the line was shown leaves the line, and the
     expect(world.logs).toEqual([START_LINE, START_LINE]);
 });
 
-// The command's notes stand on its line, each after one space.
+// The command's notes stand on its line, after the full stop that ends the line and one space.
 const NOTES: ReadonlyArray<readonly [string, string]> = [
     ['the jq note', START_JQ_NOTE],
     ['the rule note', START_RULE_NOTE],
@@ -1187,9 +1189,9 @@ const NOTES: ReadonlyArray<readonly [string, string]> = [
 
 for (const [name, note] of NOTES) {
     test(`a resume whose line carries ${name} shows the note on the line`, async ($, on) => {
-        const world = stage(on, { start: printed(`${START_LINE} ${note}\n`) });
+        const world = stage(on, { start: printed(`${START_LINE}. ${note}\n`) });
         await $.session.start(SESSION);
-        expect(world.logs).toEqual([`${START_LINE} ${note}`]);
+        expect(world.logs).toEqual([`${START_LINE}. ${note}`]);
     });
 }
 

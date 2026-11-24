@@ -3534,13 +3534,14 @@ where they leave room, it does as follows:
   answers with the whole start line and the hook's failure rather than
   with `noask is ON`; no case pins it.
 - A sentence a start line gains (this session's own switch under the
-  global one, the `jq` note, the rule note) follows the line after one
-  space with no full stop between them:
-  `... noask global off to end it This session's own switch is on too until <time>; /noask off ends that one.`
-  The spec fixes the base lines without a final stop, and call 8 leaves
-  the sentences to the builder. Case 48, the fixture and `hooks/text.ts`
-  hold the wording, so a change touches all three; it is the owner's to
-  rule on.
+  global one, the `jq` note, the rule note) follows the line after a
+  full stop that ends it and one space:
+  `... noask global off to end it. This session's own switch is on too until <time>; /noask off ends that one.`
+  A line with nothing after it ends as the spec fixes it, without a
+  final stop, and call 8 leaves the sentences to the builder. The plan
+  put one space there and no full stop, as the build first did; the full
+  stop is a ruling during the run (below), for the spec's revision 22.
+  Case 48, the fixture and `hooks/text.ts` hold the wording.
 - The stripping's limit: a line holds no token when the eighth pass still
   changed it, so seven surrounding `**` pairs keep the token and eight
   continue the turn (case 67); the other reading of ruling 7 would let
@@ -3553,10 +3554,14 @@ where they leave room, it does as follows:
   ` (noask count failed: cannot ...)` at a denied prompt. The entries'
   form is the one the plan prescribes.
 - The link step's bound is the shell's `SECONDS`, which counts whole
-  seconds, so the step ends between about 3 and 5 seconds of real time;
-  with its last command's own 2 seconds it can take about 7, and a
-  session start about 17, against the plan's 6 and 16, both inside the
-  hooks' 30. This is reasoned from `SECONDS`, not measured.
+  seconds: `in_time` holds while `SECONDS - link_started` is under 4, so
+  the step's own bound fires between 3 and 4 seconds of real time. With
+  its last command's own 2 seconds its worst case stays under 6 seconds,
+  and a session's start under 16, as the plan's Time constraint states,
+  both inside the hooks' 30. Bash 5.3.9 bears it out: in five runs a
+  difference of 4 came 3.3 to 3.6 seconds after a reading.
+- The terminal command's link is made with `ln -sT`, not with laterbox
+  0.4.0's `ln -s` (a ruling during the run, below).
 - The module's start: a session id that does not answer within 2 seconds
   counts as no usable id, and `start-line` then runs without `--session`;
   and the line shown is the run's standard output alone.
@@ -3775,6 +3780,11 @@ The facts:
 - neither: the moment the host takes the answer at Stop, SessionStart
   and Elicitation, and the time this entry takes to deny with the lock
   free, measured against the dialog.
+- neither: that a permission prompt raised by the classifier declining
+  to decide, or one raised by another hook, reaches the PermissionRequest
+  hook as one raised by an `ask` rule does. The entry answers every
+  prompt it is sent, but every prompt the probes raised came from an
+  `ask` rule.
 - probe: a hook past its timeout is sent `TERM` to its process group,
   killed about half a second later and its output thrown away; then a
   stop is allowed and a prompt waits (P4, at Stop and PermissionRequest,
@@ -3803,17 +3813,25 @@ The facts:
 - neither: every fact of P1 to P4 on build 2.1.325, which CI pins.
 
 The spec's acceptance item 3, an afternoon and a night with the plugin
-loaded, is to see before the push what it lists: each of the four
-options set in `/config` and its effect, a prompt raised while the
-records' lock is held, a hook past its timeout on the owner's own
-account (or the owner takes P4 as enough), `/noask on` in a session just
-compacted, the wake-up's submission of entry 7, and a session marker
-that is a link to nothing.
+loaded, is to see before the push the pass conditions that the plan of
+noask's second step, a local working document, lists for it: each of
+the four options set in `/config` to a value that is not its default,
+and its effect seen, and one option set to its default's value; a
+permission prompt raised while the records' lock is held from a
+terminal, where the denial comes after the lock's wait, with the count's
+failure in its text, and the dialog is seen meanwhile; a hook past its
+timeout on the owner's own account (or the owner takes P4 as enough);
+`/noask on` in a session just compacted; the wake-up's submission of
+entry 7, and a session marker that is a link to nothing; and step one's
+open acceptance notes, as the parked notes list them (the wake-up look,
+the origin rule, the watch tool, a plan's write, the memory tool, a
+missing configuration root).
 
 ### Rulings during the run
 
-The run's own rulings, and one question withdrawn, each with what it
-would cost if it were wrong.
+The run's own rulings, one question withdrawn, and the owner's rulings
+on the minor findings after the final review, each with what it would
+cost if it were wrong.
 
 - D1 (the driver, before Task 1). Task 5's five new records of the
   fence's table make the module's assertion of the table's row count in
@@ -3855,6 +3873,38 @@ would cost if it were wrong.
   neither release wrote a line there. Cost if wrong: a History section
   with one release line; adding the others, or removing it, is a few
   lines of the README.
+- The minor fixes (the owner, 2026-11-24). Of the thirty minor findings
+  the reviews deferred, the owner approved twelve after the final
+  review, "all as recommended", and one pass after the release commit
+  made them: comments and README sentences corrected to what the code
+  does, this entry's timings and acceptance list, and the three below;
+  the other eighteen stay deferred. Cost if wrong: none beyond those
+  edits, each visible in that pass's commit.
+- The start line's full stop (the owner, within that approval). Where a
+  sentence or a note follows a start line, a full stop ends the line
+  before the space that precedes it, in every form of the line; a line
+  with nothing after it is left as the spec fixes it. This departs from
+  the plan's Task 1, which put one space there, and the spec's revision
+  22 takes it in. Cost if wrong: six texts of the fixture and the cases
+  that hold them, to set back together.
+- `ln -sT` for the terminal command (the owner, within that approval).
+  The link step makes `~/.local/bin/noask` with `ln -sT` where laterbox
+  0.4.0's `terminal_link`, which the plan's Task 4 follows, uses
+  `ln -s`: a folder that appears at that path between the step's look
+  and its `ln` makes the `ln` fail, and the step reads the path again
+  and finds it refused, where `ln -s` would put the link inside the
+  folder and say the added notice. Probed under GNU coreutils 9.7 and
+  uutils 0.10.0: with nothing at the path the link is made; with a
+  folder or a file there the `ln` fails and makes nothing. No case holds
+  the race. Cost if wrong: on an `ln` without `-T` no link is ever made
+  and every first start ends the step silently; the fix is one flag.
+- Exactly one ending of twenty stops (the owner, within that approval).
+  Case 66 asserts that exactly one of twenty stops at once carries the
+  ending text, where the plan asks for at least one: each stop looks at
+  the record before the twentieth count, so each counts, and only the
+  count that reaches 20 prints the spent cause, which the reason follows
+  (call 9). Cost if wrong: a case that fails on a path that gives two
+  endings, which would need a twenty-first count.
 
 ### Gates
 

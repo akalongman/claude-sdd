@@ -51,12 +51,13 @@ the next session, or after `/reload-plugins` in a session already open.
   and noask's command hooks run to read the input Claude Code hands them.
   Without it those hooks cannot read a session's id, so while the global
   switch or any session's own is on: a permission prompt is denied and a
-  tool server's question declined in every session, neither counted; each
-  turn's first stop is continued once, with a line that asks the session
-  to end on `noask: blocked: stop hook unreadable`, and the stop after it
-  is allowed whatever its last line says, so no stop sets the budgets'
-  counts back; and the terminal command is neither linked nor removed. A
-  session's start line under noask says that `jq` is not on PATH.
+  tool server's question declined in every session, neither counted; and
+  each turn's first stop is continued once, with a line that asks the
+  session to end on `noask: blocked: stop hook unreadable`, and the stop
+  after it is allowed whatever its last line says, so no stop sets the
+  budgets' counts back. Whatever the switches, the terminal command is
+  then neither linked nor removed. A session's start line under noask
+  says that `jq` is not on PATH.
 - For an OpenSpec source only, the `openspec` CLI, through which the skill
   loads the change.
 - Not required: `~/.claude/rules/git.md`. The implementer overrides
@@ -275,15 +276,17 @@ and no link is made. Without `jq`, and off Linux, the step does not run.
   resolved (its look refused, or not answered in time), since a `plans`
   folder that is a link may lead into it: an edit under any of them is
   then refused, a plan's too.
-- A permission prompt about to be shown to you, whatever raised it (an
-  `ask` rule, the classifier declining to decide, another hook), is
-  denied in your place with
+- A permission prompt about to be shown to you is denied in your place
+  with
   ``noask is on: this action needs the owner; print `blocked: <the action>` and continue with the next independent item``,
   and a subagent's with the line that asks it to follow its role's rule
-  for a denied tool. A tool server's question (an MCP elicitation) is
-  declined in your place: the server receives a decline, and the agent
-  reads whatever the server makes of one. Each counts as a denial. With
-  the `permissionHook` setting off, both wait for you.
+  for a denied tool. The hook answers every permission prompt Claude Code
+  sends it, whatever raised the prompt; of the sources (an `ask` rule,
+  the classifier declining to decide, another hook), only a prompt raised
+  by an `ask` rule has been observed. A tool server's question (an MCP
+  elicitation) is declined in your place: the server receives a decline,
+  and the agent reads whatever the server makes of one. Each counts as a
+  denial. With the `permissionHook` setting off, both wait for you.
 - Of the hooks that answer one permission prompt, Claude Code acts on the
   first that ends with a decision, and it takes the plugin's answer only
   when the plugin's hook process ends, after its count. So a hook of
@@ -330,12 +333,12 @@ and no link is made. Without `jq`, and off Linux, the step does not run.
   refused question or continued stop. A clear and a fork give the session
   a new id, though, which a session's own switch typed before them does
   not follow: it neither holds the session nor gives it a line there
-  (What still waits, below). A sentence follows the line, after
-  one space, when this session's own switch is on too under the global
-  one, when `jq` is not on PATH, and when the rule file cannot be read. A
-  session whose id the hook cannot read while another session's own
-  switch is on is treated as under noask, and its line says why:
-  `noask treats this session as ON: <reason>`.
+  (What still waits, below). A sentence follows the line, after a full
+  stop that ends it and one space, when this session's own switch is on
+  too under the global one, when `jq` is not on PATH, and when the rule
+  file cannot be read. A session whose id the hook cannot read while
+  another session's own switch is on is treated as under noask, and its
+  line says why: `sdd: noask treats this session as ON: <reason>`.
 - Three budgets bound the interventions in a row: 6 refused questions, 10
   denials (the fence's, the guard's, a denied permission prompt and a
   declined server question included) and 20 continued stops. Once one is
@@ -376,7 +379,10 @@ and no link is made. Without `jq`, and off Linux, the step does not run.
   it). So the switch typed before a clear or a fork does not hold the
   session after it, and no line says so: type `/noask on` in it again,
   or use the global switch. The old switch stays on under the old id,
-  and a bare `noask` in a terminal still lists it.
+  and a bare `noask` in a terminal still lists it, until it expires or
+  `/noask off` is typed in a session that still holds that id:
+  `noask global off` leaves it on, and a switch's sweep removes its
+  marker only once it has expired.
 - A dialog that no hook precedes still waits for you, such as the browser
   setup offer, and a goal proposal's may: whether its dialog waits under
   noask is unchecked.
