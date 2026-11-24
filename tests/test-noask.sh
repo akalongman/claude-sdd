@@ -7,7 +7,9 @@
 # CLAUDE_CODE_SESSION_ID, CLAUDE_PLUGIN_OPTION_TERMINAL, CLAUDE_CONFIG_DIR and
 # SDD_NOASK_LOCK_WAIT unset unless the case sets one, so no case touches the
 # real markers or records or reads the session this test runs in. The hook
-# entries (cases 49 on) run with CLAUDE_PLUGIN_DATA unset too, and with
+# entries (cases 49 on) run with CLAUDE_PLUGIN_DATA unset too, but in cases
+# 68 to 71, which give the session start's link step one under the case's
+# HOME, so its links land there and never in the real ~/.local/bin; and with
 # every CLAUDE_PLUGIN_OPTION_* variable unset unless the case sets one, and
 # read the hook inputs of tests/fixtures/hook-inputs, the probes' own with
 # the home rewritten. Each command runs under `timeout 10` (case 27's and
@@ -21,7 +23,8 @@
 # document, Tasks 1 (31 to 36), 2 (37 to 44), 4 and 6 (45), and case 46 that
 # of a later fix to count read; case 16 (replaced) and cases 47 to 51 those
 # of the plan of noask's second step, a local working document, Task 1,
-# cases 52 to 58 its Task 2 and cases 59 to 67 its Task 3. Case
+# cases 52 to 58 its Task 2, cases 59 to 67 its Task 3 and cases 68 to 71
+# its Task 4. Case
 # 45 runs tests/gen-marker-fixtures.sh on SCRIPT, which makes its own
 # temporary HOMEs, and reads hooks/text.ts and
 # skills/apply/references/noask.md beside this script's directory; case 49
@@ -2703,5 +2706,220 @@ continues_once far "$(say stop-first.json "$done_line"$'\n'"$(yes -- 'more text'
 continues_once near "$(say stop-first.json "$done_line"$'\n'"$(yes -- 'more text' | head -n 99)"$'\n'"$question")" \
   "$last_line_text $rule_all"
 verdict 67
+
+# The terminal link's notices and helpers (cases 68 to 71), the four notices word for word.
+added_notice='noask: added the terminal command ~/.local/bin/noask; set sdd.terminal to off in /config to remove it.'
+removed_notice='noask: removed the terminal command ~/.local/bin/noask.'
+refused_notice='noask: ~/.local/bin/noask exists and was not made by this plugin, so the terminal command was not added; remove it and start a new session to get it.'
+path_notice="noask: ~/.local/bin is not on PATH in this session, so a terminal may not find noask; add it to PATH in your shell's startup file."
+# linking [PATH]: the case's entries run with a CLAUDE_PLUGIN_DATA of their own, data under the case's HOME, and with
+# PATH, by default the test's own with HOME's .local/bin first; ul is HOME's .local/bin/noask, the terminal command.
+linking() {
+  data=$home/plugin-data ul=$home/.local/bin/noask
+  envs=("CLAUDE_PLUGIN_DATA=$data" "PATH=${1-$home/.local/bin:$PATH}")
+}
+# session_start [FIXTURE]: the session-start entry on FIXTURE (session-start-startup.json by default), with the
+# case's id.
+session_start() { entry session-start "$(feed "${1:-session-start-startup.json}")"; }
+# told PART MESSAGE: the last entry answered once with the SessionStart object that holds the message MESSAGE alone.
+told() {
+  one_answer "$1"
+  [ "$out" = "$(jq -cn --arg m "$2" '{systemMessage: $m}')" ] || broken+=" $1-message"
+}
+# linked PART: ul is a link to data's bin/noask, itself a link to the plugin's bin/noask, so ul resolves to the
+# script.
+linked() {
+  { [ "$(readlink -- "$ul")" = "$data/bin/noask" ] && [ "$(readlink -- "$data/bin/noask")" = "$src/bin/noask" ] &&
+    [ "$(readlink -f -- "$ul")" = "$(realpath -- "$script")" ]; } || broken+=" $1"
+}
+# unlinked PART: the link step made nothing: no ul and no data.
+unlinked() { { [ ! -e "$ul" ] && [ ! -L "$ul" ] && [ ! -e "$data" ]; } || broken+=" $1"; }
+# through PART: the terminal command ul runs `status` under the entries' words and prints off.
+through() {
+  local -a cmd
+  entry_cmd
+  rc=0
+  out=$(timeout "$limit" "${cmd[@]}" "$ul" status 2>&1) || rc=$?
+  { [ "$rc" -eq 0 ] && [ "$out" = off ]; } || broken+=" $1"
+}
+# foreign KIND: an entry this plugin did not make at ul: a file, a folder that holds one, a link to /bin/true, a link
+# to nothing, or a link named noask to the plugin's own script but not through data (own-script).
+foreign() {
+  mkdir -p -- "${ul%/*}"
+  case $1 in
+    file) printf 'echo mine\n' > "$ul" ;;
+    folder) mkdir -- "$ul" && printf 'mine\n' > "$ul/file" ;;
+    true) ln -s -- /bin/true "$ul" ;;
+    nothing) ln -s -- "$home/nowhere" "$ul" ;;
+    own-script) ln -s -- "$src/bin/noask" "$ul" ;;
+  esac
+}
+# standing PATH: what stands at PATH, without following a link: each entry's type, mode, size, link text and
+# modification time, then the bytes of each regular file under it.
+standing() {
+  find "$1" -printf '%P %y %m %s %l %T@\n' 2>/dev/null | LC_ALL=C sort
+  find "$1" -type f -exec cat -- {} + 2>/dev/null
+}
+# state_is PART LINK PATH: data's terminal-state holds the two conditions LINK and PATH, one per line.
+state_is() { [ "$(cat -- "$data/terminal-state" 2>/dev/null)" = "$2"$'\n'"$3" ] || broken+=" $1"; }
+
+# 68. The terminal link at a first start with no marker: the message alone, with the added notice; ul a link to
+#     data's bin/noask, itself one to the script, and a terminal command that runs; nothing at the next start.
+#     With HOME's .local/bin off PATH the PATH notice once. Only at startup: clear, compact and an input that is not
+#     JSON make no link. None of it makes the state directory.
+fresh 68
+linking
+session_start
+told added "sdd: $added_notice"
+linked added-link
+through added-runs
+state_is added-state own ok
+session_start
+silent second
+linking "$PATH"
+session_start
+told path "sdd: $path_notice"
+state_is path-state own missing
+session_start
+silent path-again
+[ ! -e "$st" ] || broken+=" state-directory"
+for f in clear compact; do
+  fresh "68-$f"
+  linking
+  session_start "session-start-$f.json"
+  silent "$f"
+  unlinked "$f-link"
+done
+fresh 68-not-json
+linking
+entry session-start "$not_json"
+silent not-json
+unlinked not-json-link
+verdict 68
+
+# 69. A ul this plugin did not make (a file, a folder, a link to /bin/true, a link to nothing) is left as it is,
+#     byte for byte and target for target, and reported once; once it is gone a start adds the link, and a foreign
+#     entry put back after that is reported again.
+for kind in file folder true nothing; do
+  fresh "69-$kind"
+  linking
+  foreign "$kind"
+  before=$(standing "$ul")
+  session_start
+  told "$kind" "sdd: $refused_notice"
+  state_is "$kind-state" refused ok
+  session_start
+  silent "$kind-again"
+  [ "$(standing "$ul")" = "$before" ] || broken+=" $kind-kept"
+  rm -rf -- "$ul"
+  session_start
+  told "$kind-gone" "sdd: $added_notice"
+  linked "$kind-linked"
+  rm -f -- "$ul"
+  foreign "$kind"
+  before=$(standing "$ul")
+  session_start
+  told "$kind-back" "sdd: $refused_notice"
+  [ "$(standing "$ul")" = "$before" ] || broken+=" $kind-back-kept"
+done
+verdict 69
+
+# 70. The terminal option off: this plugin's link is removed, with the removed notice, and none is added at the next
+#     start; a foreign entry, a link named noask to the plugin's own script among them, is never removed. Any other
+#     value, no among them, links.
+fresh 70
+linking
+session_start
+told link "sdd: $added_notice"
+envs+=(CLAUDE_PLUGIN_OPTION_TERMINAL=off)
+session_start
+told off "sdd: $removed_notice"
+{ [ ! -e "$ul" ] && [ ! -L "$ul" ]; } || broken+=" off-removed"
+state_is off-state off ok
+session_start
+silent off-again
+{ [ ! -e "$ul" ] && [ ! -L "$ul" ]; } || broken+=" off-again-added"
+for kind in own-script file; do
+  rm -rf -- "$ul"
+  foreign "$kind"
+  before=$(standing "$ul")
+  session_start
+  silent "off-$kind"
+  [ "$(standing "$ul")" = "$before" ] || broken+=" off-$kind-kept"
+done
+fresh 70-no
+linking
+envs+=(CLAUDE_PLUGIN_OPTION_TERMINAL=no)
+session_start
+told no "sdd: $added_notice"
+linked no-link
+verdict 70
+
+# 71. Under a session's on the message is the start line, a newline and the notice, beside the context; a HOME with
+#     a space in its path links and runs; without CLAUDE_PLUGIN_DATA, or off Linux, nothing is linked or said and the
+#     start line stands alone. A FIFO and a folder at data's terminal-state, each on a fresh HOME whose PATH lacks
+#     its .local/bin, under no marker and under a session's on: the start ends within the limit, makes the link with
+#     the added notice, says no PATH notice and leaves that entry as it was. A TERM while that FIFO holds the step of
+#     a start with no marker: nothing printed, status 0.
+fresh 71
+step on --session "$sid" on 2h
+linking
+session_start
+one_answer on
+[ "$(msg_of)" = "sdd: $s_line"$'\n'"$added_notice" ] || broken+=" on-message"
+[ "$(ctx_of)" = "$(cat -- "$rule")"$'\n\n'"$(ref_line "$src")" ] || broken+=" on-context"
+linked on-link
+fresh '71 space'
+sid='s-71-space'
+linking
+session_start
+told space "sdd: $added_notice"
+linked space-link
+through space-runs
+fresh 71-no-data
+linking
+envs=("PATH=$home/.local/bin:$PATH")
+session_start
+silent no-data
+step no-data-on --session "$sid" on 2h
+session_start
+one_answer no-data-start
+[ "$(msg_of)" = "sdd: $s_line" ] || broken+=" no-data-message"
+unlinked no-data-link
+fresh 71-not-linux
+linking
+envs+=(OSTYPE=darwin)
+session_start
+silent not-linux
+unlinked not-linux-link
+for kind in fifo folder; do
+  for r in none on; do
+    fresh "71-$kind-$r"
+    [ "$r" = none ] || step "$kind-on" --session "$sid" on 2h
+    linking "$PATH"
+    mkdir -p -- "$data"
+    if [ "$kind" = fifo ]; then mkfifo -- "$data/terminal-state"; else mkdir -- "$data/terminal-state"; fi
+    before=$(standing "$data/terminal-state")
+    session_start
+    if [ "$r" = none ]; then
+      told "$kind" "sdd: $added_notice"
+    else
+      one_answer "$kind-on"
+      [ "$(msg_of)" = "sdd: $s_line"$'\n'"$added_notice" ] || broken+=" $kind-on-message"
+    fi
+    linked "$kind-$r-link"
+    [ "$(standing "$data/terminal-state")" = "$before" ] || broken+=" $kind-$r-kept"
+  done
+done
+fresh 71-term
+linking "$PATH"
+mkdir -p -- "$data"
+mkfifo -- "$data/terminal-state"
+entry_bg session-start "$(feed session-start-startup.json)"
+reading_file "$data/terminal-state" || broken+=" term-not-reading"
+kill -TERM "$entry_pid" 2>/dev/null || broken+=" term-not-sent"
+entry_end
+silent term
+verdict 71
 
 exit "$fail"

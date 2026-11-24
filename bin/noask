@@ -135,13 +135,23 @@
 # and cannot be listed or searched, or when a marker in it reads on or
 # unreadable (the look stops at the first); else the global marker's. Under
 # a reading of off or expired an entry prints nothing, makes no file and takes
-# no lock. Otherwise it answers once, one line of JSON on standard output in
-# the form its event takes, every text in it through json_string; a trap
-# answers the noask side when it would end without an answer. An entry
-# exits 0 whatever happened short of a kill, and prints nothing without
-# HOME or a clock. session-start answers with the start line as its message
-# and the rule text and where the apply skill's noask reference is as its
-# context. permission and elicitation are inert also while the
+# no lock, but for session-start's link step. Otherwise it answers once, one
+# line of JSON on standard output in the form its event takes, every text in
+# it through json_string; a trap answers the noask side when it would end
+# without an answer. An entry exits 0 whatever happened short of a kill, and
+# prints nothing without HOME or a clock. session-start answers with the
+# start line as its message and the rule text and where the apply skill's
+# noask reference is as its context. At a start whose source is startup,
+# whatever the reading, it also keeps the terminal command ~/.local/bin/noask
+# a link to $CLAUDE_PLUGIN_DATA/bin/noask, itself a link to this script, and
+# while the terminal option (CLAUDE_PLUGIN_OPTION_TERMINAL) is exactly off it
+# removes the link it made and adds none; it never touches an entry there it
+# did not make, and does nothing without CLAUDE_PLUGIN_DATA or off Linux. Its
+# notices (the link added or removed, a foreign entry in its place,
+# ~/.local/bin off PATH, the last two said when they start) follow the start
+# line as lines of the message, and under off or expired they are the
+# message alone: the one thing an entry prints without the marker.
+# permission and elicitation are inert also while the
 # permissionHook option is exactly false (CLAUDE_PLUGIN_OPTION_PERMISSIONHOOK);
 # otherwise each counts a denial first, against the denialBudget option
 # (CLAUDE_PLUGIN_OPTION_DENIALBUDGET, 10 when absent or not 1 to 99999), on
@@ -198,6 +208,7 @@ readonly TAIL_LINES=200      # the stop entry looks at the message's last this m
 readonly LINE_BYTES=1024     # a line of the message longer than this holds no token
 readonly STRIP_PASSES=8      # a line the stripping still changes after this many passes holds no token
 readonly SIXTH_CONTINUATION=6 # from this continuation on, a continued stop's reason ends with SIXTH_TEXT
+readonly LINK_SECONDS=4      # the session start's link step ends once it has run this long, by the shell's SECONDS
 readonly ID_RE='^[A-Za-z0-9_-]{1,64}$'
 # The id's form as jq tests it, on the whole decoded string: jq's ^ and $ also match at a line break inside it.
 readonly JQ_ID_RE='\A[A-Za-z0-9_-]{1,64}\z'
@@ -287,6 +298,12 @@ readonly LAST_LINE_TEXT='Your end-of-turn line must be the last line of the mess
 readonly SIXTH_TEXT='if no tool work is left, end now with the list Rulings I made and the line `noask: blocked: continuation budget exhausted`; otherwise continue'
 # shellcheck disable=SC2016 # its backquotes are the text's, not substitutions
 readonly NO_JQ_STOP_TEXT='noask is on and its Stop hook cannot read its input (`jq` is missing): end this turn on `noask: blocked: stop hook unreadable`'
+# The session start's link step's notices, each a line of its message (the terminal notices of hooks/text.ts): the
+# terminal command added, removed, refused by an entry this plugin did not make, and ~/.local/bin off PATH.
+readonly TERMINAL_ADDED_TEXT='noask: added the terminal command ~/.local/bin/noask; set sdd.terminal to off in /config to remove it.'
+readonly TERMINAL_REMOVED_TEXT='noask: removed the terminal command ~/.local/bin/noask.'
+readonly TERMINAL_REFUSED_TEXT='noask: ~/.local/bin/noask exists and was not made by this plugin, so the terminal command was not added; remove it and start a new session to get it.'
+readonly TERMINAL_PATH_TEXT="noask: ~/.local/bin is not on PATH in this session, so a terminal may not find noask; add it to PATH in your shell's startup file."
 # A line without the blanks at both ends, in BASH_REMATCH[1]: a regular expression, since the shell's own patterns
 # take a time that grows with the square of a line's length there. A numbered list item's marker.
 readonly TRIM_RE='^[[:blank:]]*(.*[^[:blank:]])'
@@ -1018,6 +1035,7 @@ reading='' reading_state='' reading_generation='' reading_reason='' reading_leve
 answered='' failure='' signalled='' rule='' rule_missing='' line='' role_text=''
 count_result='' count_cause='' count_continuations='' count_error='' count_note=''
 first_stop='' subagent_running='' nothing_running='' stripped='' last='' last_at=-1 token='' tail_lines=()
+notices='' link_started=0
 
 # read_input: read standard input once, as a marker is read (NUL bytes become
 # \001, so such an input is not JSON), to one byte past INPUT_BYTES and
@@ -1334,11 +1352,145 @@ cmd_start_line() {
   printf '%s\n' "$line"
 }
 
-# session_start_answer MESSAGE CONTEXT: answer the SessionStart object.
+# in_time: whether the link step has run less than LINK_SECONDS, by the shell's SECONDS, which counts whole seconds;
+# the step looks before each of its commands.
+in_time() { [ $((SECONDS - link_started)) -lt "$LINK_SECONDS" ]; }
+# bounded CMD...: the link step's command CMD, run under timeout READ_SECONDS with its standard error dropped while
+# in_time holds; fails when it does not hold, and when CMD fails or times out.
+bounded() { in_time && timeout "$READ_SECONDS" "$@" 2>/dev/null; }
+# notice TEXT: add TEXT to the link step's notices, a line of its own.
+notice() { notices+=${notices:+$'\n'}$1; }
+# own_link LINK BIN: 0 when LINK is a link this plugin made: a symbolic link whose text's last part is noask and
+# whose folder, a relative text read against LINK's own folder, is BIN, compared with -ef, so a text that reaches BIN
+# by another path counts; 1 when it is not; 2 when its text could not be read, which ends the step.
+own_link() {
+  local text dir
+  [ -L "$1" ] || return 1
+  text=$(bounded readlink -- "$1") || return 2
+  [ "${text##*/}" = noask ] || return 1
+  case $text in
+    */*) dir=${text%/*} ;;
+    *) dir=. ;;
+  esac
+  case $dir in
+    /*) ;;
+    '') dir=/ ;;
+    *) dir=${1%/*}/$dir ;;
+  esac
+  [ "$dir" -ef "$2" ]
+}
+# terminal_link: the session start's link step, at a start whose source is startup (not at all without a readable
+# source), as laterbox 0.4.0's terminal_link keeps its later. It keeps ~/.local/bin/noask, the terminal command, a
+# link to <CLAUDE_PLUGIN_DATA>/bin/noask, itself a link to the plugin's bin/noask under ROOT, the script's own
+# resolved location (never CLAUDE_PLUGIN_ROOT, which a hook of another plugin can inherit), and adds to notices what
+# the session is told. Two conditions: the link's, own, refused (an entry this plugin did not make stands there) or
+# off (the terminal option is exactly off: the link this plugin made is removed and none is added); and PATH's,
+# missing when the link is own and ~/.local/bin is not on PATH, else ok. <data>/terminal-state holds the two last
+# seen, so the refused and the PATH notices are said when their condition starts, not while it lasts. Nothing is
+# done without CLAUDE_PLUGIN_DATA or off Linux, and no link is made to a bin/noask that is missing or cannot run.
+# Each external command runs through bounded, and the step ends silently at the first that fails or times out, and
+# once it has run LINK_SECONDS; the notices collected before stay. terminal-state is read with the bounded read and
+# written by a rename, never opened by a redirection. Prints nothing. Two starts in the same instant may each say
+# the same notice; no lock is taken for that.
+terminal_link() {
+  local data target=$ROOT/bin/noask user=$HOME/.local/bin/noask text='' tmp rc link path=ok state_file raw rest \
+    seen_link='' seen_path=''
+  [ -n "${CLAUDE_PLUGIN_DATA:-}" ] || return 0
+  case ${OSTYPE:-} in linux*) ;; *) return 0 ;; esac
+  data=$CLAUDE_PLUGIN_DATA link_started=$SECONDS
+  [ "$(field '.source == "startup"')" = true ] || return 0
+  { [ -f "$target" ] && [ -x "$target" ]; } || return 0
+
+  # The data link, when its text is not the target: replaced by a rename (mv -f) of a temporary link named by this
+  # process, so it is never missing or half-made, also when two starts run at once. mv without -T moves into a
+  # folder that stands in its place or that a link there points to: a link to a folder is removed first, a folder
+  # ends the step, and a folder that appeared meanwhile and caught the temporary link has it taken out.
+  if [ -L "$data/bin/noask" ]; then text=$(bounded readlink -- "$data/bin/noask") || return 0; fi
+  if [ "$text" != "$target" ]; then
+    bounded mkdir -p -- "$data/bin" || return 0
+    if [ -d "$data/bin/noask" ]; then
+      [ -L "$data/bin/noask" ] || return 0
+      bounded rm -f -- "$data/bin/noask" || return 0
+    fi
+    tmp=$data/bin/.noask.tmp.$$.$now
+    bounded ln -s -- "$target" "$tmp" || return 0
+    if ! bounded mv -f -- "$tmp" "$data/bin/noask"; then
+      bounded rm -f -- "$tmp"
+      return 0
+    fi
+    if [ -d "$data/bin/noask" ]; then
+      bounded rm -f -- "$data/bin/noask/${tmp##*/}"
+      return 0
+    fi
+  fi
+
+  option TERMINAL link
+  own_link "$user" "$data/bin"
+  rc=$?
+  [ "$rc" -ne 2 ] || return 0
+  if [ "$option_value" = off ]; then
+    link=off
+    if [ "$rc" -eq 0 ]; then
+      bounded rm -- "$user" || return 0 # no -f: of two starts that remove it at once, one says so
+      notice "$TERMINAL_REMOVED_TEXT"
+    fi
+  elif [ "$rc" -eq 0 ]; then
+    link=own
+  elif [ -e "$user" ] || [ -L "$user" ]; then
+    link=refused
+  else
+    bounded mkdir -p -- "${user%/*}" || return 0
+    # No -f: when another start made the link first, ln fails and the link is read again. A failed ln with
+    # nothing in the way failed for another reason, and ends the step.
+    if bounded ln -s -- "$data/bin/noask" "$user"; then
+      notice "$TERMINAL_ADDED_TEXT"
+      link=own
+    else
+      own_link "$user" "$data/bin"
+      case $? in
+        0) link=own ;;
+        1) { [ -e "$user" ] || [ -L "$user" ]; } || return 0; link=refused ;;
+        *) return 0 ;;
+      esac
+    fi
+  fi
+  if [ "$link" = own ]; then
+    case ":$PATH:" in
+      *":$HOME/.local/bin:"* | *":$HOME/.local/bin/:"*) ;;
+      *) path=missing ;;
+    esac
+  fi
+
+  # The conditions last seen: none when terminal-state is not there (neither a file nor a link); one that is there
+  # and that the bounded read cannot read ends the step, before the refused and the PATH notices.
+  state_file=$data/terminal-state
+  in_time || return 0
+  if [ -e "$state_file" ] || [ -L "$state_file" ]; then
+    raw=$(bounded head -c "$MARKER_BYTES" -- "$state_file" | tr '\0' '\001' && printf x) || return 0
+    raw=${raw%x} seen_link=${raw%%$'\n'*}
+    case $raw in *$'\n'*) rest=${raw#*$'\n'} seen_path=${rest%%$'\n'*} ;; esac
+  fi
+  [ "$link" != refused ] || [ "$seen_link" = refused ] || notice "$TERMINAL_REFUSED_TEXT"
+  [ "$path" != missing ] || [ "$seen_path" = missing ] || notice "$TERMINAL_PATH_TEXT"
+  [ "$link" != "$seen_link" ] || [ "$path" != "$seen_path" ] || return 0
+  # Written when either changed: two lines in a temporary file made beside it, renamed over it with mv -T (the step
+  # runs on Linux only), so a FIFO or a folder in its place is never opened; a rename that fails ends the step.
+  tmp=$(bounded mktemp -- "$data/.terminal-state.XXXXXX") || return 0
+  if ! { printf '%s\n%s\n' "$link" "$path" > "$tmp"; } 2>/dev/null || ! bounded mv -fT -- "$tmp" "$state_file"; then
+    bounded rm -f -- "$tmp"
+  fi
+  return 0
+}
+
+# session_start_answer MESSAGE [CONTEXT]: answer the SessionStart object; without CONTEXT, the message alone.
 session_start_answer() {
   local json
-  printf -v json '{"systemMessage":%s,"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":%s}}' \
-    "$(json_string "$1")" "$(json_string "$2")"
+  if [ "$#" -ge 2 ]; then
+    printf -v json '{"systemMessage":%s,"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":%s}}' \
+      "$(json_string "$1")" "$(json_string "$2")"
+  else
+    printf -v json '{"systemMessage":%s}' "$(json_string "$1")"
+  fi
   answer "$json"
 }
 # The session start's failure answer, for the message MESSAGE: the start line
@@ -1348,18 +1500,31 @@ session_start_answer() {
 session_start_failed() {
   session_start_answer "sdd: ${line:-noask is ON} (noask hook failed: $1)" "$rule"
 }
-# hook session-start: under a reading of on or unreadable, the start line
-# with its notes as the message, and the rule text, an empty line and where
-# the apply skill's noask reference is as the context.
+# hook session-start: whatever the reading, the link step (terminal_link),
+# which does something at a start whose source is startup only. Under a
+# reading of on or unreadable, after the guard, the rule and the start line:
+# the start line with its notes and then each of the step's notices, a line
+# each, as the message, and the rule text, an empty line and where the apply
+# skill's noask reference is as the context. Under off or expired the
+# notices alone as the message, or nothing.
 hook_session_start() {
   read_input
   entry_reading
-  case $reading_state in off | expired) return 0 ;; esac # inert: nothing printed, no file made, no lock taken
+  case $reading_state in
+    off | expired)
+      # Inert but for the link step: no file made under the state directory, no lock taken, nothing printed but
+      # the object that holds the step's notices, and nothing at all on a signal.
+      terminal_link
+      [ -z "$notices" ] || session_start_answer "sdd: $notices"
+      return 0
+      ;;
+  esac
   line='' rule=$FALLBACK_RULE
   guard_entry session_start_failed
   rule_text
   start_line
-  session_start_answer "sdd: $line" "$rule"$'\n\n'"The noask reference of the apply skill is $ROOT/skills/apply/references/noask.md. If you drive an apply run, re-read the noask reference now."
+  terminal_link
+  session_start_answer "sdd: $line${notices:+$'\n'$notices}" "$rule"$'\n\n'"The noask reference of the apply skill is $ROOT/skills/apply/references/noask.md. If you drive an apply run, re-read the noask reference now."
 }
 
 # permission_answer TEXT: answer the PermissionRequest deny object, its
