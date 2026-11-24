@@ -11,21 +11,23 @@
 # every CLAUDE_PLUGIN_OPTION_* variable unset unless the case sets one, and
 # read the hook inputs of tests/fixtures/hook-inputs, the probes' own with
 # the home rewritten. Each command runs under `timeout 10` (case 27's and
-# case 42's, and case 45's generator, under `timeout 120`; case 58's entries
-# that wait 17 seconds for the records' lock under `timeout 30`), so a hang
-# fails its case instead of the run. Prints "ok <n>" or "FAIL <n> (<broken
-# parts>)" per case and "skip <n> (<reason>)" for a case that cannot run;
-# exits 1 when any case fails. Cases 1 to 30 are those of the phase 2 plan
-# (a local working document), Task 2; cases 31 to 45 those of the plan of
-# noask's first step, a local working document, Tasks 1 (31 to 36), 2 (37 to
-# 44), 4 and 6 (45), and case 46 that of a later fix to count read; case 16
-# (replaced) and cases 47 to 51 those of the plan of noask's second step, a
-# local working document, Task 1, and cases 52 to 58 its Task 2. Case
+# case 42's, case 45's generator and case 66's twenty stops under `timeout
+# 120`; case 58's, 66's and 67's entries that wait 17 seconds for the
+# records' lock under `timeout 30`), so a hang fails its case instead of the
+# run. Prints "ok <n>" or "FAIL <n> (<broken parts>)" per case and "skip <n>
+# (<reason>)" for a case that cannot run; exits 1 when any case fails. Cases
+# 1 to 30 are those of the phase 2 plan (a local working document), Task 2;
+# cases 31 to 45 those of the plan of noask's first step, a local working
+# document, Tasks 1 (31 to 36), 2 (37 to 44), 4 and 6 (45), and case 46 that
+# of a later fix to count read; case 16 (replaced) and cases 47 to 51 those
+# of the plan of noask's second step, a local working document, Task 1,
+# cases 52 to 58 its Task 2 and cases 59 to 67 its Task 3. Case
 # 45 runs tests/gen-marker-fixtures.sh on SCRIPT, which makes its own
 # temporary HOMEs, and reads hooks/text.ts and
 # skills/apply/references/noask.md beside this script's directory; case 49
-# reads the built-in rule text from that hooks/text.ts too. A case that
-# sends a signal waits until pgrep shows the entry at the wait it means.
+# reads the built-in rule text from that hooks/text.ts too, and cases 59 to
+# 67 the end-of-turn lines and NOTHING_RUNNING_TEXT. A case that sends a
+# signal waits until pgrep shows the entry at the wait it means.
 #
 # Usage: bash tests/test-noask.sh [SCRIPT]
 #   Default SCRIPT: bin/noask in the plugin root, the parent of this script's
@@ -34,10 +36,11 @@
 #   unit controller's overrides from the same plugin root,
 #   skills/apply/prompts/unit-controller-overrides.md.
 # Case 29, case 10's mode-000 sub-case, case 43's mode-500 and mode-000
-# sub-cases, case 44's sub-cases with noask.d at 300 and 400, case 48's and
-# case 52's with noask.d at 000 and case 58's with budgets.d at 500 need a
-# user that file modes bind, so they are skipped when the tests run as root:
-# case 29 prints a skip line, the others a note line after their verdict.
+# sub-cases, case 44's sub-cases with noask.d at 300 and 400, case 48's,
+# case 52's and case 59's with noask.d at 000 and case 58's with budgets.d
+# at 500 need a user that file modes bind, so they are skipped when the
+# tests run as root: case 29 prints a skip line, the others a note line
+# after their verdict.
 set -uo pipefail
 
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -2156,5 +2159,549 @@ envs=()
 denied no-jq "$permission_text (noask count failed: no session id) (noask marker unreadable: this session's id could not be read (jq is missing) while a session's own switch is on; treated as on)"
 verdict 58
 [ -z "$as_root" ] || echo 'note 58 (the budgets.d mode-500 sub-case needs a user that file modes bind)'
+
+# The stop entry's texts and helpers (cases 59 to 67): the three end-of-turn lines and NOTHING_RUNNING_TEXT as
+# hooks/text.ts spells them; the stop's own sentences; the rule file's whole text, as an entry reads it.
+done_line=$(spelled DONE_LINE)
+waiting_line=$(spelled WAITING_LINE)
+blocked_line=$(spelled BLOCKED_LINE)
+nothing_running=$(sed -n "/^export const NOTHING_RUNNING_TEXT =\$/,/;\$/{s/^ *'\\([^']*\\)'.*\$/\\1/p;}" -- "$texts" |
+  tr -d '\n')
+rule_all=$(cat -- "$rule" 2>/dev/null)
+last_line_text='Your end-of-turn line must be the last line of the message; nothing follows it.'
+# shellcheck disable=SC2016 # its backquotes are the text's, not substitutions
+sixth_text='if no tool work is left, end now with the list Rulings I made and the line `noask: blocked: continuation budget exhausted`; otherwise continue'
+# shellcheck disable=SC2016 # its backquotes are the text's, not substitutions
+no_jq_text='noask is on and its Stop hook cannot read its input (`jq` is missing): end this turn on `noask: blocked: stop hook unreadable`'
+question='Shall I also update the docs?'
+# say FIXTURE MESSAGE [FILTER]: the stop input FIXTURE with the case's session id, MESSAGE as its
+# last_assistant_message (read from a file, so a message of any size passes) and then FILTER applied, written to a new
+# file of the case; print the file's path.
+say() {
+  local file
+  file=$(mktemp -- "$tmp/say.XXXXXX") || return 1
+  printf '%s' "$2" > "$file.m"
+  jq -c --arg id "$sid" --rawfile m "$file.m" ".session_id = \$id | .last_assistant_message = \$m | ${3:-.}" \
+    "$fixtures/$1" > "$file" || return 1
+  rm -f -- "$file.m"
+  printf '%s\n' "$file"
+}
+# continued PART CONTEXT: the last entry answered once with the Stop continue object, its context exactly CONTEXT.
+continued() {
+  one_answer "$1"
+  [ "$out" = "$(jq -cn --arg c "$2" '{hookSpecificOutput: {hookEventName: "Stop", additionalContext: $c}}')" ] ||
+    broken+=" $1-context"
+}
+# blocked PART REASON: the last entry answered once with the block object, its reason exactly REASON.
+blocked() {
+  one_answer "$1"
+  [ "$out" = "$(jq -cn --arg r "$2" '{decision: "block", reason: $r}')" ] || broken+=" $1-reason"
+}
+# plant FILE GENERATION REFUSALS DENIALS CONTINUATIONS SPENT: a record written by hand, budgets.d made first.
+plant() {
+  own_dir "${1%/*}"
+  printf '%s\n' "generation=$2" "refusals=$3" "denials=$4" "continuations=$5" "spent=$6" > "$1"
+}
+# record_is PART FILE REFUSALS DENIALS CONTINUATIONS SPENT: the record FILE holds those counters and that spent.
+record_is() {
+  marker "$2"
+  [ "${m[*]:1}" = "refusals=$3 denials=$4 continuations=$5 spent=$6" ] || broken+=" $1"
+}
+# continues_once PART FILE CONTEXT: with no record for the case's session, the stop entry on FILE continues with
+# CONTEXT, and the record then holds that one continuation.
+continues_once() {
+  rm -f -- "$B/$sid"
+  entry stop "$2"
+  continued "$1" "$3"
+  record_is "$1-counted" "$B/$sid" 0 0 1 none
+}
+# stop_inert PART FILE: the stop entry on FILE prints nothing, and no budgets.d is made.
+stop_inert() {
+  entry stop "$2"
+  silent "$1"
+  [ ! -e "$B" ] || broken+=" $1-budgets.d"
+}
+# entry_into DIR N EVENT FILE: run entry EVENT FILE and keep its rc, bytes, out and err in DIR/N.*, so several can run
+# at once in the background; entry_from DIR N sets them again from there (rc 1 when the run left nothing).
+entry_into() {
+  entry "$3" "$4"
+  printf '%s\n' "$rc" "$bytes" > "$1/$2.rc"
+  printf '%s' "$out" > "$1/$2.out"
+  printf '%s' "$err" > "$1/$2.err"
+}
+entry_from() {
+  rc=1 bytes=0 out='' err=''
+  { { read -r rc; read -r bytes; } < "$1/$2.rc"; } 2>/dev/null || return 0
+  out=$(cat -- "$1/$2.out") err=$(cat -- "$1/$2.err")
+}
+# waiters N: wait up to 10 seconds until N counts wait for the records' lock for 17 seconds.
+waiters() {
+  for _ in $(seq 1 100); do
+    [ "$(pgrep -cxf 'flock -w 17 8')" -lt "$1" ] || return 0
+    sleep 0.1
+  done
+  return 1
+}
+
+# 59. The stop entry is inert without the marker: with no marker, under an
+#     expired global marker and under another session's on it prints
+#     nothing and makes no budgets.d; so it does on an empty input, on one
+#     that is not JSON, on one whose id is not usable and without jq while no
+#     marker is on; and on a stop that carries an agent id, usable or not,
+#     under noask, making no record. An unreadable session marker, and one
+#     without an until, read on: a question continues, with the reason.
+#     noask.d at mode 000 (left out as root, with a note line after the
+#     verdict): a usable id reads its own marker off and gets nothing; an id
+#     that is not usable takes the no-id reading, unreadable, and a first
+#     stop is blocked with both reasons.
+fresh 59
+stop_inert none "$(say stop-first.json "$question")"
+step expiring global on 30m
+now=$T1 # 23:30:12, the marker's until
+stop_inert expired "$(say stop-first.json "$question")"
+fresh 59-other
+step other --session s-other on 2h
+stop_inert other "$(say stop-first.json "$question")"
+fresh 59-no-id
+stop_inert empty "$empty_input"
+stop_inert not-json "$not_json"
+stop_inert a-b "$(say stop-first.json "$question" '.session_id = "a b"')"
+envs=("PATH=$bin16")
+stop_inert no-jq "$(say stop-first.json "$question")"
+envs=()
+fresh 59-agent
+step on --session "$sid" on 2h
+stop_inert agent-a1 "$(say stop-first.json "$question" '.agent_id = "a1"')"
+stop_inert agent-a-b "$(say stop-first.json "$question" '.agent_id = "a b"')"
+fresh 59-session-bad
+own_dir "$D"
+printf 'x\n' > "$D/$sid"
+entry stop "$(say stop-first.json "$question")"
+continued session-bad "$rule_all$one_line"
+fresh 59-no-until
+own_dir "$D"
+printf '%s\n' "$gl" "$sl" until= level=noask > "$D/$sid"
+entry stop "$(say stop-first.json "$question")"
+continued no-until "$rule_all (noask marker unreadable: a session's marker without an until; treated as on)"
+if [ -z "$as_root" ]; then
+  fresh 59-000
+  own_dir "$D"
+  chmod 000 -- "$D"
+  stop_inert noask.d-000 "$(say stop-first.json "$question")"
+  entry stop "$(say stop-first.json "$question" '.session_id = "a b"')"
+  blocked noask.d-000-a-b \
+    "$rule_all (noask hook failed: this session's id is not usable (a b)) (noask marker unreadable: noask.d cannot be listed or searched; treated as on)"
+  chmod 700 -- "$D"
+fi
+verdict 59
+[ -z "$as_root" ] || echo 'note 59 (the noask.d mode-000 sub-case needs a user that file modes bind)'
+
+# 60. A continuation: a stop that ends on a question is continued with the
+#     rule file's text as its context and counted; a continued stop counts
+#     too; a stop without a message continues, and so does one whose message
+#     holds a NUL, with nothing on standard error.
+fresh 60
+step on --session "$sid" on 2h
+entry stop "$(say stop-first.json "$question")"
+continued first "$rule_all"
+record_is first-record "$B/$sid" 0 0 1 none
+entry stop "$(say stop-continued.json "$question")"
+continued continued "$rule_all"
+record_is continued-record "$B/$sid" 0 0 2 none
+entry stop "$(say stop-first.json "$question" 'del(.last_assistant_message)')"
+continued no-message "$rule_all"
+entry stop "$(say stop-first.json "$question" '.last_assistant_message |= "a\u0000b\n" + .')"
+continued nul "$rule_all"
+{ [ -n "$rule_all" ] && [[ $rule_all == "$first"* ]]; } || broken+=" empty-rule"
+verdict 60
+
+# 61. The tokens, the three lines taken from hooks/text.ts: each last line
+#     that strips to a token allows; each that does not continues. A rule
+#     text quoted on an earlier line opens nothing; a token as a whole
+#     earlier line, with a question after it, opens the reason with the
+#     last-line sentence (spec lines 1583 to 1586).
+fresh 61
+step on global on
+{ [ -n "$done_line" ] && [ -n "$waiting_line" ] && [ -n "$blocked_line" ]; } || broken+=" empty-lines"
+allows=("$done_line" "$done_line." "**$done_line**" "\`$blocked_line push of main\`" "1. $done_line"
+  "${done_line^^}" "text"$'\n\n'"$done_line"$'\n\n  ' "text"$'\r\n'"$done_line"$'\r\n' "-  $done_line"
+  "\` $done_line \`")
+for i in "${!allows[@]}"; do
+  entry stop "$(say stop-first.json "${allows[i]}")"
+  silent "allows-$i"
+done
+entry stop "$(say stop-wakeup.json "- $waiting_line unit 3")"
+silent waiting-list
+continues=("$waiting_line" "$blocked_line   " "$done_line and more" "see $done_line" "**$blocked_line** **why**")
+for i in "${!continues[@]}"; do
+  continues_once "continues-$i" "$(say stop-first.json "${continues[i]}")" "$rule_all"
+done
+quoting="End every turn on \`$waiting_line <what>\`, \`$done_line\` or \`$blocked_line <why>\` as its last line."
+continues_once quoted "$(say stop-first.json "$quoting"$'\n'"$question")" "$rule_all"
+continues_once whole-item "$(say stop-first.json "Done."$'\n'"- $done_line"$'\n'"$question")" "$last_line_text $rule_all"
+continues_once whole-span "$(say stop-first.json "\`$done_line\`"$'\n\n'"$question")" "$last_line_text $rule_all"
+verdict 61
+
+# 62. The reset: a stop on a token zeroes the three counters and keeps the
+#     generation; a spent record allows a stop and is left as it is, on a
+#     question and on a token; under an unreadable reading a spent record of
+#     any generation allows, while under on one of another generation reads
+#     empty and the stop is counted on a record started again. A record that
+#     does not parse: the count's note, the record started again.
+fresh 62
+step on global on
+gen=$(gen_of "$G")
+plant "$B/$sid" "$gen" 2 0 0 none
+q=$(say stop-first.json "$question")
+for i in 1 2 3; do
+  entry stop "$q"
+  continued "continue-$i" "$rule_all"
+done
+for i in 1 2; do
+  entry permission "$(feed permission-main.json)"
+  denied "denial-$i" "$permission_text"
+done
+record_is before "$B/$sid" 2 2 3 none
+entry stop "$(say stop-first.json "$done_line")"
+silent token
+record_is reset "$B/$sid" 0 0 0 none
+[ "$(gen_of "$B/$sid")" = "$gen" ] || broken+=" reset-generation"
+plant "$B/$sid" "$gen" 0 3 0 permission
+cp -- "$B/$sid" "$tmp/c62" 2>/dev/null
+entry stop "$q"
+silent spent-question
+cmp -s -- "$B/$sid" "$tmp/c62" || broken+=" spent-question-record"
+entry stop "$(say stop-first.json "$done_line")"
+silent spent-done
+cmp -s -- "$B/$sid" "$tmp/c62" || broken+=" spent-done-record"
+plant "$B/$sid" "${gl#generation=}" 0 0 4 question
+entry stop "$q"
+continued other-generation "$rule_all"
+record_is other-generation-record "$B/$sid" 0 0 1 none
+[ "$(gen_of "$B/$sid")" = "$gen" ] || broken+=" other-generation-generation"
+fresh 62-unreadable
+own_dir "$st"
+printf 'x\n' > "$G"
+plant "$B/$sid" "${gl#generation=}" 0 0 0 question
+cp -- "$B/$sid" "$tmp/c62-unreadable" 2>/dev/null
+entry stop "$(say stop-first.json "$question")"
+silent unreadable-spent
+cmp -s -- "$B/$sid" "$tmp/c62-unreadable" || broken+=" unreadable-spent-record"
+fresh 62-records
+step on global on
+own_dir "$B"
+printf 'x\n' > "$B/$sid"
+entry stop "$(say stop-first.json "$question")"
+continued not-parsed \
+  "$rule_all (noask count: the record $B/$sid did not parse (the record has 1 line, not 5); started again)"
+record_is not-parsed-record "$B/$sid" 0 0 1 none
+verdict 62
+
+# 63. A subagent in flight: a stop whose background_tasks holds a subagent
+#     allows and resets, whatever its last line; a stop after the subagent
+#     reported, one at a one-shot wakeup, one without background_tasks, one
+#     beside a task of each other type, and one beside a recurring entry in
+#     session_crons continue.
+fresh 63
+step on global on
+gen=$(gen_of "$G")
+plant "$B/$sid" "$gen" 1 1 2 none
+entry stop "$(say stop-subagent-running.json "$question")"
+silent running
+record_is running-reset "$B/$sid" 0 0 0 none
+continues_once after-subagent "$(say stop-after-subagent.json "$question")" "$rule_all"
+continues_once wakeup "$(say stop-wakeup.json "$question")" "$rule_all"
+continues_once no-tasks "$(say stop-first.json "$question" 'del(.background_tasks)')" "$rule_all"
+for t in shell monitor workflow teammate; do
+  continues_once "task-$t" \
+    "$(say stop-first.json "$question" ".background_tasks = [{\"id\": \"t1\", \"status\": \"running\", \"type\": \"$t\"}]")" \
+    "$rule_all"
+done
+recurring='.session_crons = [{"id": "c1", "prompt": "look", "recurring": true, "schedule": "*/5 * * * *"}]'
+continues_once recurring "$(say stop-first.json "$question" "$recurring")" "$rule_all"
+verdict 63
+
+# 64. The waiting check: a waiting line on a first stop with both arrays
+#     present and empty continues once, with the rule text and
+#     NOTHING_RUNNING_TEXT and no last-line sentence, counted; a continued
+#     stop, a wakeup, a recurring entry, a shell task and an absent
+#     session_crons each allow the line and reset.
+fresh 64
+step on global on
+gen=$(gen_of "$G")
+[ -n "$nothing_running" ] || broken+=" empty-text"
+w="$waiting_line the owner's answer"
+continues_once first "$(say stop-first.json "$w")" "$rule_all"$'\n\n'"$nothing_running"
+for v in continued wakeup recurring shell no-crons; do
+  case $v in
+    continued) f=$(say stop-continued.json "$w") ;;
+    wakeup) f=$(say stop-wakeup.json "$w") ;;
+    recurring) f=$(say stop-first.json "$w" "$recurring") ;;
+    shell) f=$(say stop-first.json "$w" '.background_tasks = [{"id": "t1", "status": "running", "type": "shell"}]') ;;
+    no-crons) f=$(say stop-first.json "$w" 'del(.session_crons)') ;;
+  esac
+  plant "$B/$sid" "$gen" 0 0 2 none
+  entry stop "$f"
+  silent "$v"
+  record_is "$v-reset" "$B/$sid" 0 0 0 none
+done
+verdict 64
+
+# 65. The last-line sentence opens the reason when a token stands on an
+#     earlier line and something follows it; from the sixth continuation on
+#     the reason ends with the winding-down sentence.
+fresh 65
+step on global on
+continues_once thanks "$(say stop-first.json "$done_line"$'\n'"Thanks!")" "$last_line_text $rule_all"
+rm -f -- "$B/$sid"
+q=$(say stop-first.json "$question")
+for i in 1 2 3 4 5 6 7; do
+  entry stop "$q"
+  if [ "$i" -lt 6 ]; then
+    continued "continuation-$i" "$rule_all"
+    [[ $out != *'if no tool work is left'* ]] || broken+=" continuation-$i-sixth"
+  else
+    continued "continuation-$i" "$rule_all"$'\n\n'"$sixth_text"
+  fi
+done
+record_is seventh "$B/$sid" 0 0 7 none
+verdict 65
+
+# 66. The budget: the continuation that spends it carries the ending text
+#     alone and the next stop is allowed; a budget variable that is not 1 to
+#     99999 counts against 20. Twenty stops at once (case 42's form) each
+#     exit 0 and end the record at 20, spent. Two stops on a record at 19,
+#     the second looking after the first has looked and before it counts:
+#     both carry the ending text; two started together: each the ending text
+#     or nothing, one at least the ending text.
+fresh 66
+step on global on
+gen=$(gen_of "$G")
+q=$(say stop-first.json "$question")
+envs=(CLAUDE_PLUGIN_OPTION_CONTINUATIONBUDGET=3)
+entry stop "$q"
+continued first "$rule_all"
+entry stop "$q"
+continued second "$rule_all"
+entry stop "$q"
+continued third "$(ending continuation)"
+record_is third-record "$B/$sid" 0 0 3 continuation
+entry stop "$q"
+silent fourth
+for v in abc 0 100000 empty; do
+  if [ "$v" = empty ]; then
+    envs=(CLAUDE_PLUGIN_OPTION_CONTINUATIONBUDGET=)
+  else
+    envs=("CLAUDE_PLUGIN_OPTION_CONTINUATIONBUDGET=$v")
+  fi
+  plant "$B/$sid" "$gen" 0 0 18 none
+  entry stop "$q"
+  continued "budget-$v-19th" "$rule_all"$'\n\n'"$sixth_text"
+  entry stop "$q"
+  continued "budget-$v-20th" "$(ending continuation)"
+done
+envs=()
+fresh 66-twenty
+step on global on
+q=$(say stop-first.json "$question")
+runs=$tmp/c66-twenty
+mkdir -p -- "$runs"
+envs=(SDD_NOASK_LOCK_WAIT=60) limit=120
+for i in $(seq 1 20); do
+  entry_into "$runs" "$i" stop "$q" &
+done
+wait
+envs=() limit=10
+endings=0
+for i in $(seq 1 20); do
+  entry_from "$runs" "$i"
+  one_answer "twenty-run-$i"
+  ctx=$(ctx_of)
+  if [ "$ctx" = "$(ending continuation)" ]; then
+    endings=$((endings + 1))
+  elif [[ $ctx != "$first"* ]]; then
+    broken+=" twenty-run-$i-context"
+  fi
+done
+[ "$endings" -ge 1 ] || broken+=" twenty-ending"
+record_is twenty-record "$B/$sid" 0 0 20 continuation
+fresh 66-two
+step on global on
+gen=$(gen_of "$G")
+q=$(say stop-first.json "$question")
+runs=$tmp/c66-two
+mkdir -p -- "$runs"
+plant "$B/$sid" "$gen" 0 0 19 none
+lock_hold two
+envs=(SDD_NOASK_LOCK_WAIT=17) limit=30
+entry_into "$runs" 1 stop "$q" &
+waiters 1 || broken+=" two-first-not-waiting"
+entry_into "$runs" 2 stop "$q" &
+waiters 2 || broken+=" two-second-not-waiting"
+lock_free
+wait
+envs=() limit=10
+for i in 1 2; do
+  entry_from "$runs" "$i"
+  continued "two-run-$i" "$(ending continuation)"
+done
+record_is two-record "$B/$sid" 0 0 20 continuation
+plant "$B/$sid" "$gen" 0 0 19 none
+runs=$tmp/c66-together
+mkdir -p -- "$runs"
+for i in 1 2; do
+  entry_into "$runs" "$i" stop "$q" &
+done
+wait
+endings=0
+for i in 1 2; do
+  entry_from "$runs" "$i"
+  if [ "$bytes" -eq 0 ]; then
+    silent "together-run-$i"
+  else
+    continued "together-run-$i" "$(ending continuation)"
+    endings=$((endings + 1))
+  fi
+done
+[ "$endings" -ge 1 ] || broken+=" together-ending"
+record_is together-record "$B/$sid" 0 0 20 continuation
+verdict 66
+
+# 67. It cannot fail open, and cannot loop. A count or a reset that fails
+#     (the records' lock held, a FIFO in the record's place) blocks a first
+#     stop with the rule file's text and the count's failure, and allows a
+#     continued one; a TERM while the entry waits on the lock or reads that
+#     FIFO blocks a first stop with the signal's failure, once, and allows a
+#     continued one. Without jq a first stop is blocked with the jq text and
+#     a continued one allowed, the raw input read for a top-level
+#     stop_hook_active; with jq only the top-level boolean counts. An input
+#     that shows no first stop (not JSON, empty, too long, never ending) is
+#     never blocked; an id that is not usable blocks a first stop with its
+#     reason. A message of 1 MB is read within the limit. A marker taken
+#     away during the lock's wait allows and leaves the record as it was.
+#     The limits of ruling 7: a last line over 1024 bytes holds no token, nor
+#     one the eighth pass of the stripping still changed (eight surrounding
+#     pairs; seven are stripped), and only the last 200 lines are looked at.
+fresh 67
+step on global on
+q=$(say stop-first.json "$question")
+c=$(say stop-continued.json "$question")
+locked="$rule_all (noask count failed: the records are locked by another noask command)"
+lock_hold locked
+envs=(SDD_NOASK_LOCK_WAIT=1)
+entry stop "$q"
+blocked locked "$locked"
+entry stop "$c"
+silent locked-continued
+entry stop "$(say stop-first.json "$done_line")"
+blocked locked-done "$locked"
+entry stop "$(say stop-continued.json "$done_line")"
+silent locked-done-continued
+envs=()
+lock_free
+lock_hold term
+envs=(SDD_NOASK_LOCK_WAIT=17) limit=30
+entry_bg stop "$q"
+lock_waiting term
+kill -TERM "$entry_pid" 2>/dev/null || broken+=" term-not-sent"
+lock_free
+entry_end
+envs=() limit=10
+blocked term "$rule_all (noask hook failed: ended by a signal)"
+fresh 67-fifo
+step on global on
+own_dir "$B"
+mkfifo -- "$B/$sid"
+entry stop "$(say stop-first.json "$question")"
+blocked fifo "$rule_all (noask count failed: cannot read $B/$sid (the record read timed out))"
+entry stop "$(say stop-continued.json "$question")"
+silent fifo-continued
+for v in first continued; do
+  entry_bg stop "$(say "stop-$v.json" "$question")"
+  reading_file "$B/$sid" || broken+=" fifo-term-$v-not-reading"
+  kill -TERM "$entry_pid" 2>/dev/null || broken+=" fifo-term-$v-not-sent"
+  entry_end
+  if [ "$v" = first ]; then
+    blocked fifo-term "$rule_all (noask hook failed: ended by a signal)"
+  else
+    silent fifo-term-continued
+  fi
+done
+[ -p "$B/$sid" ] || broken+=" fifo-replaced"
+fresh 67-no-jq
+step on global on
+envs=("PATH=$bin16")
+entry stop "$(say stop-first.json "$question")"
+blocked no-jq "$no_jq_text"
+entry stop "$(say stop-continued.json "$question")"
+silent no-jq-continued
+entry stop "$(say stop-first.json 'It said "stop_hook_active":true there.')"
+blocked no-jq-quoted-true "$no_jq_text"
+entry stop "$(say stop-first.json "$question" '.x = {stop_hook_active: true}')"
+silent no-jq-both
+envs=()
+[ ! -e "$B" ] || broken+=" no-jq-counted"
+fresh 67-no-id
+step on global on
+for i in 1 2; do
+  entry stop "$not_json"
+  silent "not-json-$i"
+done
+entry stop "$empty_input"
+silent empty
+entry stop "$(say stop-first.json "$question" '.session_id = "a b"')"
+blocked a-b "$rule_all (noask hook failed: this session's id is not usable (a b))"
+{
+  printf '{"session_id":"%s","stop_hook_active":false,"last_assistant_message":"q","pad":"' "$sid" &&
+    head -c 4194304 /dev/zero | tr '\0' x && printf '"}\n'
+} > "$tmp/c67-long"
+for i in 1 2; do
+  entry stop "$tmp/c67-long"
+  silent "long-$i"
+done
+mkfifo -- "$tmp/c67-open"
+exec {hold}<>"$tmp/c67-open"
+entry stop "$tmp/c67-open"
+exec {hold}<&-
+silent open
+[ ! -e "$B" ] || broken+=" no-id-counted"
+fresh 67-nested
+step on global on
+continues_once nested "$(say stop-first.json "$question" 'del(.stop_hook_active) | .x = {stop_hook_active: false}')" \
+  "$rule_all"
+xs=$(yes -- "$(head -c 1023 /dev/zero | tr '\0' x)" | head -n 1024)
+entry stop "$(say stop-first.json "$xs"$'\n'"$done_line")"
+silent big-done
+continues_once big-question "$(say stop-first.json "$xs"$'\n'"$question")" "$rule_all"
+for v in question token; do
+  fresh "67-late-off-$v"
+  step "late-off-$v-on" global on
+  plant "$B/$sid" "$(gen_of "$G")" 0 0 2 none
+  cp -- "$B/$sid" "$tmp/c67-late-off" 2>/dev/null
+  if [ "$v" = token ]; then f=$(say stop-first.json "$done_line"); else f=$(say stop-first.json "$question"); fi
+  lock_hold "late-off-$v"
+  envs=(SDD_NOASK_LOCK_WAIT=17) limit=30
+  entry_bg stop "$f"
+  lock_waiting "late-off-$v"
+  envs=() limit=10
+  step "late-off-$v-switch" global off
+  lock_free
+  entry_end
+  silent "late-off-$v"
+  cmp -s -- "$B/$sid" "$tmp/c67-late-off" || broken+=" late-off-$v-record"
+done
+fresh 67-limits
+step on global on
+continues_once stars "$(say stop-first.json "$(head -c 102400 /dev/zero | tr '\0' '*')")" "$rule_all"
+continues_once long-blocked "$(say stop-first.json "$blocked_line $(head -c 2000 /dev/zero | tr '\0' r)")" "$rule_all"
+pairs=$(printf '%.0s**' 1 2 3 4 5 6 7)
+entry stop "$(say stop-first.json "$pairs$done_line$pairs")"
+silent seven-pairs
+continues_once eight-pairs "$(say stop-first.json "**$pairs$done_line$pairs**")" "$rule_all"
+continues_once far "$(say stop-first.json "$done_line"$'\n'"$(yes -- 'more text' | head -n 299)"$'\n'"$question")" \
+  "$rule_all"
+continues_once near "$(say stop-first.json "$done_line"$'\n'"$(yes -- 'more text' | head -n 99)"$'\n'"$question")" \
+  "$last_line_text $rule_all"
+verdict 67
 
 exit "$fail"

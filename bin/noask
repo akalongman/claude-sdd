@@ -152,7 +152,17 @@
 # SUBAGENT_TEXT for a subagent, the ending text and SUBAGENT_SPENT_TEXT once
 # the budget is spent, and after it the count's failure or note and an
 # unreadable reading's reason; elicitation declines, whatever the count
-# gave. stop answers nothing here.
+# gave. stop is inert also for a stop whose agent_id jq reads; otherwise it
+# allows a stop whose record's budget is spent, resets the three counters
+# and allows one beside a subagent in background_tasks or whose message's
+# last line (Markdown around it stripped) is `noask: done`, `noask: blocked:
+# <why>` or, but on a first stop with nothing running or scheduled,
+# `noask: waiting: <what>`; and continues any other with the rule text,
+# counted as a continuation against the continuationBudget option
+# (CLAUDE_PLUGIN_OPTION_CONTINUATIONBUDGET, 20 when absent or not 1 to
+# 99999), the ending text once that budget is spent. Where it cannot read
+# its input, count or answer, it blocks a first stop with the reason and
+# allows any other, so it never loops.
 # start-line prints the start line of S (--session), or of a session with no
 # id, and nothing when that reading is off or expired: one line, and the notes
 # that say jq is not on PATH or the rule file could not be read; it reads no
@@ -184,6 +194,10 @@ readonly MARKER_BYTES=4096 # a longer marker reads unreadable
 readonly RECORD_BYTES=4096 # a longer record does not parse
 readonly INPUT_BYTES=4194304 # a hook's input longer than this, 4 MiB, is no usable input
 readonly RULE_BYTES=65536    # a longer rule file reads as unreadable, as one that cannot be read
+readonly TAIL_LINES=200      # the stop entry looks at the message's last this many lines
+readonly LINE_BYTES=1024     # a line of the message longer than this holds no token
+readonly STRIP_PASSES=8      # a line the stripping still changes after this many passes holds no token
+readonly SIXTH_CONTINUATION=6 # from this continuation on, a continued stop's reason ends with SIXTH_TEXT
 readonly ID_RE='^[A-Za-z0-9_-]{1,64}$'
 # The id's form as jq tests it, on the whole decoded string: jq's ^ and $ also match at a line break inside it.
 readonly JQ_ID_RE='\A[A-Za-z0-9_-]{1,64}\z'
@@ -261,6 +275,26 @@ readonly PERMISSION_TEXT='noask is on: this action needs the owner; print `block
 # A subagent's denial, under its budget and once that is spent (SUBAGENT_TEXT and SUBAGENT_SPENT_TEXT of hooks/text.ts).
 readonly SUBAGENT_TEXT="noask is on: this action needs the owner and is denied; follow your role's rule for a denied tool"
 readonly SUBAGENT_SPENT_TEXT="noask is on: this action needs the owner and is denied, and this agent's noask budget is spent; return under your role's rule for a denied tool"
+# The three lines a turn under noask ends on (WAITING_LINE, DONE_LINE and BLOCKED_LINE of hooks/text.ts).
+readonly WAITING_LINE='noask: waiting:' DONE_LINE='noask: done' BLOCKED_LINE='noask: blocked:'
+# The stop entry's texts: for a waiting line on a first stop with nothing of the session's own running or scheduled
+# (NOTHING_RUNNING_TEXT of hooks/text.ts); the sentence that opens a reason when a token stands on an earlier line;
+# the one a reason ends with from the sixth continuation on; and the block of a first stop on a machine without jq.
+# shellcheck disable=SC2016 # its backquotes are the text's, not substitutions
+readonly NOTHING_RUNNING_TEXT='nothing of yours is running or scheduled: `waiting` is for work of yours that will wake you, never for the owner; act, or end on `noask: done` or `noask: blocked: <why>`'
+readonly LAST_LINE_TEXT='Your end-of-turn line must be the last line of the message; nothing follows it.'
+# shellcheck disable=SC2016 # its backquotes are the text's, not substitutions
+readonly SIXTH_TEXT='if no tool work is left, end now with the list Rulings I made and the line `noask: blocked: continuation budget exhausted`; otherwise continue'
+# shellcheck disable=SC2016 # its backquotes are the text's, not substitutions
+readonly NO_JQ_STOP_TEXT='noask is on and its Stop hook cannot read its input (`jq` is missing): end this turn on `noask: blocked: stop hook unreadable`'
+# A line without the blanks at both ends, in BASH_REMATCH[1]: a regular expression, since the shell's own patterns
+# take a time that grows with the square of a line's length there. A numbered list item's marker.
+readonly TRIM_RE='^[[:blank:]]*(.*[^[:blank:]])'
+readonly NUMBER_RE='^[0-9]+\. '
+# A stop_hook_active key set false, and set true, as an entry without jq looks for it in the raw input, JSON's
+# whitespace allowed around the colon; a quoted copy inside a string does not match, its quotes being escaped.
+readonly RAW_FIRST_RE=$'"stop_hook_active"[ \t\n\r]*:[ \t\n\r]*false'
+readonly RAW_CONTINUED_RE=$'"stop_hook_active"[ \t\n\r]*:[ \t\n\r]*true'
 
 # Parse the arguments of an `on` after the word on: [handsoff] [<expiry>].
 parse_on() {
@@ -983,6 +1017,7 @@ input='' usable='' has_jq='' agent_present='' agent_shown='' id_reason='' option
 reading='' reading_state='' reading_generation='' reading_reason='' reading_level=''
 answered='' failure='' signalled='' rule='' rule_missing='' line='' role_text=''
 count_result='' count_cause='' count_continuations='' count_error='' count_note=''
+first_stop='' subagent_running='' nothing_running='' stripped='' last='' last_at=-1 token='' tail_lines=()
 
 # read_input: read standard input once, as a marker is read (NUL bytes become
 # \001, so such an input is not JSON), to one byte past INPUT_BYTES and
@@ -1148,7 +1183,6 @@ answer() {
 }
 # allow: the entry ends without an answer, which allows what its event asks;
 # nothing is printed.
-# shellcheck disable=SC2329 # for the entries that allow
 allow() { answered=1; }
 
 # guard_entry FUNCTION: from here on the entry does not end unanswered. Each
@@ -1198,7 +1232,6 @@ budget_of() {
 # one says how the count exited, as the module's caller does). An entry
 # counts before it answers: under uutils' timeout a bounded read started
 # once answer has ignored TERM is not stopped at its bound.
-# shellcheck disable=SC2034 # count_continuations is for the stop entry
 entry_count() {
   local out rc=0 l result='' said=''
   local -a lines=()
@@ -1392,12 +1425,245 @@ hook_elicitation() {
   elicitation_decline
 }
 
-# hook EVENT: the entry of EVENT; stop answers nothing here.
+# strip_line LINE: set stripped to LINE as the stop entry reads a token from
+# it: without one carriage return at its end and the blanks at both ends;
+# then, pass by pass until a pass changes nothing, without one leading list
+# marker (`- `, `* `, `+ `, or digits and `. `), one surrounding pair of `,
+# **, __, * or _ (the line starts and ends with the mark, whatever stands
+# between), one closing period, and the blanks at both ends again. stripped
+# is empty for a blank line, and for one that holds no token by ruling 7:
+# one longer than LINE_BYTES, and one the last of STRIP_PASSES passes still
+# changed. Nothing runs but the shell's own expansions, each over at most
+# LINE_BYTES.
+strip_line() {
+  local s=$1 was mark n pass
+  stripped=''
+  [ "${s:${#s}-1}" != $'\r' ] || s=${s:0:${#s}-1}
+  [ "${#s}" -le "$LINE_BYTES" ] || return 0
+  [[ $s =~ $TRIM_RE ]] || return 0
+  s=${BASH_REMATCH[1]}
+  for ((pass = 1; pass <= STRIP_PASSES; pass++)); do
+    was=$s
+    case $s in
+      '- '* | '* '* | '+ '*) s=${s:2} ;;
+      [0-9]*) if [[ $s =~ $NUMBER_RE ]]; then s=${s:${#BASH_REMATCH[0]}}; fi ;;
+    esac
+    for mark in '`' '**' '__' '*' '_'; do
+      n=${#mark}
+      if [ "${#s}" -ge $((2 * n)) ] && [ "${s:0:n}" = "$mark" ] && [ "${s:${#s}-n}" = "$mark" ]; then
+        s=${s:n:${#s}-2*n}
+        break
+      fi
+    done
+    [ "${s:${#s}-1}" != . ] || s=${s:0:${#s}-1}
+    if [[ $s =~ $TRIM_RE ]]; then s=${BASH_REMATCH[1]}; else s=''; fi
+    if [ "$s" = "$was" ]; then
+      stripped=$s
+      return 0
+    fi
+  done
+}
+# last_line MESSAGE: take MESSAGE's lines once into tail_lines, only its last
+# TAIL_LINES; set last to the last of them that is not empty or blank (a
+# carriage return at its end dropped), as strip_line leaves it, and last_at
+# to its index; last is empty and last_at -1 when every line is blank.
+last_line() {
+  local i l
+  last='' last_at=-1
+  mapfile -t tail_lines <<< "$1"
+  [ "${#tail_lines[@]}" -le "$TAIL_LINES" ] || tail_lines=("${tail_lines[@]: -TAIL_LINES}")
+  for ((i = ${#tail_lines[@]} - 1; i >= 0; i--)); do
+    l=${tail_lines[i]}
+    [ "${l:${#l}-1}" != $'\r' ] || l=${l:0:${#l}-1}
+    [[ $l =~ [^[:blank:]] ]] || continue
+    last_at=$i
+    strip_line "${tail_lines[i]}"
+    last=$stripped
+    return 0
+  done
+}
+# token_of LINE: set token to done when LINE is DONE_LINE; to waiting or
+# blocked when it is WAITING_LINE or BLOCKED_LINE, a space and at least one
+# more character that is not blank; else to nothing. Letters are compared
+# without regard to case.
+token_of() {
+  local l=${1,,} rest
+  token=''
+  if [ "$l" = "${DONE_LINE,,}" ]; then
+    token='done'
+  elif [[ $l == "${WAITING_LINE,,} "* ]]; then
+    rest=${l:${#WAITING_LINE}+1}
+    [[ $rest != *[![:blank:]]* ]] || token=waiting
+  elif [[ $l == "${BLOCKED_LINE,,} "* ]]; then
+    rest=${l:${#BLOCKED_LINE}+1}
+    [[ $rest != *[![:blank:]]* ]] || token=blocked
+  fi
+}
+# earlier_token: whether a line of tail_lines before last_line's holds a
+# token once strip_line has stripped it; the look stops at the first that
+# does, and leaves token as it was.
+earlier_token() {
+  local i token
+  for ((i = last_at - 1; i >= 0; i--)); do
+    strip_line "${tail_lines[i]}"
+    token_of "$stripped"
+    [ -z "$token" ] || return 0
+  done
+  return 1
+}
+
+# stop_facts: set first_stop (the input shows a first stop), subagent_running
+# (background_tasks is an array that holds an entry of type subagent) and
+# nothing_running (background_tasks and session_crons are both empty
+# arrays), each 1 or empty. A first stop, with jq: the input's own top-level
+# stop_hook_active is the boolean false, never for an input jq cannot use;
+# without jq: the input was read whole and its raw text holds that key set
+# false and not set true (a key of that name nested in another object would
+# count as well). Without jq the other two are empty.
+stop_facts() {
+  local facts shown='' subagent='' empty=''
+  first_stop='' subagent_running='' nothing_running=''
+  if [ -z "$has_jq" ]; then
+    if [ -n "$input" ] && [[ $input =~ $RAW_FIRST_RE ]] && ! [[ $input =~ $RAW_CONTINUED_RE ]]; then first_stop=1; fi
+    return 0
+  fi
+  facts=$(field '[.stop_hook_active == false,
+    (if (.background_tasks | type) == "array" then any(.background_tasks[] | objects; .type == "subagent")
+      else false end),
+    (.background_tasks == [] and .session_crons == [])] | map(tostring) | join(" ")')
+  read -r shown subagent empty <<< "$facts"
+  [ "$shown" != true ] || first_stop=1
+  [ "$subagent" != true ] || subagent_running=1
+  [ "$empty" != true ] || nothing_running=1
+}
+# stop_answer KIND TEXT: answer the Stop object of KIND, continue (TEXT the
+# additional context) or block (TEXT the reason, the failure path's form),
+# with an unreadable reading's reason after TEXT.
+stop_answer() {
+  local text=$2 json
+  [ "$reading_state" != unreadable ] || text+=" (noask marker unreadable: $reading_reason; treated as on)"
+  if [ "$1" = block ]; then
+    printf -v json '{"decision":"block","reason":%s}' "$(json_string "$text")"
+  else
+    printf -v json '{"hookSpecificOutput":{"hookEventName":"Stop","additionalContext":%s}}' "$(json_string "$text")"
+  fi
+  answer "$json"
+}
+# stop_block TEXT: the failure path: the block object with TEXT on a first
+# stop, and allow on any other, so a hook that fails every time costs one
+# turn and never a loop (ruling 1). It counts and reads nothing: under
+# uutils' timeout a bounded read started after the exit trap has ignored
+# TERM is not stopped at its bound.
+stop_block() {
+  if [ -n "$first_stop" ]; then stop_answer block "$1"; else allow; fi
+}
+# The stop entry's failure answer, for the message MESSAGE: the rule text
+# read so far and why the hook failed, on a first stop.
+stop_failed() { stop_block "$rule (noask hook failed: $1)"; }
+# stop_count_failed: the failure path for a count that failed, with
+# count_error.
+stop_count_failed() { stop_block "$rule (noask count failed: $count_error)"; }
+# stop_reset: reset the counters of S's record and allow; a reset that failed
+# takes the failure path, since a counter left standing could end the next
+# stretch early, and one that gave off (the marker ended meanwhile) allows.
+stop_reset() {
+  entry_count reset '' # a reset takes no budget
+  if [ "$count_result" = failed ]; then stop_count_failed; else allow; fi
+}
+# stop_continue REASON: count a continuation against the continuationBudget
+# option (CLAUDE_PLUGIN_OPTION_CONTINUATIONBUDGET, 20 when absent or not 1
+# to 99999) and continue the turn. The reason follows the cause the count
+# printed: a spent one gives its ending text alone, whether this count spent
+# the budget or found it spent since the look (call 9); none gives REASON,
+# opened by LAST_LINE_TEXT when the last line holds no token and an earlier
+# one does, and closed by an empty line and SIXTH_TEXT from the sixth
+# continuation on. The count's note follows. A count that failed takes the
+# failure path; one that gave off allows.
+stop_continue() {
+  local text=''
+  entry_count continuation "$(budget_of CONTINUATIONBUDGET 20)"
+  case $count_result in
+    failed) stop_count_failed; return 0 ;;
+    off) allow; return 0 ;;
+  esac
+  if [ "$count_cause" != none ]; then
+    text=$(ending_text "$count_cause")
+  else
+    if [ -z "$token" ] && earlier_token; then text="$LAST_LINE_TEXT "; fi
+    text+=$1
+    [ "$count_continuations" -lt "$SIXTH_CONTINUATION" ] || text+=$'\n\n'$SIXTH_TEXT
+  fi
+  [ -z "$count_note" ] || text+=" (noask count: $count_note)"
+  stop_answer continue "$text"
+}
+# hook stop: under a reading of on or unreadable, and for a stop that names
+# no agent, in this order: without jq, the block of NO_JQ_STOP_TEXT on a
+# first stop; without a usable session id, the failure path with the id's
+# reason; a look at S's record without the lock (a record that cannot be
+# read is a count failure), which allows a stop whose budget is spent and
+# resets nothing; a reset and allow beside a subagent in flight, on a last
+# line that holds done or blocked, and on a waiting line unless both arrays
+# are empty on a first stop, which continues with NOTHING_RUNNING_TEXT; and
+# else a continuation with the rule text (stop_continue).
+hook_stop() {
+  local message reason
+  local -A look=()
+  read_input
+  entry_reading
+  case $reading_state in off | expired) return 0 ;; esac # inert: nothing printed, no file made, no lock taken
+  [ -z "$agent_present" ] || return 0 # inert: a subagent's stop, by an agent id jq read, usable or not
+  stop_facts
+  rule=$FALLBACK_RULE
+  guard_entry stop_failed
+  rule_text
+  if [ -z "$has_jq" ]; then
+    stop_block "$NO_JQ_STOP_TEXT"
+    return 0
+  fi
+  if [ -z "$session" ]; then
+    stop_failed "$id_reason"
+    return 0
+  fi
+  read_record "$BUDGETS/$session" look
+  if [ "${look[state]}" = unreadable ]; then
+    count_error="cannot read $BUDGETS/$session (${look[reason]})"
+    stop_count_failed
+    return 0
+  fi
+  # The count's own generation rule: under on a record of another generation is an empty one.
+  if [ "$reading_state" = on ] && [ "${look[generation]}" != "$reading_generation" ]; then look['spent']=none; fi
+  if [ "${look[spent]}" != none ]; then
+    allow
+    return 0
+  fi
+  if [ -n "$subagent_running" ]; then
+    stop_reset
+    return 0
+  fi
+  { message=$(field '.last_assistant_message | strings'); } 2>/dev/null
+  last_line "$message"
+  token_of "$last"
+  case $token in
+    done | blocked) stop_reset; return 0 ;;
+    waiting)
+      if [ -z "$nothing_running" ] || [ -z "$first_stop" ]; then
+        stop_reset
+        return 0
+      fi
+      reason=$rule$'\n\n'$NOTHING_RUNNING_TEXT
+      ;;
+    *) reason=$rule ;;
+  esac
+  stop_continue "$reason"
+}
+
+# hook EVENT: the entry of EVENT.
 cmd_hook() {
   case $event in
     session-start) hook_session_start ;;
     permission) hook_permission ;;
     elicitation) hook_elicitation ;;
+    stop) hook_stop ;;
   esac
 }
 
