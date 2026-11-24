@@ -13,6 +13,7 @@ import type {
 } from 'claude-code';
 import type { Engine, MockClock, Plugin } from 'claude-code/testing';
 import { expect, mock, test } from 'claude-code/testing';
+import type { MainTurn } from '../types';
 import type { FenceWhat } from './fence';
 import { LOOK_TIMEOUT_MS } from './marker';
 import { MARKER_HANDSOFF, MARKER_ON, MARKER_ON_UNTIL, MARKER_SESSION } from './marker.fixtures';
@@ -22,9 +23,10 @@ import {
     FALLBACK_RULE,
     fenceText,
     LEFT_OPEN_TEXT,
-    PARTIAL_LINE,
     PLAN_TEXT,
     QUESTION_PREFIX,
+    START_JQ_NOTE,
+    START_RULE_NOTE,
     SUBAGENT_SPENT_TEXT,
     SUBAGENT_TEXT,
     SWITCH_TEXT,
@@ -32,17 +34,21 @@ import {
     WAKE_TEXT,
 } from './text';
 
-// A plugin beside sdd that reads `sdd.mainTurn` as a later hook does, and answers a run of /main-turn with what it
-// read: the value, or `undefined` for a value never written.
+// A plugin beside sdd that reads `sdd.mainTurn` and `sdd.startLine` as a later hook does, and answers a run of
+// /main-turn and of /start-line-state with what it read: the value, or `undefined` for a value never written.
 const READER: Plugin = {
     name: 'reader',
     register(on) {
         on('command.run', async ($, e, next) => {
-            if (e.command !== 'main-turn') {
-                return next(e);
+            if (e.command === 'main-turn') {
+                const held = await $.state.get({ plugin: 'sdd', key: 'mainTurn' });
+                return { text: held.value ?? 'undefined' };
             }
-            const held = await $.state.get({ plugin: 'sdd', key: 'mainTurn' });
-            return { text: held.value ?? 'undefined' };
+            if (e.command === 'start-line-state') {
+                const held = await $.state.get({ plugin: 'sdd', key: 'startLine' });
+                return { text: held.value ?? 'undefined' };
+            }
+            return next(e);
         });
     },
 };
@@ -55,6 +61,10 @@ const SESSION = { cwd: '/home/u/projects/org/app', surface: 'terminal', isIntera
 
 async function mainTurnOf($: Engine): Promise<string | undefined> {
     return (await $.command.run({ command: 'main-turn', args: '', ...AT_PROMPT })).text;
+}
+
+async function startLineOf($: Engine): Promise<string | undefined> {
+    return (await $.command.run({ command: 'start-line-state', args: '', ...AT_PROMPT })).text;
 }
 
 // A turn's start and its end, the main loop's, or with `agentId` a subagent's.
@@ -156,24 +166,34 @@ const HISTORY: ReadonlyArray<SessionMessage> = [
 ];
 
 // What the world beneath the plugin answers. Absent: the registration succeeds, the session's id is s-1, the command
-// answers as noaskReply does, the transcript holds HISTORY, the rule file holds RULE_FILE_TEXT, `$.state` is the kit's
-// and every submission enters. `messages` as a function is asked at each read of the transcript, and answers when what
-// it returns does; `rule: 'hang'` is a read that never answers, and a promise one that answers when the test settles
-// it; `turn: 'deny'` refuses `$.state.get`, and a function is asked at each read of the turn and answers when what it
-// returns does; with `submit: 'reject'` the submission's hook throws, and the engine skips it, so the submission
-// rejects.
+// answers as noaskReply does and its start-line runs exit 0 with nothing printed (a session not under noask), the
+// transcript holds HISTORY, the rule file holds RULE_FILE_TEXT, `$.state` is the kit's and every submission enters.
+// `id` as a promise answers when it settles; `start` answers each run whose last word is start-line, a function asked
+// at each such run and answered when what it returns does, an Error rejecting the run; `messages` as a function is
+// asked at each read of the transcript, and answers when what it returns does; `rule: 'hang'` is a read that never
+// answers, and a promise one that answers when the test settles it; `turn: 'deny'` refuses `$.state.get` of
+// `sdd.mainTurn`, and a function is asked at each read of the turn and answers when what it returns does; with
+// `submit: 'reject'` the submission's hook throws, and the engine skips it, so the submission rejects.
 type World = {
     readonly register?: 'deny';
-    readonly id?: string | Error;
+    readonly id?: string | Error | Promise<string>;
     readonly reply?: Reply;
+    readonly start?: Reply | (() => Reply | Promise<Reply>);
     readonly messages?:
         | ReadonlyArray<SessionMessage>
         | 'deny'
         | (() => ReadonlyArray<SessionMessage> | Promise<ReadonlyArray<SessionMessage>>);
     readonly rule?: string | 'deny' | 'hang' | Promise<string>;
-    readonly turn?: 'deny' | (() => string | Promise<string>);
+    readonly turn?: 'deny' | (() => MainTurn | Promise<MainTurn>);
     readonly submit?: 'drop' | 'reject';
 };
+
+const MAIN_TURN = { plugin: 'sdd', key: 'mainTurn' } as const;
+
+// What a start-line run answers in the world: `start`, asked when it is a function, else an exit 0 with nothing.
+async function startReplyOf(world: World): Promise<Reply> {
+    return typeof world.start === 'function' ? world.start() : (world.start ?? printed(''));
+}
 
 // A promise the test settles itself: an answer of the world beneath that comes late, or never.
 function deferred<T>(): { readonly promise: Promise<T>; readonly resolve: (value: T) => void } {
@@ -186,11 +206,15 @@ function deferred<T>(): { readonly promise: Promise<T>; readonly resolve: (value
 
 type Run = { readonly argv: ReadonlyArray<string>; readonly init: ProcessRunInit | undefined };
 
+// What a stage saw: the clock, each registration, toast and line logged, each run of /noask's command and each
+// start-line run apart, each read of a file and each submission.
 type Stage = {
     readonly clock: MockClock;
     readonly registered: CommandSpec[];
     readonly toasts: string[];
+    readonly logs: string[];
     readonly runs: Run[];
+    readonly starts: Run[];
     readonly reads: string[];
     readonly submits: PromptSubmitInput[];
 };
@@ -200,7 +224,9 @@ function stage(on: On, world: World = {}): Stage {
         clock: mock.clock(on),
         registered: [],
         toasts: [],
+        logs: [],
         runs: [],
+        starts: [],
         reads: [],
         submits: [],
     };
@@ -218,10 +244,18 @@ function stage(on: On, world: World = {}): Stage {
         recorded.toasts.push(e.text);
         return { value: undefined };
     });
-    on('session.id', () => (world.id instanceof Error ? { deny: world.id.message } : { value: world.id ?? 's-1' }));
-    on('process.run', (_$, e) => {
-        recorded.runs.push({ argv: [...e.argv], init: e.init });
-        const reply = world.reply ?? noaskReply(e.argv.slice(1));
+    on('ui.log', (_$, e) => {
+        recorded.logs.push(e.text);
+        return { value: undefined };
+    });
+    on('session.id', async () => {
+        const id = world.id;
+        return id instanceof Error ? { deny: id.message } : { value: await (id ?? 's-1') };
+    });
+    on('process.run', async (_$, e) => {
+        const isStart = e.argv.at(-1) === 'start-line';
+        (isStart ? recorded.starts : recorded.runs).push({ argv: [...e.argv], init: e.init });
+        const reply = isStart ? await startReplyOf(world) : (world.reply ?? noaskReply(e.argv.slice(1)));
         return reply instanceof Error
             ? { deny: reply.message }
             : { value: { ...reply, isStdoutTruncated: false, isStderrTruncated: false } };
@@ -235,9 +269,9 @@ function stage(on: On, world: World = {}): Stage {
     });
     const turn = world.turn;
     if (turn === 'deny') {
-        on('state.get', () => ({ deny: 'no state in this test' }));
+        on('state.get', MAIN_TURN, () => ({ deny: 'no state in this test' }));
     } else if (turn !== undefined) {
-        on('state.get', async () => ({ value: { value: await turn(), version: 1 } }));
+        on('state.get', MAIN_TURN, async () => ({ value: { value: await turn(), version: 1 } }));
     }
     on('fs.read', (_$, e) => {
         recorded.reads.push(e.path);
@@ -450,7 +484,7 @@ test('an id not of the form the command takes is no usable id', async ($, on) =>
 test('with no usable id a global command runs without --session', async ($, on) => {
     const world = stage(on, { id: new Error('no id in this test') });
     await $.session.start(SESSION);
-    expect(await noask($, 'global on')).toBe(`${GLOBAL_ON}\n\n${RULE}\n${PARTIAL_LINE}`);
+    expect(await noask($, 'global on')).toBe(`${GLOBAL_ON}\n\n${RULE}`);
     expect(await noask($, 'global off')).toBe('noask: off for every session');
     const root = rootOf(world);
     expect(world.runs.map((run) => run.argv)).toEqual([
@@ -493,7 +527,7 @@ test("a transcript of one user message alone gets the turn (a cleared session's)
 test('an on that changed nothing still submits the one turn, rule text included', async ($, on) => {
     const world = stage(on, { reply: printed(`${ALREADY_ON}\n`) });
     await idle($);
-    expect(await noask($, 'on')).toBe(`${ALREADY_ON}\n${PARTIAL_LINE}`);
+    expect(await noask($, 'on')).toBe(`${ALREADY_ON}`);
     await world.clock.settle();
     expect(world.submits.map((submitted) => submitted.text)).toEqual([`${WAKE_TEXT}\n\n${RULE}`]);
 });
@@ -527,7 +561,7 @@ test('with a rule file read that never answers the turn carries the fallback onc
     await world.clock.advance(1_999);
     expect(world.submits).toEqual([]);
     await world.clock.advance(1);
-    expect(await answer).toBe(`${SESSION_ON}\n\n${RULE}\n${PARTIAL_LINE}`);
+    expect(await answer).toBe(`${SESSION_ON}\n\n${RULE}`);
     await world.clock.settle();
     expect(world.submits.map((submitted) => submitted.text)).toEqual([
         `${WAKE_TEXT}\n\n${FALLBACK_RULE} (rule file unreadable: timed out)`,
@@ -559,7 +593,7 @@ test('a transcript that cannot be read submits nothing and fails nothing', async
     await idle($);
     const text = await noask($, 'on');
     await world.clock.settle();
-    expect(text).toBe(`${SESSION_ON}\n\n${RULE}\n${PARTIAL_LINE}`);
+    expect(text).toBe(`${SESSION_ON}\n\n${RULE}`);
     expect(world.submits).toEqual([]);
     expect(world.toasts).toEqual([]);
 });
@@ -569,13 +603,28 @@ test('a turn state that cannot be read submits nothing and fails nothing', async
     await $.session.start(SESSION);
     const text = await noask($, 'on');
     await world.clock.settle();
-    expect(text).toBe(`${SESSION_ON}\n\n${RULE}\n${PARTIAL_LINE}`);
+    expect(text).toBe(`${SESSION_ON}\n\n${RULE}`);
     expect(world.submits).toEqual([]);
     expect(world.toasts).toEqual([]);
 });
 
 // The session is looked at while the command runs, before its text is shown: the transcript first, as it is when
 // /noask is typed, then the rule text, then the turn, each look bounded to 2 seconds.
+
+// A transcript whose first read, the session start's own, holds HISTORY, and whose every later read answers as
+// `later` does.
+function afterTheStart(
+    later: () => Promise<ReadonlyArray<SessionMessage>>,
+): () => ReadonlyArray<SessionMessage> | Promise<ReadonlyArray<SessionMessage>> {
+    let isStarted = false;
+    return () => {
+        if (isStarted) {
+            return later();
+        }
+        isStarted = true;
+        return HISTORY;
+    };
+}
 
 test('a transcript that holds a history only once the command answered gets no turn', async ($, on) => {
     let transcript: ReadonlyArray<SessionMessage> = [];
@@ -584,20 +633,20 @@ test('a transcript that holds a history only once the command answered gets no t
     const text = await noask($, 'on');
     transcript = HISTORY;
     await world.clock.settle();
-    expect(text).toBe(`${SESSION_ON}\n\n${RULE}\n${PARTIAL_LINE}`);
+    expect(text).toBe(`${SESSION_ON}\n\n${RULE}`);
     expect(world.submits).toEqual([]);
     expect(world.toasts).toEqual([]);
 });
 
 test('a turn that starts while the transcript is read gets no wake-up turn behind it', async ($, on) => {
     const transcript = deferred<ReadonlyArray<SessionMessage>>();
-    const world = stage(on, { messages: () => transcript.promise });
+    const world = stage(on, { messages: afterTheStart(() => transcript.promise) });
     await idle($);
     const answer = noask($, 'on');
     await world.clock.settle();
     await $.turn.start(turnStart('t2'));
     transcript.resolve(HISTORY);
-    expect(await answer).toBe(`${SESSION_ON}\n\n${RULE}\n${PARTIAL_LINE}`);
+    expect(await answer).toBe(`${SESSION_ON}\n\n${RULE}`);
     await world.clock.settle();
     expect(world.submits).toEqual([]);
     expect(world.toasts).toEqual([]);
@@ -605,13 +654,13 @@ test('a turn that starts while the transcript is read gets no wake-up turn behin
 
 test('a turn that starts while the transcript is read gets no turn, even when it ends at once', async ($, on) => {
     const transcript = deferred<ReadonlyArray<SessionMessage>>();
-    const world = stage(on, { messages: () => transcript.promise });
+    const world = stage(on, { messages: afterTheStart(() => transcript.promise) });
     await idle($);
     const answer = noask($, 'on');
     await world.clock.settle();
     await $.turn.start(turnStart('t2'));
     transcript.resolve(HISTORY);
-    expect(await answer).toBe(`${SESSION_ON}\n\n${RULE}\n${PARTIAL_LINE}`);
+    expect(await answer).toBe(`${SESSION_ON}\n\n${RULE}`);
     await $.turn.complete(turnComplete('t2'));
     await world.clock.settle();
     expect(world.submits).toEqual([]);
@@ -626,7 +675,7 @@ test('a turn that starts while the rule file is read gets no wake-up turn behind
     await world.clock.settle();
     await $.turn.start(turnStart('t2'));
     ruleRead.resolve(RULE_FILE_TEXT);
-    expect(await answer).toBe(`${SESSION_ON}\n\n${RULE}\n${PARTIAL_LINE}`);
+    expect(await answer).toBe(`${SESSION_ON}\n\n${RULE}`);
     await world.clock.settle();
     expect(world.submits).toEqual([]);
     expect(world.toasts).toEqual([]);
@@ -634,13 +683,13 @@ test('a turn that starts while the rule file is read gets no wake-up turn behind
 
 test('a transcript that does not answer in 2 seconds wakes nothing, nor when it answers later', async ($, on) => {
     const transcript = deferred<ReadonlyArray<SessionMessage>>();
-    const world = stage(on, { messages: () => transcript.promise });
+    const world = stage(on, { messages: afterTheStart(() => transcript.promise) });
     await idle($);
     const answer = noask($, 'on');
     await world.clock.advance(1_999);
     expect(world.submits).toEqual([]);
     await world.clock.advance(1);
-    expect(await answer).toBe(`${SESSION_ON}\n\n${RULE}\n${PARTIAL_LINE}`);
+    expect(await answer).toBe(`${SESSION_ON}\n\n${RULE}`);
     expect(world.submits).toEqual([]);
     transcript.resolve(HISTORY);
     await world.clock.settle();
@@ -649,14 +698,14 @@ test('a transcript that does not answer in 2 seconds wakes nothing, nor when it 
 });
 
 test('a turn state that does not answer in 2 seconds wakes nothing, nor when it answers later', async ($, on) => {
-    const turn = deferred<string>();
+    const turn = deferred<MainTurn>();
     const world = stage(on, { turn: () => turn.promise });
     await $.session.start(SESSION);
     const answer = noask($, 'on');
     await world.clock.advance(1_999);
     expect(world.submits).toEqual([]);
     await world.clock.advance(1);
-    expect(await answer).toBe(`${SESSION_ON}\n\n${RULE}\n${PARTIAL_LINE}`);
+    expect(await answer).toBe(`${SESSION_ON}\n\n${RULE}`);
     expect(world.submits).toEqual([]);
     turn.resolve('complete');
     await world.clock.settle();
@@ -670,7 +719,7 @@ test('a turn state that does not answer in 2 seconds wakes nothing, nor when it 
 test('a turn that starts once the command answered, before the submission, gets no turn behind it', async ($, on) => {
     const world = stage(on);
     await idle($);
-    expect(await noask($, 'on')).toBe(`${SESSION_ON}\n\n${RULE}\n${PARTIAL_LINE}`);
+    expect(await noask($, 'on')).toBe(`${SESSION_ON}\n\n${RULE}`);
     await $.turn.start(turnStart('t2'));
     await world.clock.settle();
     expect(world.submits).toEqual([]);
@@ -681,7 +730,7 @@ test('a turn running when /noask on is typed gets no turn, even when it ends bef
     const world = stage(on);
     await $.session.start(SESSION);
     await $.turn.start(turnStart('t1'));
-    expect(await noask($, 'on')).toBe(`${SESSION_ON}\n\n${RULE}\n${PARTIAL_LINE}`);
+    expect(await noask($, 'on')).toBe(`${SESSION_ON}\n\n${RULE}`);
     await $.turn.complete(turnComplete('t1'));
     await world.clock.settle();
     expect(world.submits).toEqual([]);
@@ -689,7 +738,7 @@ test('a turn running when /noask on is typed gets no turn, even when it ends bef
 });
 
 test('a turn read before the submission that does not answer in 2 seconds wakes nothing', async ($, on) => {
-    const late = deferred<string>();
+    const late = deferred<MainTurn>();
     const reads: string[] = [];
     const world = stage(on, {
         turn: () => {
@@ -698,7 +747,7 @@ test('a turn read before the submission that does not answer in 2 seconds wakes 
         },
     });
     await $.session.start(SESSION);
-    expect(await noask($, 'on')).toBe(`${SESSION_ON}\n\n${RULE}\n${PARTIAL_LINE}`);
+    expect(await noask($, 'on')).toBe(`${SESSION_ON}\n\n${RULE}`);
     await world.clock.settle();
     expect(reads).toEqual(['turn', 'turn']);
     await world.clock.advance(2_000);
@@ -748,7 +797,6 @@ for (const args of ['on', 'off', 'global on', 'global off', 'on handsoff 3h']) {
         const text = await noask($, args);
         await world.clock.settle();
         expect(text).toBe(failed);
-        expect(text).not.toContain(PARTIAL_LINE);
         expect(world.toasts).toEqual([failed]);
         expect(world.submits).toEqual([]);
     });
@@ -816,25 +864,23 @@ test('a run that rejects is said twice and wakes nothing', async ($, on) => {
     expect(world.submits).toEqual([]);
 });
 
-// The partial line also ends the text of an `on` that changed nothing: the test above with ALREADY_ON pins it.
-test('every on that exits 0 ends on the partial line', async ($, on) => {
+// The line that said this release was partial is gone: an `on` that exits 0 shows the command's lines alone, as an
+// `on` that changed nothing does (the test above with ALREADY_ON).
+test("every on that exits 0 shows the command's lines alone", async ($, on) => {
     const world = stage(on);
     await $.session.start(SESSION);
-    expect(await noask($, 'on')).toBe(`${SESSION_ON}\n\n${RULE}\n${PARTIAL_LINE}`);
-    expect(await noask($, 'on handsoff 3h')).toBe(`${HANDSOFF_ON}\n\n${RULE}\n${PARTIAL_LINE}`);
-    expect(await noask($, 'global on 9h')).toBe(`${GLOBAL_ON}\n\n${RULE}\n${PARTIAL_LINE}`);
+    expect(await noask($, 'on')).toBe(`${SESSION_ON}\n\n${RULE}`);
+    expect(await noask($, 'on handsoff 3h')).toBe(`${HANDSOFF_ON}\n\n${RULE}`);
+    expect(await noask($, 'global on 9h')).toBe(`${GLOBAL_ON}\n\n${RULE}`);
     expect(world.toasts).toEqual([]);
 });
 
-// An `on` that exits 1 does not carry it either: the failed-switch tests above pin it.
-test('a status, an off and an on refused with exit 2 do not carry the partial line', async ($, on) => {
+// An `on` that exits 1 shows its failure alone: the failed-switch tests above pin it.
+test("a status, an off and an on refused with exit 2 show the command's lines alone", async ($, on) => {
     const world = stage(on);
     await $.session.start(SESSION);
     const texts = [await noask($, ''), await noask($, 'off'), await noask($, 'global off'), await noask($, 'on 9x')];
     expect(texts).toEqual(['noask: off', 'noask: off for this session', 'noask: off for every session', USAGE]);
-    for (const text of texts) {
-        expect(text).not.toContain(PARTIAL_LINE);
-    }
     expect(world.toasts).toEqual([]);
 });
 
@@ -930,7 +976,7 @@ test('a form not typed by the owner is refused before the session id is read', a
 test('a switch typed through the bridge runs as one typed at the prompt', async ($, on) => {
     const world = stage(on);
     await idle($);
-    expect(await noask($, 'on', BRIDGE)).toBe(`${SESSION_ON}\n\n${RULE}\n${PARTIAL_LINE}`);
+    expect(await noask($, 'on', BRIDGE)).toBe(`${SESSION_ON}\n\n${RULE}`);
     await world.clock.settle();
     expect(world.submits.map((submitted) => submitted.text)).toEqual([`${WAKE_TEXT}\n\n${RULE}`]);
     expect(await noask($, 'off', BRIDGE)).toBe('noask: off for this session');
@@ -942,6 +988,210 @@ test('a switch typed through the bridge runs as one typed at the prompt', async 
     ]);
     expect(world.toasts).toEqual([]);
 });
+
+// The start line at a resume and a fork. At the session's start, once /noask is registered, a session whose start was
+// not seen yet (`sdd.startLine` holds nothing) and whose transcript holds a message, a resumed or a forked one, runs
+// `start-line` and shows the line the command prints, or marks the start seen when it prints none; a session whose
+// transcript is empty, a new one, was spoken to by the command hook, and its start is marked seen. A failure on the
+// way shows and marks nothing, so a reload, which runs session.start again in the same session, tries again.
+
+const START_LINE =
+    'noask is ON for this session since 23:00 until 2026-11-12 07:00; it rules on its own recommendations and never ' +
+    'waits; /noask off to end it';
+const NO_ID_LINE =
+    "noask treats this session as ON: this session's id could not be read (no id was given) while a session's own " +
+    'switch is on';
+const UNREADABLE_LINE =
+    'noask is ON for this session (noask marker unreadable: marker read timed out; treated as on); it rules on its ' +
+    'own recommendations and never waits; /noask off to end it';
+
+// What every run of start-line is given: 7 seconds, its own limit, and the command's two test seams blanked.
+const START_INIT = { timeoutMs: 7_000, env: { SDD_NOASK_NOW: '', SDD_NOASK_LOCK_WAIT: '' } };
+
+// The session's start, not awaited, and whether it has answered.
+function starting($: Engine): { readonly answer: Promise<unknown>; readonly hasAnswered: () => boolean } {
+    let hasAnswered = false;
+    const answer = $.session.start(SESSION).then((value) => {
+        hasAnswered = true;
+        return value;
+    });
+    return { answer, hasAnswered: () => hasAnswered };
+}
+
+test("a start that finds a history shows the command's line, and keeps that it did", WITH_READER, async ($, on) => {
+    const world = stage(on, { start: printed(`${START_LINE}\n`) });
+    expect(await $.session.start(SESSION)).toEqual({ cwd: SESSION.cwd });
+    expect(world.logs).toEqual([START_LINE]);
+    expect(world.starts.map((run) => run.argv)).toEqual([
+        [`${rootOf({ runs: world.starts })}/bin/noask`, '--session', 's-1', 'start-line'],
+    ]);
+    expect(await startLineOf($)).toBe('shown');
+    expect(world.registered).toEqual([COMMAND_SPEC]);
+    expect(world.toasts).toEqual([]);
+    expect(world.runs).toEqual([]);
+});
+
+test("the start line's run is given 7000 ms and the command's two test seams blanked", async ($, on) => {
+    const world = stage(on, { start: printed(`${START_LINE}\n`) });
+    await $.session.start(SESSION);
+    expect(world.starts).toHaveLength(1);
+    expect(world.starts[0]?.init).toStrictEqual(START_INIT);
+});
+
+test('a second session start, a reload, does not show the line again', WITH_READER, async ($, on) => {
+    const world = stage(on, { start: printed(`${START_LINE}\n`) });
+    await $.session.start(SESSION);
+    expect(await $.session.start(SESSION)).toEqual({ cwd: SESSION.cwd });
+    expect(world.logs).toEqual([START_LINE]);
+    expect(world.starts).toHaveLength(1);
+    expect(world.registered).toEqual([COMMAND_SPEC, COMMAND_SPEC]);
+    expect(await startLineOf($)).toBe('shown');
+});
+
+test('a start with an empty transcript shows nothing, nor a start after a turn', WITH_READER, async ($, on) => {
+    let transcript: ReadonlyArray<SessionMessage> = [];
+    const world = stage(on, { messages: () => transcript, start: printed(`${START_LINE}\n`) });
+    expect(await $.session.start(SESSION)).toEqual({ cwd: SESSION.cwd });
+    expect(await startLineOf($)).toBe('started');
+    await $.turn.start(turnStart('t1'));
+    transcript = HISTORY;
+    await $.turn.complete(turnComplete('t1'));
+    expect(await $.session.start(SESSION)).toEqual({ cwd: SESSION.cwd });
+    expect(world.starts).toEqual([]);
+    expect(world.logs).toEqual([]);
+    expect(await startLineOf($)).toBe('started');
+});
+
+// noask off at the start: the start is seen, so a reload after a later `on` shows no late line either.
+test('a start where the command prints nothing shows nothing, nor a start after', WITH_READER, async ($, on) => {
+    const replies = [printed(''), printed(`${START_LINE}\n`)];
+    const world = stage(on, { start: () => replies.shift() ?? printed('') });
+    expect(await $.session.start(SESSION)).toEqual({ cwd: SESSION.cwd });
+    expect(await startLineOf($)).toBe('started');
+    expect(await $.session.start(SESSION)).toEqual({ cwd: SESSION.cwd });
+    expect(world.starts).toHaveLength(1);
+    expect(world.logs).toEqual([]);
+});
+
+// A failure on the way shows nothing and marks nothing: the next start runs the command again.
+const FAILED_STARTS: ReadonlyArray<readonly [string, Reply]> = [
+    ['a run that rejects', new Error('command still running after 7000 ms')],
+    ['an exit of 1', { exitCode: 1, stdout: '', stderr: 'noask: cannot read the clock\n' }],
+    ['an exit of 2 with a line', { exitCode: 2, stdout: `${START_LINE}\n`, stderr: '' }],
+];
+
+for (const [name, failed] of FAILED_STARTS) {
+    test(`after ${name} the start shows nothing, and the next start shows the line`, WITH_READER, async ($, on) => {
+        const replies = [failed, printed(`${START_LINE}\n`)];
+        const world = stage(on, { start: () => replies.shift() ?? printed('') });
+        expect(await $.session.start(SESSION)).toEqual({ cwd: SESSION.cwd });
+        expect(world.logs).toEqual([]);
+        expect(await startLineOf($)).toBe('undefined');
+        expect(await $.session.start(SESSION)).toEqual({ cwd: SESSION.cwd });
+        expect(world.logs).toEqual([START_LINE]);
+        expect(world.starts).toHaveLength(2);
+        expect(await startLineOf($)).toBe('shown');
+        expect(world.toasts).toEqual([]);
+    });
+}
+
+const UNUSABLE_IDS: ReadonlyArray<readonly [string, string | Error]> = [
+    ['an id that cannot be read', new Error('no id in this test')],
+    ['a reserved word', 'on'],
+    ['an id of another form', 'a b'],
+];
+
+for (const [name, id] of UNUSABLE_IDS) {
+    test(`with ${name} the command runs without --session`, async ($, on) => {
+        const world = stage(on, { id, start: printed(`${NO_ID_LINE}\n`) });
+        expect(await $.session.start(SESSION)).toEqual({ cwd: SESSION.cwd });
+        const root = rootOf({ runs: world.starts });
+        expect(world.starts.map((run) => run.argv)).toEqual([[`${root}/bin/noask`, 'start-line']]);
+        expect(world.logs).toEqual([NO_ID_LINE]);
+    });
+}
+
+test('a transcript that cannot be read shows and marks nothing, and the start goes on', WITH_READER, async ($, on) => {
+    const world = stage(on, { messages: 'deny', start: printed(`${START_LINE}\n`) });
+    expect(await $.session.start(SESSION)).toEqual({ cwd: SESSION.cwd });
+    expect(world.starts).toEqual([]);
+    expect(world.logs).toEqual([]);
+    expect(await startLineOf($)).toBe('undefined');
+});
+
+test('a state that cannot be read runs nothing, and the start goes on', async ($, on) => {
+    const world = stage(on, { start: printed(`${START_LINE}\n`) });
+    on('state.get', { plugin: 'sdd', key: 'startLine' }, () => ({ deny: 'no state in this test' }));
+    expect(await $.session.start(SESSION)).toEqual({ cwd: SESSION.cwd });
+    expect(world.starts).toEqual([]);
+    expect(world.logs).toEqual([]);
+});
+
+test('a session id that never answers is let go at 2 seconds, and the command runs without it', async ($, on) => {
+    const world = stage(on, { id: never(), start: printed(`${NO_ID_LINE}\n`) });
+    const start = starting($);
+    await world.clock.advance(LOOK_TIMEOUT_MS - 1);
+    expect(start.hasAnswered()).toBe(false);
+    expect(world.starts).toEqual([]);
+    await world.clock.advance(1);
+    expect(await start.answer).toEqual({ cwd: SESSION.cwd });
+    expect(argsOf({ runs: world.starts })).toEqual([['start-line']]);
+    expect(world.logs).toEqual([NO_ID_LINE]);
+});
+
+test('a run of the command that never answers is let go at 7 seconds, showing nothing', WITH_READER, async ($, on) => {
+    const world = stage(on, { start: () => never() });
+    const start = starting($);
+    await world.clock.advance(6_999);
+    expect(start.hasAnswered()).toBe(false);
+    await world.clock.advance(1);
+    expect(await start.answer).toEqual({ cwd: SESSION.cwd });
+    expect(world.starts).toHaveLength(1);
+    expect(world.logs).toEqual([]);
+    expect(await startLineOf($)).toBe('undefined');
+});
+
+// Past the 2 seconds a marker's look takes: the command waited on a marker that hangs, and says so.
+test('a run that answers after 3 seconds with the unreadable line has the line shown', WITH_READER, async ($, on) => {
+    const world: Stage = stage(on, {
+        start: async () => {
+            await world.clock.sleep(3_000);
+            return printed(`${UNREADABLE_LINE}\n`);
+        },
+    });
+    const start = starting($);
+    await world.clock.advance(2_999);
+    expect(start.hasAnswered()).toBe(false);
+    await world.clock.advance(1);
+    expect(await start.answer).toEqual({ cwd: SESSION.cwd });
+    expect(world.logs).toEqual([UNREADABLE_LINE]);
+    expect(await startLineOf($)).toBe('shown');
+});
+
+// The line is shown before the state is written: a write that fails leaves the start unseen, so a reload shows the
+// line again, which is preferred to a line never shown.
+test('a state write that fails after the line was shown leaves the line, and the start goes on', async ($, on) => {
+    const world = stage(on, { start: printed(`${START_LINE}\n`) });
+    on('state.set', { plugin: 'sdd', key: 'startLine' }, () => ({ deny: 'the test refuses this write' }));
+    expect(await $.session.start(SESSION)).toEqual({ cwd: SESSION.cwd });
+    expect(world.logs).toEqual([START_LINE]);
+    expect(await $.session.start(SESSION)).toEqual({ cwd: SESSION.cwd });
+    expect(world.logs).toEqual([START_LINE, START_LINE]);
+});
+
+// The command's notes stand on its line, each after one space.
+const NOTES: ReadonlyArray<readonly [string, string]> = [
+    ['the jq note', START_JQ_NOTE],
+    ['the rule note', START_RULE_NOTE],
+];
+
+for (const [name, note] of NOTES) {
+    test(`a resume whose line carries ${name} shows the note on the line`, async ($, on) => {
+        const world = stage(on, { start: printed(`${START_LINE} ${note}\n`) });
+        await $.session.start(SESSION);
+        expect(world.logs).toEqual([`${START_LINE} ${note}`]);
+    });
+}
 
 // Tool calls: the question refusal, the fence and the guard on the switch. The markers lie in a file system in
 // memory beneath the plugin, each test's as its name says, and the count's run answers `counted none 1 0 0` unless the

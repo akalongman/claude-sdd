@@ -584,6 +584,31 @@ noask --session s-1 --agent a1 count reset
 # end
 
 # hits: switching noask
+# bash: agrees
+noask hook stop
+# end
+
+# hits: switching noask
+# bash: differs: not observed (bin/noask is not in the run folder)
+bin/noask hook permission < /dev/null
+# end
+
+# hits: switching noask
+# bash: agrees
+noask --session s-1 start-line
+# end
+
+# hits: switching noask
+# bash: agrees
+echo '{}' | noask hook session-start
+# end
+
+# hits: switching noask
+# bash: agrees
+~/.local/bin/noask hook elicitation
+# end
+
+# hits: switching noask
 # bash: differs: not earned (a setting before noask is read as switching it)
 FOO=1 noask status
 # end

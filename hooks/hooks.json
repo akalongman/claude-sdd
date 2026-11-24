@@ -1,4 +1,55 @@
 {
-  "description": "Loads the sdd hooks module: it keeps the main loop's turn state, serves /noask, refuses the question and the plan approval and fences the calls that need the owner while noask is on, and in every session guards the noask switch and refuses a shell command it cannot read",
+  "description": "Loads the sdd hooks module: it keeps the main loop's turn state, serves /noask, refuses the question and the plan approval and fences the calls that need the owner while noask is on, and in every session guards the noask switch and refuses a shell command it cannot read; and it runs noask's command hooks at a session's start, a permission prompt, a tool server's question and a stop",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "bash",
+            "command": "SDD_NOASK_NOW= SDD_NOASK_LOCK_WAIT= bash \"${CLAUDE_PLUGIN_ROOT}/bin/noask\" hook session-start",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "PermissionRequest": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "bash",
+            "command": "SDD_NOASK_NOW= SDD_NOASK_LOCK_WAIT= bash \"${CLAUDE_PLUGIN_ROOT}/bin/noask\" hook permission",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "Elicitation": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "bash",
+            "command": "SDD_NOASK_NOW= SDD_NOASK_LOCK_WAIT= bash \"${CLAUDE_PLUGIN_ROOT}/bin/noask\" hook elicitation",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "bash",
+            "command": "SDD_NOASK_NOW= SDD_NOASK_LOCK_WAIT= bash \"${CLAUDE_PLUGIN_ROOT}/bin/noask\" hook stop",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  },
   "modules": ["./register.tsx"]
 }

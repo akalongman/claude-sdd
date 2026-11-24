@@ -7,7 +7,9 @@
 // approval's; in every session it guards the switch, denying a call that switches noask or writes its files, and a
 // shell command the fence's scan refuses to read: one too complex to read to its end, and one in which a substitution
 // leaves a here-document open. Each of those registrations carries a `.catch` handler that denies in the hook's place.
-// The markers are read by marker.ts; every text the module shows is in text.ts. A subagent's turn changes nothing.
+// At a resume and a fork, where the command hook's answer reaches no one, the session's start shows the command's
+// start line once (`sdd.startLine`). The markers are read by marker.ts; every text the module shows is in text.ts. A
+// subagent's turn changes nothing.
 import type {
     Caught,
     CommandRunResult,
@@ -18,6 +20,7 @@ import type {
     PromptOrigin,
     Register,
     SessionMessage,
+    Timer,
 } from 'claude-code';
 import type { Budgets, Counter, Spent } from './count';
 import { budgetsOf, countOn } from './count';
@@ -34,7 +37,7 @@ import {
     stateRoots,
 } from './fence';
 import type { Reading } from './marker';
-import { inTime, isNoask, mayPublish, messageOf, readNoask, sessionIdOf } from './marker';
+import { inTime, isNoask, mayPublish, messageOf, readNoask, sessionIdOf, TIMED_OUT } from './marker';
 import {
     ARGUMENT_HINT,
     COMMAND_DESCRIPTION,
@@ -59,7 +62,6 @@ import {
     withCountFailure,
     withError,
     withHookFailure,
-    withPartialLine,
 } from './text';
 
 // The tools that put a question to the owner: the question tool alone, since the goal proposal is not a tool of build
@@ -109,6 +111,26 @@ const RUN_INIT = {
 
 // The exit of a run the command refused for a wrong argument, its usage line shown as it is.
 const WRONG_ARGUMENT = 2;
+
+// The run of `start-line` at the session's start: 7 seconds of its own before the engine kills it, enough for what
+// the command itself may wait, 2 seconds on each of two markers and the rule file (or on the global marker, one
+// hanging marker of the no-id look and the rule file), and its start. LOOK_TIMEOUT_MS would end the command as its
+// first hanging read gave up, before it printed the line that says so. The two test seams are blanked as above.
+const START_LINE_TIMEOUT_MS = 7_000;
+const START_LINE_INIT = {
+    timeoutMs: START_LINE_TIMEOUT_MS,
+    env: { SDD_NOASK_NOW: '', SDD_NOASK_LOCK_WAIT: '' },
+} as const satisfies ProcessRunInit;
+
+// The session's start as `sdd.startLine` holds it once seen: the line was shown, or the session started where no
+// line was to be shown (a new session, which the command hook spoke to, or noask off). Nothing reads the difference.
+const START_LINE = { plugin: 'sdd', key: 'startLine' } as const;
+
+// What a run of `start-line` came to: its exit and its standard output without the white space that ends it, or why
+// it gave none.
+type StartLineRun =
+    | { readonly ok: true; readonly exitCode: number; readonly line: string }
+    | { readonly ok: false; readonly error: string };
 
 const WHITE_SPACE = /\s+/;
 
@@ -220,14 +242,101 @@ async function submitWakeUp(
     }
 }
 
+// A line appended to the transcript, which the owner sees and the model does not; false when the call throws.
+function logged($: Pick<EngineInterface, 'ui'>, text: string): boolean {
+    try {
+        $.ui.log(text);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+// The session's start as `sdd.startLine` holds it, a rejection when the call throws as it is made.
+async function startLineOf($: Pick<EngineInterface, 'state'>): Promise<unknown> {
+    return (await $.state.get(START_LINE)).value;
+}
+
+// Keeps in `sdd.startLine` that the session's start was seen, a rejection when the call throws as it is made.
+async function startSeen($: Pick<EngineInterface, 'state'>, seen: 'shown' | 'started'): Promise<unknown> {
+    return $.state.set(START_LINE, seen);
+}
+
+// Runs `start-line` by its argument vector, never through a shell, held to START_LINE_TIMEOUT_MS twice: the engine
+// kills the run then and the call rejects, and the call is raced against a timer of the same length, $.clock.after's
+// as inTime's, so a run that never settles is let go too; the timer is cancelled once the run answers, and a run let
+// go is not cancelled. Never rejects.
+async function startLineRun(
+    $: Pick<EngineInterface, 'process' | 'clock'>,
+    argv: ReadonlyArray<string>,
+): Promise<StartLineRun> {
+    const ran = (async (): Promise<StartLineRun> => {
+        try {
+            const { exitCode, stdout } = await $.process.run(argv, START_LINE_INIT);
+            return { ok: true, exitCode, line: stdout.trimEnd() };
+        } catch (error: unknown) {
+            return { ok: false, error: messageOf(error) };
+        }
+    })();
+    let release: (run: StartLineRun) => void = () => undefined;
+    const late = new Promise<StartLineRun>((settle) => {
+        release = settle;
+    });
+    let timer: Timer;
+    try {
+        timer = $.clock.after(START_LINE_TIMEOUT_MS, () => release({ ok: false, error: TIMED_OUT }));
+    } catch (error: unknown) {
+        return { ok: false, error: messageOf(error) };
+    }
+    try {
+        return await Promise.race([ran, late]);
+    } finally {
+        timer.cancel();
+    }
+}
+
+// The start line at a resume and a fork, where the command hook's answer reaches neither the screen nor the agent,
+// shown once for a session. While `sdd.startLine` holds nothing: a transcript with no message (a new session, which
+// the command hook spoke to) marks the start seen and shows nothing; one that holds a message (a resumed or a forked
+// session) runs `start-line`, after `--session <the session's id>` while the session has a usable id. An exit 0 with
+// a line shows the line and marks the start shown; an exit 0 with none (noask off) marks it seen, so a reload after a
+// later `on` shows no late line. The line is shown before the state is written: a write that fails lets a reload show
+// it again, which is preferred to a line never shown. Every other failure on the way (a call that rejects or does not
+// answer in time, an exit other than 0, a run past its limit) shows and marks nothing, so a reload, which runs
+// session.start again in a running session, tries again. Each `$` call but the run is bounded by inTime: at most four
+// such bounds and the run's own 7 seconds. Never rejects.
+async function showStartLine(
+    $: Pick<EngineInterface, 'state' | 'session' | 'process' | 'plugin' | 'clock' | 'ui'>,
+): Promise<void> {
+    const held = await inTime($, startLineOf($));
+    if (!held.ok || held.value !== undefined) {
+        return;
+    }
+    const transcript = await inTime($, transcriptOf($));
+    if (!transcript.ok) {
+        return;
+    }
+    if (transcript.value.length === 0) {
+        await inTime($, startSeen($, 'started'));
+        return;
+    }
+    const session = await inTime($, sessionIdOf($));
+    const sessionWords = session.ok && session.value.ok ? ['--session', session.value.id] : [];
+    const ran = await startLineRun($, [`${$.plugin.root}/bin/noask`, ...sessionWords, 'start-line']);
+    if (!ran.ok || ran.exitCode !== 0 || (ran.line !== '' && !logged($, ran.line))) {
+        return;
+    }
+    await inTime($, startSeen($, ran.line === '' ? 'started' : 'shown'));
+}
+
 // `/noask <args>`: any form but the bare command and `status` that the owner did not type runs nothing and says so in
 // OWNER_ONLY_LINE, before the session's id is read; those two run whoever asked. Otherwise the command runs with the
 // words typed after `--session <the session's id>`, or after nothing for a global command in a session with no usable
 // id, where a session's command runs nothing: without `--session` the command would read a status for the id in the
 // host process's environment, and refuse a switch. A failed switch, its exit neither 0 nor 2, and a switch whose run
 // rejects are said twice, in the text and in a toast, and wake nothing; a run of any other form that rejects is said
-// once, in the text, since nothing was switched; an `on` that exited 0 ends on the partial line, and a session idle
-// with a history when it was typed gets the wake-up turn once the text is shown.
+// once, in the text, since nothing was switched; after an `on` that exited 0 a session idle with a history when it
+// was typed gets the wake-up turn once the text is shown.
 async function noask($: EngineInterface, args: string, origin: PromptOrigin): Promise<CommandRunResult> {
     const words = args.split(WHITE_SPACE).filter((word) => word !== '');
     const switching = switchingOf(words);
@@ -262,7 +371,6 @@ async function noask($: EngineInterface, args: string, origin: PromptOrigin): Pr
         if (wakeUpText !== undefined) {
             void submitWakeUp($, wakeUpText);
         }
-        return { text: withPartialLine(ran.output) };
     }
     return { text: ran.output };
 }
@@ -542,13 +650,14 @@ export const register: Register = (on, options) => {
         decided(await editDenial($, fence, e.notebook_path, e.agentId), () => next(e)),
     ).catch(($, e, next) => caught($, e.agentId, next, () => next(e), { path: e.notebook_path }));
     // `session.start` runs again at every reload of the plugin, so the command is registered there each time; the
-    // engine replaces a name registered again, and only a refusal is toasted.
+    // engine replaces a name registered again, and only a refusal is toasted. Then the start line, once a session.
     on('session.start', async ($, e, next) => {
         try {
             await $.command.register(COMMAND);
         } catch (error: unknown) {
             toast($, notRegisteredLine(messageOf(error)));
         }
+        await showStartLine($);
         return next(e);
     });
     on('turn.start', async ($, e, next) => {

@@ -3,7 +3,10 @@
 // carries, and the texts a refused call carries (the question, the plan approval, the fence, the guard on the switch,
 // a spent budget, and what an unreadable marker, a failed count or a failed hook adds); OWNER_ONLY_LINE,
 // TOO_COMPLEX_TEXT and LEFT_OPEN_TEXT carry the owner's rulings, which the spec's next revision takes up.
-// register.tsx composes them; nothing else writes one.
+// register.tsx composes them; nothing else writes one. Beside them stand the texts the command's hook entries answer
+// with (bin/noask holds its own copy of each, held equal to these by hooks/entry.fixtures.ts): the denied prompt, the
+// continued stop, the session's start line and its context, and the terminal link's notices. The module shows a start
+// line only as the command prints it, so it never formats one of those itself.
 import type { EngineInterface, HookFailure } from 'claude-code';
 import type { Counted, Spent } from './count';
 import type { FenceWhat } from './fence';
@@ -28,11 +31,6 @@ export const FALLBACK_RULE =
     '`blocked: <what>` for every choice you would ask about, do not commit on a default branch, do not push, do not ' +
     'switch noask, and end every turn on `noask: waiting: <what>`, `noask: done` or `noask: blocked: <why>` as its ' +
     'last line';
-
-// Shown under every `on` until the release that continues a stop and answers a prompt; step two removes it.
-export const PARTIAL_LINE =
-    'noask: this release refuses questions and fences outward calls only; a turn that ends on a question in plain ' +
-    "text, a permission prompt and a tool server's question still wait for you";
 
 // The text of a /noask other than the bare command and `status` that did not come from the owner's own typing (the
 // prompt or the bridge): nothing is run, submitted or toasted. A count is refused under the same line.
@@ -80,6 +78,125 @@ export const NOTHING_RUNNING_TEXT =
     'nothing of yours is running or scheduled: `waiting` is for work of yours that will wake you, never for the ' +
     'owner; act, or end on `noask: done` or `noask: blocked: <why>`';
 
+// The permission entry's denial for the main session, Intervention 2's words, `<the action>` standing as it is; a
+// subagent's is SUBAGENT_TEXT, and a spent budget's the ending text.
+export const PERMISSION_TEXT =
+    'noask is on: this action needs the owner; print `blocked: <the action>` and continue with the next ' +
+    'independent item';
+
+// The stop entry's texts beside the rule text: the sentence that opens a continued stop's reason when its last line
+// holds no token and an earlier line does; the one the reason ends with, after an empty line, from the sixth
+// continuation on; and the block of a first stop on a machine without jq, where the entry cannot read its input.
+export const LAST_LINE_TEXT = 'Your end-of-turn line must be the last line of the message; nothing follows it.';
+export const SIXTH_TEXT =
+    'if no tool work is left, end now with the list Rulings I made and the line ' +
+    '`noask: blocked: continuation budget exhausted`; otherwise continue';
+export const STOP_UNREADABLE_TEXT =
+    'noask is on and its Stop hook cannot read its input (`jq` is missing): end this turn on ' +
+    '`noask: blocked: stop hook unreadable`';
+
+// The session start's line, which the session-start entry shows after `sdd: ` and the module at a resume and a fork as
+// it is: the scope and the way out, then the notes that hold, each after one space. START_FAILED_LINE stands in its
+// place in the entry's failure answer when the line was not built. The tails are the line's after its scope and times.
+export const START_JQ_NOTE =
+    "jq is not on PATH, so noask's hooks cannot tell this session from another: while any noask switch is on they " +
+    'act in every session, and a stop is continued once.';
+export const START_RULE_NOTE = 'The rule file could not be read, so sessions rule nothing and block every choice.';
+export const START_FAILED_LINE = 'noask is ON';
+const EVERY_SESSION = 'noask is ON for every session';
+const THIS_SESSION = 'noask is ON for this session';
+const GLOBAL_TAIL = '; sessions rule on their own recommendations and never wait; noask global off to end it';
+const SESSION_TAIL = '; it rules on its own recommendations and never waits; /noask off to end it';
+const HANDSOFF_TAIL =
+    '; it rules on its own recommendations, never waits, and may push and open a request; /noask off to end it';
+
+// Which switch a start line names: the global one, a session's own at either level, or both.
+export type StartScope = 'global' | 'session' | 'handsoff' | 'both' | 'bothHandsoff';
+
+// The texts of a start line's times, as the command prints them: the switch's since and until (a global switch may
+// have none), and in a line of both switches the session's own until.
+export type StartTimes = { readonly since: string; readonly until?: string; readonly own?: string };
+
+// A session's own switch, named after the global marker's line: its until and its level.
+export type OwnSwitch = { readonly until: string; readonly level: 'noask' | 'handsoff' };
+
+// The sentence a session's own switch adds after the global marker's line.
+function ownSentence({ until, level }: OwnSwitch): string {
+    return level === 'handsoff'
+        ? ` This session's own switch is on too, with handsoff, until ${until}: it may push and open a request; ` +
+              '/noask off ends that one.'
+        : ` This session's own switch is on too until ${until}; /noask off ends that one.`;
+}
+
+// The start line of a reading that is on, for the switch the scope names, at the times given.
+export function startLine(scope: 'global', times: { readonly since: string; readonly until?: string }): string;
+export function startLine(
+    scope: 'session' | 'handsoff',
+    times: { readonly since: string; readonly until: string },
+): string;
+export function startLine(
+    scope: 'both' | 'bothHandsoff',
+    times: { readonly since: string; readonly until?: string; readonly own: string },
+): string;
+export function startLine(scope: StartScope, times: StartTimes): string {
+    const span = times.until === undefined ? `since ${times.since}` : `since ${times.since} until ${times.until}`;
+    const global = `${EVERY_SESSION} ${span}${GLOBAL_TAIL}`;
+    switch (scope) {
+        case 'global':
+            return global;
+        case 'session':
+            return `${THIS_SESSION} ${span}${SESSION_TAIL}`;
+        case 'handsoff':
+            return `noask is ON with handsoff for this session ${span}${HANDSOFF_TAIL}`;
+        case 'both':
+        case 'bothHandsoff':
+            return times.own === undefined
+                ? global
+                : `${global}${ownSentence({ until: times.own, level: scope === 'both' ? 'noask' : 'handsoff' })}`;
+        default: {
+            const exhaustive: never = scope;
+            return exhaustive;
+        }
+    }
+}
+
+// The start line of a reading that is unreadable, the global marker's or the session's own, with its reason; after
+// the global marker's, the session's own switch that is on adds its sentence.
+export function startUnreadableLine(scope: 'global', reason: string, own?: OwnSwitch): string;
+export function startUnreadableLine(scope: 'session', reason: string): string;
+export function startUnreadableLine(scope: 'global' | 'session', reason: string, own?: OwnSwitch): string {
+    const unreadable: Reading = { kind: 'unreadable', error: reason };
+    return scope === 'session'
+        ? `${withError(THIS_SESSION, unreadable)}${SESSION_TAIL}`
+        : `${withError(EVERY_SESSION, unreadable)}${GLOBAL_TAIL}${own === undefined ? '' : ownSentence(own)}`;
+}
+
+// The start line of a session without a usable id that reads on: why it is treated as under noask.
+export function startNoIdLine(reason: string): string {
+    return `noask treats this session as ON: ${reason}`;
+}
+
+// The sentence that ends the session start's context, after the rule text and an empty line, for the absolute path of
+// the apply skill's noask reference.
+export function referenceText(path: string): string {
+    return (
+        `The noask reference of the apply skill is ${path}. If you drive an apply run, re-read the noask reference ` +
+        'now.'
+    );
+}
+
+// The session start's link step's notices, each a line of the entry's message: the terminal command added, removed,
+// refused by an entry this plugin did not make, and ~/.local/bin off PATH.
+export const TERMINAL_ADDED_TEXT =
+    'noask: added the terminal command ~/.local/bin/noask; set sdd.terminal to off in /config to remove it.';
+export const TERMINAL_REMOVED_TEXT = 'noask: removed the terminal command ~/.local/bin/noask.';
+export const TERMINAL_REFUSED_TEXT =
+    'noask: ~/.local/bin/noask exists and was not made by this plugin, so the terminal command was not added; remove ' +
+    'it and start a new session to get it.';
+export const TERMINAL_PATH_TEXT =
+    'noask: ~/.local/bin is not on PATH in this session, so a terminal may not find noask; add it to PATH in your ' +
+    "shell's startup file.";
+
 // What a failed switch names when the command printed nothing.
 const NO_OUTPUT = 'no output';
 
@@ -91,11 +208,6 @@ const FINAL_NEWLINES = /\n+$/;
 
 export function wakeText(rule: string): string {
     return `${WAKE_TEXT}\n\n${rule}`;
-}
-
-// The text of an `on` that exited 0: the command's output, then PARTIAL_LINE on a line of its own.
-export function withPartialLine(output: string): string {
-    return output === '' ? PARTIAL_LINE : `${output}\n${PARTIAL_LINE}`;
 }
 
 // A switching command that exited other than 0 (done) and 2 (a wrong argument, its usage line shown as it is).

@@ -1,5 +1,6 @@
 import { expect, test } from 'claude-code/testing';
 import type { Counted } from './count';
+import { ENTRY_TEXTS } from './entry.fixtures';
 import type { FenceWhat } from './fence';
 import type { Reading } from './marker';
 import * as texts from './text';
@@ -12,20 +13,34 @@ import {
     endingText,
     FALLBACK_RULE,
     fenceText,
+    LAST_LINE_TEXT,
     LEFT_OPEN_TEXT,
     noIdLine,
     NOTHING_RUNNING_TEXT,
     notRegisteredLine,
     notSubmittedLine,
     OWNER_ONLY_LINE,
-    PARTIAL_LINE,
+    PERMISSION_TEXT,
     PLAN_TEXT,
     QUESTION_PREFIX,
+    referenceText,
+    SIXTH_TEXT,
+    START_FAILED_LINE,
+    START_JQ_NOTE,
+    START_RULE_NOTE,
+    startLine,
+    startNoIdLine,
+    startUnreadableLine,
+    STOP_UNREADABLE_TEXT,
     SUBAGENT_SPENT_TEXT,
     SUBAGENT_TEXT,
     SWITCH_TEXT,
     switchFailedLine,
     switchNotRunLine,
+    TERMINAL_ADDED_TEXT,
+    TERMINAL_PATH_TEXT,
+    TERMINAL_REFUSED_TEXT,
+    TERMINAL_REMOVED_TEXT,
     TOO_COMPLEX_TEXT,
     WAITING_LINE,
     WAKE_TEXT,
@@ -33,11 +48,12 @@ import {
     withCountFailure,
     withError,
     withHookFailure,
-    withPartialLine,
 } from './text';
 
 // The texts are the spec's, word for word: each is written out here once more, so an edit to one shows as a failure.
 // ruleText is tested through the /noask hook in register.test.ts, where its read and its timer run through the kit.
+// The texts the command's hook entries answer with are held to the command's own words by entry.fixtures.ts, at the
+// end of this file.
 
 test("the wake-up turn's first paragraph is the spec's", async () => {
     expect(WAKE_TEXT).toBe(
@@ -56,13 +72,6 @@ test("the fallback rule is the spec's", async () => {
     );
 });
 
-test("the partial line is the spec's", async () => {
-    expect(PARTIAL_LINE).toBe(
-        'noask: this release refuses questions and fences outward calls only; a turn that ends on a question in ' +
-            "plain text, a permission prompt and a tool server's question still wait for you",
-    );
-});
-
 test("the command's description and argument hint are the spec's", async () => {
     expect(COMMAND_DESCRIPTION).toBe(
         'Switch noask for this session: on [3h | until 18:00], off, or alone for the status; "on handsoff" also ' +
@@ -74,13 +83,6 @@ test("the command's description and argument hint are the spec's", async () => {
 
 test('the wake-up turn is WAKE_TEXT, an empty line and the rule text', async () => {
     expect(wakeText('the rule')).toBe(`${WAKE_TEXT}\n\nthe rule`);
-});
-
-test('the partial line follows the output on a line of its own, and stands alone after none', async () => {
-    expect(withPartialLine('noask: on for this session\nmarker: /m')).toBe(
-        `noask: on for this session\nmarker: /m\n${PARTIAL_LINE}`,
-    );
-    expect(withPartialLine('')).toBe(PARTIAL_LINE);
 });
 
 test("the command's failure lines", async () => {
@@ -224,13 +226,104 @@ test('no exported text holds an em or en dash', async () => {
         withCountFailure('x', { kind: 'failed', error: 'e' }),
         withCountFailure('x', { kind: 'counted', spent: 'none', note: 'n' }),
         withHookFailure('x', { kind: 'timeout', budget: 1_000 }),
+        startLine('global', { since: 's' }),
+        startLine('session', { since: 's', until: 'u' }),
+        startLine('handsoff', { since: 's', until: 'u' }),
+        startLine('both', { since: 's', own: 'o' }),
+        startLine('bothHandsoff', { since: 's', own: 'o' }),
+        startUnreadableLine('global', 'r', { until: 'o', level: 'handsoff' }),
+        startUnreadableLine('session', 'r'),
+        startNoIdLine('r'),
+        referenceText('/p'),
+        ...Object.values(ENTRY_TEXTS),
     ];
     const fixed = Object.values(texts).filter((value): value is string => typeof value === 'string');
     expect(fixed).toContain(SWITCH_TEXT);
     expect(fixed).toContain(TOO_COMPLEX_TEXT);
     expect(fixed).toContain(LEFT_OPEN_TEXT);
+    expect(fixed).toContain(PERMISSION_TEXT);
+    expect(fixed).toContain(TERMINAL_PATH_TEXT);
     expect(fixed.length).toBeGreaterThanOrEqual(15);
     for (const text of [...fixed, ...composed]) {
         expect(/[\u2013\u2014]/.test(text), text).toBe(false);
     }
+});
+
+// The command's hook entries: each text an entry answered with in the generator's named case (entry.fixtures.ts,
+// generated from bin/noask by tests/gen-entry-texts.sh) is what this module's texts give for the same case. The
+// generator wrote the rule file's text as <rule>, the plugin root as <root>, the case's home as <home> and the line's
+// times as <since>, <until> and <own until>, and a session start's message without its `sdd: ` head. The cases'
+// words that this module does not hold are the command's own: a marker's reason, a count's error and note, an id.
+
+const RULE = '<rule>';
+const TIMES = { since: '<since>', until: '<until>' } as const;
+const OWN = '<own until>';
+const ONE_LINE = 'the marker has 1 line, not 4';
+const UNREADABLE: Reading = { kind: 'unreadable', error: ONE_LINE };
+const NO_RECORDS = 'cannot make <home>/.local/state/sdd/budgets.d';
+const NOTE =
+    'the record <home>/.local/state/sdd/budgets.d/s-1 did not parse (the record has 1 line, not 5); started again';
+const NOT_USABLE = "this session's id is not usable (a b)";
+
+function failedCount(error: string): Counted {
+    return { kind: 'failed', error };
+}
+
+const EXPECTED = {
+    permission: PERMISSION_TEXT,
+    permissionSpent: endingText('permission'),
+    permissionSubagent: SUBAGENT_TEXT,
+    permissionSubagentSpent: SUBAGENT_SPENT_TEXT,
+    permissionUnreadable: withError(PERMISSION_TEXT, UNREADABLE),
+    permissionNoId: withCountFailure(PERMISSION_TEXT, failedCount('no session id')),
+    permissionAgentUnusable: withCountFailure(SUBAGENT_TEXT, failedCount('the agent id is not usable (a b)')),
+    permissionCountFailed: withCountFailure(PERMISSION_TEXT, failedCount(NO_RECORDS)),
+    permissionCountNote: withCountFailure(PERMISSION_TEXT, { kind: 'counted', spent: 'none', note: NOTE }),
+    stopRule: RULE,
+    stopLastLine: `${LAST_LINE_TEXT} ${RULE}`,
+    stopSixth: `${RULE}\n\n${SIXTH_TEXT}`,
+    stopNothingRunning: `${RULE}\n\n${NOTHING_RUNNING_TEXT}`,
+    stopSpent: endingText('continuation'),
+    stopUnreadableInput: STOP_UNREADABLE_TEXT,
+    stopCountFailed: withCountFailure(RULE, failedCount(NO_RECORDS)),
+    stopHookFailed: withHookFailure(RULE, { kind: 'throw', message: NOT_USABLE, budget: 1_000 }),
+    startGlobal: startLine('global', TIMES),
+    startSession: startLine('session', TIMES),
+    startHandsoff: startLine('handsoff', TIMES),
+    startBoth: startLine('both', { ...TIMES, own: OWN }),
+    startBothHandsoff: startLine('bothHandsoff', { ...TIMES, own: OWN }),
+    startUnreadableGlobal: startUnreadableLine('global', ONE_LINE),
+    startUnreadableSession: startUnreadableLine('session', ONE_LINE),
+    startUnreadableBoth: startUnreadableLine('global', ONE_LINE, { until: OWN, level: 'noask' }),
+    startNoId: startNoIdLine(`${NOT_USABLE} while a session's own switch is on`),
+    startJqNote: `${startLine('global', TIMES)} ${START_JQ_NOTE}`,
+    startRuleNote: `${startLine('session', TIMES)} ${START_RULE_NOTE}`,
+    startBothNotes: `${startLine('global', TIMES)} ${START_JQ_NOTE} ${START_RULE_NOTE}`,
+    startContext: `${RULE}\n\n${referenceText('<root>/skills/apply/references/noask.md')}`,
+    ruleFallback: FALLBACK_RULE,
+    terminalAdded: TERMINAL_ADDED_TEXT,
+    terminalRemoved: TERMINAL_REMOVED_TEXT,
+    terminalRefused: TERMINAL_REFUSED_TEXT,
+    terminalPath: TERMINAL_PATH_TEXT,
+} satisfies Readonly<Record<keyof typeof ENTRY_TEXTS, string>>;
+
+// The fixture's texts by the case's name, as a test looks one up.
+const ENTRY_TEXT_OF: Readonly<Record<string, string>> = ENTRY_TEXTS;
+
+test('every case of the entries has its text here, and no other case', async () => {
+    expect(Object.keys(EXPECTED).sort()).toEqual(Object.keys(ENTRY_TEXTS).sort());
+});
+
+for (const [name, text] of Object.entries(EXPECTED)) {
+    test(`the entries' text of case ${name} is this module's`, async () => {
+        expect(ENTRY_TEXT_OF[name]).toBe(text);
+    });
+}
+
+// Only a signal gives the session start's failure answer, at a moment no generator can hold, so it has no case:
+// case 49 of tests/test-noask.sh holds the command's message to `sdd: ` and these words.
+test("the session start's failure text is the failed line with the hook's failure", async () => {
+    expect(withHookFailure(START_FAILED_LINE, { kind: 'throw', message: 'ended by a signal', budget: 1_000 })).toBe(
+        'noask is ON (noask hook failed: ended by a signal)',
+    );
 });

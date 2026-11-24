@@ -442,6 +442,26 @@ push`,
         hits: ['switching noask'],
     },
     {
+        command: `noask hook stop`,
+        hits: ['switching noask'],
+    },
+    {
+        command: `bin/noask hook permission < /dev/null`,
+        hits: ['switching noask'],
+    },
+    {
+        command: `noask --session s-1 start-line`,
+        hits: ['switching noask'],
+    },
+    {
+        command: `echo '{}' | noask hook session-start`,
+        hits: ['switching noask'],
+    },
+    {
+        command: `~/.local/bin/noask hook elicitation`,
+        hits: ['switching noask'],
+    },
+    {
         command: `FOO=1 noask status`,
         hits: ['switching noask'],
     },

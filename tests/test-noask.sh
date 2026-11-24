@@ -9,28 +9,30 @@
 # real markers or records or reads the session this test runs in. The hook
 # entries (cases 49 on) run with CLAUDE_PLUGIN_DATA unset too, but in cases
 # 68 to 71, which give the session start's link step one under the case's
-# HOME, so its links land there and never in the real ~/.local/bin; and with
-# every CLAUDE_PLUGIN_OPTION_* variable unset unless the case sets one, and
-# read the hook inputs of tests/fixtures/hook-inputs, the probes' own with
-# the home rewritten. Each command runs under `timeout 10` (case 27's and
-# case 42's, case 45's generator and case 66's twenty stops under `timeout
-# 120`; case 58's, 66's and 67's entries that wait 17 seconds for the
-# records' lock under `timeout 30`), so a hang fails its case instead of the
-# run. Prints "ok <n>" or "FAIL <n> (<broken parts>)" per case and "skip <n>
-# (<reason>)" for a case that cannot run; exits 1 when any case fails. Cases
-# 1 to 30 are those of the phase 2 plan (a local working document), Task 2;
-# cases 31 to 45 those of the plan of noask's first step, a local working
-# document, Tasks 1 (31 to 36), 2 (37 to 44), 4 and 6 (45), and case 46 that
-# of a later fix to count read; case 16 (replaced) and cases 47 to 51 those
-# of the plan of noask's second step, a local working document, Task 1,
-# cases 52 to 58 its Task 2, cases 59 to 67 its Task 3 and cases 68 to 71
-# its Task 4. Case
-# 45 runs tests/gen-marker-fixtures.sh on SCRIPT, which makes its own
-# temporary HOMEs, and reads hooks/text.ts and
-# skills/apply/references/noask.md beside this script's directory; case 49
-# reads the built-in rule text from that hooks/text.ts too, and cases 59 to
-# 67 the end-of-turn lines and NOTHING_RUNNING_TEXT. A case that sends a
-# signal waits until pgrep shows the entry at the wait it means.
+# HOME, so its links land there and never in the real ~/.local/bin, and in
+# case 72's generator, which sets its own; and with every
+# CLAUDE_PLUGIN_OPTION_* variable unset unless the case sets one, and read
+# the hook inputs of tests/fixtures/hook-inputs, the probes' own with the
+# home rewritten. Each command runs under `timeout 10` (case 27's and case
+# 42's, case 45's and case 72's generators and case 66's twenty stops under
+# `timeout 120`; case 58's, 66's and 67's entries that wait 17 seconds for
+# the records' lock under `timeout 30`), so a hang fails its case instead of
+# the run. Prints "ok <n>" or "FAIL <n> (<broken parts>)" per case and "skip
+# <n> (<reason>)" for a case that cannot run; exits 1 when any case fails.
+# Cases 1 to 30 are those of the phase 2 plan (a local working document),
+# Task 2; cases 31 to 45 those of the plan of noask's first step, a local
+# working document, Tasks 1 (31 to 36), 2 (37 to 44), 4 and 6 (45), and
+# case 46 that of a later fix to count read; case 16 (replaced) and cases 47
+# to 72 those of the plan of noask's second step, a local working document,
+# Tasks 1 (16, 47 to 51), 2 (52 to 58), 3 (59 to 67), 4 (68 to 71) and 5
+# (72). Cases 45 and 72 run tests/gen-marker-fixtures.sh and
+# tests/gen-entry-texts.sh on SCRIPT, each of which makes its own temporary
+# HOMEs; case 45 reads hooks/text.ts and skills/apply/references/noask.md
+# beside this script's directory, and case 72 hooks/hooks.json and
+# .claude-plugin/plugin.json there; case 49 reads the built-in rule text
+# from that hooks/text.ts too, and cases 59 to 67 the end-of-turn lines and
+# NOTHING_RUNNING_TEXT. A case that sends a signal waits until pgrep shows
+# the entry at the wait it means.
 #
 # Usage: bash tests/test-noask.sh [SCRIPT]
 #   Default SCRIPT: bin/noask in the plugin root, the parent of this script's
@@ -2921,5 +2923,58 @@ kill -TERM "$entry_pid" 2>/dev/null || broken+=" term-not-sent"
 entry_end
 silent term
 verdict 71
+
+# 72. The module's copies of the entries' texts are the command's own: the
+#     generator's output on SCRIPT is hooks/entry.fixtures.ts, byte for byte.
+#     And the registrations, by hooks/hooks.json's structure: one command
+#     hook for each of SessionStart (on startup, clear and compact),
+#     PermissionRequest, Elicitation and Stop (no matcher), each run by bash
+#     with a timeout of 30 and the command string below, no other event (no
+#     SubagentStop), the module as it was, and the description's last words;
+#     and each option an entry reads (an `option` or a `budget_of` in SCRIPT)
+#     is a userConfig key of .claude-plugin/plugin.json that the host's rule
+#     (each character outside [A-Za-z0-9_] as _, then upper-cased) turns into
+#     the name the entry reads.
+rc=0
+out=$(timeout 120 bash "$here/gen-entry-texts.sh" "$script" 2> "$tmp/gen72.err" |
+  cmp - "$here/../hooks/entry.fixtures.ts" 2>&1) || rc=$?
+err=$(cat -- "$tmp/gen72.err")
+{ [ "$rc" -eq 0 ] && [ -z "$out" ] && [ -z "$err" ]; } || broken+=" fixtures"
+registered=$here/../hooks/hooks.json
+manifest=$here/../.claude-plugin/plugin.json
+# shellcheck disable=SC2016 # the command string's ${CLAUDE_PLUGIN_ROOT} is the host's to expand
+hook_command='SDD_NOASK_NOW= SDD_NOASK_LOCK_WAIT= bash "${CLAUDE_PLUGIN_ROOT}/bin/noask" hook '
+ends="; and it runs noask's command hooks at a session's start, a permission prompt, a tool server's question and a stop"
+# hooks_are PART FILTER [ARG...]: jq's FILTER on hooks/hooks.json, given jq's options ARG..., prints true.
+hooks_are() {
+  local part=$1 filter=$2
+  shift 2
+  [ "$(jq -r "$@" "$filter" -- "$registered" 2>/dev/null)" = true ] || broken+=" $part"
+}
+# shellcheck disable=SC2016 # $event, $command and $ends are jq's variables
+{
+  hooks_are matcher '.hooks.SessionStart[0].matcher == "startup|clear|compact"'
+  hooks_are events '.hooks | keys == ["Elicitation", "PermissionRequest", "SessionStart", "Stop"]'
+  hooks_are no-subagent-stop '.hooks | has("SubagentStop") | not'
+  for pair in SessionStart:session-start PermissionRequest:permission Elicitation:elicitation Stop:stop; do
+    hooks_are "${pair%%:*}" '(.hooks[$event] | length == 1) and
+      .hooks[$event][0].hooks == [{type: "command", shell: "bash", timeout: 30, command: $command}]' \
+      --arg event "${pair%%:*}" --arg command "$hook_command${pair#*:}"
+  done
+  for event in PermissionRequest Elicitation Stop; do
+    hooks_are "$event-matcher" '.hooks[$event][0] | has("matcher") | not' --arg event "$event"
+  done
+  hooks_are modules '.modules == ["./register.tsx"]'
+  hooks_are description '.description | endswith($ends)' --arg ends "$ends"
+}
+read_names=$(sed -E '/^[[:space:]]*#/d' -- "$script" | grep -oE '(option|budget_of) [A-Z][A-Z0-9_]* ' | cut -d ' ' -f 2 |
+  sort -u | tr '\n' ' ')
+[ "$read_names" = 'CONTINUATIONBUDGET DENIALBUDGET PERMISSIONHOOK TERMINAL ' ] || broken+=" read-names:\"$read_names\""
+for name in $read_names; do
+  # shellcheck disable=SC2016 # $name is jq's variable
+  [ "$(jq -r --arg name "$name" '[.userConfig | keys[] | select(gsub("[^A-Za-z0-9_]"; "_") | ascii_upcase == $name)] |
+    length' -- "$manifest" 2>/dev/null)" = 1 ] || broken+=" option-$name"
+done
+verdict 72
 
 exit "$fail"

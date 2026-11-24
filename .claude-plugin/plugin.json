@@ -12,20 +12,39 @@
     "questionBudget": {
       "type": "number",
       "title": "Question budget",
-      "description": "How many refused questions one noask activation allows before its question budget is spent: a whole number from 1 to 99999; any other value counts as 6.",
+      "description": "How many refused questions in a row noask allows before its question budget is spent: a whole number from 1 to 99999; any other value counts as 6.",
       "default": 6
     },
     "denialBudget": {
       "type": "number",
       "title": "Denial budget",
-      "description": "How many denials, the fence's included, one noask activation allows before its denial budget is spent: a whole number from 1 to 99999; any other value counts as 10.",
+      "description": "How many denials, the fence's included, in a row noask allows before its denial budget is spent: a whole number from 1 to 99999; any other value counts as 10.",
       "default": 10
+    },
+    "continuationBudget": {
+      "type": "number",
+      "title": "Continuation budget",
+      "description": "How many turns in a row noask continues without an end-of-turn line before its continuation budget is spent: a whole number from 1 to 99999; any other value counts as 20.",
+      "default": 20
     },
     "fence": {
       "type": "boolean",
       "title": "Fence",
       "description": "While noask is on, deny each outward call the plugin names exactly, such as a push, before it runs, and count it as a denial; off leaves those calls to the rule text.",
       "default": true
+    },
+    "permissionHook": {
+      "type": "boolean",
+      "title": "Permission hook",
+      "description": "While noask is on, deny a permission prompt and decline a tool server's question in the owner's place, and count each as a denial; off lets them wait for the owner.",
+      "default": true
+    },
+    "terminal": {
+      "type": "string",
+      "title": "Terminal command",
+      "description": "link: at session start, keep a noask command in ~/.local/bin that runs this plugin; off: remove the link this plugin made and add none.",
+      "options": ["link", "off"],
+      "default": "link"
     }
   }
 }
