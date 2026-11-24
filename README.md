@@ -327,7 +327,10 @@ and no link is made. Without `jq`, and off Linux, the step does not run.
   and a fork, where that hook's answer reaches neither the screen nor the
   agent, the plugin's module shows the same line once, to you only,
   headed by the plugin's name, and the agent meets the rule at its first
-  refused question or continued stop. A sentence follows the line, after
+  refused question or continued stop. A clear and a fork give the session
+  a new id, though, which a session's own switch typed before them does
+  not follow: it neither holds the session nor gives it a line there
+  (What still waits, below). A sentence follows the line, after
   one space, when this session's own switch is on too under the global
   one, when `jq` is not on PATH, and when the rule file cannot be read. A
   session whose id the hook cannot read while another session's own
@@ -357,6 +360,23 @@ and no link is made. Without `jq`, and off Linux, the step does not run.
 
 ### What still waits, and other limits
 
+- Auto mode's own pause, once its classifier has denied 3 actions in a
+  row or 20 in all, waits for you.
+- A turn that ends in an API error waits for you: Claude Code runs no
+  Stop hook for it, and nothing wakes the session.
+- A session that is idle, or has a question's dialog or a permission
+  prompt open, when the global switch goes on in a terminal or in
+  another session is not woken: nothing runs in it to meet the switch,
+  and it waits. Typing `/noask global on` in an idle one wakes it, as any
+  `on` does, and changes nothing while that switch is on (`/noask on`
+  wakes it too, and switches its own on). Answer an open dialog, and
+  noask holds the session from its next question, prompt or stop.
+- A session's own switch stays with the session's id, and a `/clear` or
+  a fork gives the session a new one (a resume and a compaction keep
+  it). So the switch typed before a clear or a fork does not hold the
+  session after it, and no line says so: type `/noask on` in it again,
+  or use the global switch. The old switch stays on under the old id,
+  and a bare `noask` in a terminal still lists it.
 - A dialog that no hook precedes still waits for you, such as the browser
   setup offer, and a goal proposal's may: whether its dialog waits under
   noask is unchecked.
