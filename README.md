@@ -47,7 +47,16 @@ the next session, or after `/reload-plugins` in a session already open.
   Linux, bash 5, GNU coreutils and `flock` (util-linux). WSL counts as
   Linux; macOS and native Windows are not supported until then.
 - git.
-- `jq`, which `skills/apply/scripts/sub-skill-check` runs at every launch.
+- `jq`, which `skills/apply/scripts/sub-skill-check` runs at every launch
+  and noask's command hooks run to read the input Claude Code hands them.
+  Without it those hooks cannot read a session's id, so while the global
+  switch or any session's own is on: a permission prompt is denied and a
+  tool server's question declined in every session, neither counted; each
+  turn's first stop is continued once, with a line that asks the session
+  to end on `noask: blocked: stop hook unreadable`, and the stop after it
+  is allowed whatever its last line says, so no stop sets the budgets'
+  counts back; and the terminal command is neither linked nor removed. A
+  session's start line under noask says that `jq` is not on PATH.
 - For an OpenSpec source only, the `openspec` CLI, through which the skill
   loads the change.
 - Not required: `~/.claude/rules/git.md`. The implementer overrides
@@ -158,22 +167,8 @@ ask, it takes its own recommendation, prints the ruling with what it would
 cost if wrong and goes on, and what only you may decide (a choice that
 nothing undoes, a step outside the worktree) it leaves blocked for you. You
 switch it for one session or for every session on the machine, and the
-plugin's hooks hold sessions to it at their tool calls.
-
-This release carries its first part:
-
-| | This release | The next release |
-|---|---|---|
-| A question, a plan approval | refused at the tool call | |
-| A push, a pull or merge request, an edit under a configuration directory, a switch of noask | refused at the tool call | |
-| An agent working the switch or writing a file under the state directory, in any session | refused (the guard) | |
-| `/noask` in a session, with the wake-up turn | yes | |
-| A permission prompt, an MCP server's question | waits for you, as without noask | denied |
-| A turn that ends without an end-of-turn line | ends, as without noask | continued |
-| The line at a session's start, the command linked into `~/.local/bin` | none; in a terminal the command is reached by its path | yes |
-
-So a permission prompt, an MCP server's question and a turn that ends on a
-question still wait for you until the next release.
+plugin's hooks hold sessions to it at their tool calls, their permission
+prompts, their tool servers' questions and their stops.
 
 ### What you type
 
@@ -209,15 +204,7 @@ no switch was on:
 A new `on` also prints the marker's path and the rule text the session
 follows. An `on` typed in an idle session that already holds a message
 submits a wake-up turn: the session answers its own last question under
-the rule, or ends its turn when it was waiting or done. Every `on` that
-the command accepts in a session ends with this line, which says what this
-release does not do yet:
-
-```text
-noask: this release refuses questions and fences outward calls only; a turn that ends on a question in plain text, a permission prompt and a tool server's question still wait for you
-```
-
-**Do not leave sessions to noask overnight before the next release.**
+the rule, or ends its turn when it was waiting or done.
 
 The bare `/noask` and `/noask status` run whoever sends them. Every other
 form, each switch among them, runs only when you type it at the session's
@@ -226,11 +213,34 @@ from anywhere else (a schedule or a loop, another session, a channel,
 another plugin, the SDK, an automatic continuation), it runs nothing and
 shows `noask: /noask acts only when the owner types it; nothing changed`.
 
-In a terminal the command is `bin/noask` in the plugin's folder, until the
-next release links it into `~/.local/bin`. There
+In a terminal the command is `noask`. At each new session's start (not at
+a resume, a fork, a clear or a compaction), whether noask is on or off,
+the plugin keeps `~/.local/bin/noask` a link to its own command, through a
+link in its data folder, as laterbox keeps `later`; the `terminal`
+setting turns that off (Settings, below). There
 `noask global on [<expiry>]` and `noask global off` work, and a bare
 `noask` shows the global switch and every session's switch that is on; a
 session's own switch is typed in that session.
+
+The link step says what it did in the start's message, a line for each
+notice:
+
+- `noask: added the terminal command ~/.local/bin/noask; set sdd.terminal to off in /config to remove it.`
+  when it made the link;
+- `noask: removed the terminal command ~/.local/bin/noask.` when
+  `terminal` is `off` and it removed the link it had made;
+- `noask: ~/.local/bin/noask exists and was not made by this plugin, so the terminal command was not added; remove it and start a new session to get it.`
+  when anything else stands there (a file, a folder, a link to another
+  target or to nothing), which it leaves as it is;
+- `noask: ~/.local/bin is not on PATH in this session, so a terminal may not find noask; add it to PATH in your shell's startup file.`
+  when the link is the plugin's and `~/.local/bin` is not on PATH.
+
+The last two are said when their condition starts, and again only after
+it has ended and come back. A step that cannot finish (a command that
+fails, or takes more than 2 seconds, or about 4 seconds in all) ends
+there, with no notice for what it did not do, and runs again at the next
+start; so a `~/.local/bin` the session cannot write to is never reported,
+and no link is made. Without `jq`, and off Linux, the step does not run.
 
 ### What a session does while noask is on
 
@@ -265,21 +275,114 @@ session's own switch is typed in that session.
   resolved (its look refused, or not answered in time), since a `plans`
   folder that is a link may lead into it: an edit under any of them is
   then refused, a plan's too.
-- Two budgets bound the refusals: 6 refused questions and 10 denials, the
-  fence's and the guard's included. Once one is spent, a refusal asks the
-  main session to end its turn with the list of its rulings and the line
-  `noask: blocked: <question or permission> budget exhausted`, and asks a
-  subagent to return; a subagent counts against budgets of its own. The
-  plan approval's refusal counts nothing.
-- In this release a budget counts every refusal since the switch went on,
-  not consecutive ones: with the default budgets, the sixth refused
-  question, or the tenth denial, already asks the session to end its turn,
-  and so does every refusal after it, until noask is switched off and on
-  again.
+- A permission prompt about to be shown to you, whatever raised it (an
+  `ask` rule, the classifier declining to decide, another hook), is
+  denied in your place with
+  ``noask is on: this action needs the owner; print `blocked: <the action>` and continue with the next independent item``,
+  and a subagent's with the line that asks it to follow its role's rule
+  for a denied tool. A tool server's question (an MCP elicitation) is
+  declined in your place: the server receives a decline, and the agent
+  reads whatever the server makes of one. Each counts as a denial. With
+  the `permissionHook` setting off, both wait for you.
+- Of the hooks that answer one permission prompt, Claude Code acts on the
+  first that ends with a decision, and it takes the plugin's answer only
+  when the plugin's hook process ends, after its count. So a hook of
+  yours that allows and ends sooner overrules the denial, which is
+  counted all the same. A slow denial (while another noask command holds
+  the lock on the budgets' records, the count waits up to 2 seconds for
+  it, and the reads around it add more) leaves the dialog on the screen
+  meanwhile, and
+  with Remote Control on the request is on your other devices for as
+  long, where the first answer decides. The same holds for a tool
+  server's question: while its decline waits on the count, a person can
+  answer the dialog.
+- A turn that ends without an end-of-turn line is continued: the Stop
+  hook hands the session the rule text, which it reads as the hook's
+  feedback, and counts a continuation. The end-of-turn line is the last
+  line of the message that is not blank, among its last 200, read
+  without regard to case once the Markdown around it is stripped (a list
+  marker, backticks, bold or italics, a closing period; a line that needs
+  more than seven rounds of that holds none, and so does a line longer
+  than 1024 bytes): `noask: done`, `noask: blocked: <why>` or
+  `noask: waiting: <what>`. A stop is allowed on such a line, while a
+  subagent of the session's runs in the background, and once a budget is
+  spent. A waiting line at a turn's first stop, while the stop's input
+  shows nothing of the session's running or scheduled, is continued once
+  with the rule text and a line that says `waiting` is for the session's
+  own work; printed again, it is believed. When an end-of-turn line
+  stands earlier in the message with text after it, the continuation
+  opens with
+  `Your end-of-turn line must be the last line of the message; nothing follows it.`,
+  and from the sixth continuation in a row it ends with a line that asks
+  the session to end now if no tool work is left. A subagent's stop is
+  left alone.
+- At a session's start under noask you see a line that names the switch
+  and the way out, such as
+  `sdd: noask is ON for this session since 23:00 until 2026-11-12 07:00; it rules on its own recommendations and never waits; /noask off to end it`
+  for a session's own switch, or
+  `sdd: noask is ON for every session since 23:00 until 2026-11-12 07:30; sessions rule on their own recommendations and never wait; noask global off to end it`
+  for the global one, and the agent is handed the rule text and where the
+  apply skill's noask reference is. The plugin's command hook gives both
+  at a new session, after `/clear` and after a compaction. At a resume
+  and a fork, where that hook's answer reaches neither the screen nor the
+  agent, the plugin's module shows the same line once, to you only,
+  headed by the plugin's name, and the agent meets the rule at its first
+  refused question or continued stop. A sentence follows the line, after
+  one space, when this session's own switch is on too under the global
+  one, when `jq` is not on PATH, and when the rule file cannot be read. A
+  session whose id the hook cannot read while another session's own
+  switch is on is treated as under noask, and its line says why:
+  `noask treats this session as ON: <reason>`.
+- Three budgets bound the interventions in a row: 6 refused questions, 10
+  denials (the fence's, the guard's, a denied permission prompt and a
+  declined server question included) and 20 continued stops. Once one is
+  spent, a refusal, a denial or a continuation asks the main session to
+  end its turn with the list of its rulings and the line
+  `noask: blocked: <question, permission or continuation> budget exhausted`,
+  and the session's next stop is allowed whatever its last line says; a
+  subagent is asked to return, and counts its refusals and denials
+  against budgets of its own. The plan approval's refusal counts nothing.
+- Every stop the Stop hook allows on an end-of-turn line or beside a
+  running subagent sets the three counts back to 0, and nothing else
+  does, tool calls between the interventions included. For example, a
+  session that ends three turns in a row on a question in plain text is
+  continued three times; when it then ends a turn on `noask: done`, that
+  stop is allowed and the next stretch has its 20 continuations again. A
+  spent budget stays spent, and its ending stop sets nothing back, until
+  noask is switched off and on again.
 - Typing an `on` with an expiry while that switch is on (`/noask on 2h`)
   renews the expiry from that moment and keeps the counts, and
   `/noask on handsoff` raises the level and keeps them too; a bare
   `/noask on` while it is on changes nothing and says so.
+
+### What still waits, and other limits
+
+- A dialog that no hook precedes still waits for you, such as the browser
+  setup offer, and a goal proposal's may: whether its dialog waits under
+  noask is unchecked.
+- A `noask: waiting:` line printed while anything of the session's is
+  running or scheduled, however unrelated, is believed: the Stop hook
+  cannot tell it from a real wait.
+- On a machine without `jq` the command hooks act as Requirements says.
+- When the Stop hook fails (it cannot read its input, its count fails, or
+  it is ended by a signal), it continues only a stop whose input shows
+  that it is a turn's first, and allows every other, so a hook that fails
+  costs one turn and never a loop. A stop whose input it cannot read at
+  all (not JSON, empty, longer than 4 MiB, or not read within 4 seconds)
+  is therefore allowed, and the session stops as it would without the
+  plugin.
+- A permission prompt or a tool server's question whose input the hook
+  cannot use (longer than 4 MiB, or not read within 4 seconds) is denied,
+  or declined, in a session whose own switch is off while another
+  session's own switch is on: without the session's id the hook cannot
+  tell the two sessions apart.
+- A session whose folder of switches, `~/.local/state/sdd/noask.d/`, can
+  no longer be searched (its permissions changed) reads its own switch as
+  off.
+- A hook that Claude Code cancels at its timeout of 30 seconds answers
+  nothing, since Claude Code throws away what it printed: a stop then
+  ends, and a prompt waits for you. The hooks bound their own waits so as
+  to end before it.
 
 ### The guard on the switch
 
@@ -379,6 +482,10 @@ passes both.
 
 ### What the fence and the guard do not catch
 
+- The command run through an interpreter, as in
+  `bash ~/.local/bin/noask global off`: the scan reads `bash` as the
+  command, so neither the guard nor the fence reads it as a switch of
+  noask.
 - A command wrapped in `sh -c`, a quoted `eval` (`eval "git push"`, whose
   words the scan does not join and read again), a script, an alias or a
   here-document passes, and so does a spelling built to hide a command
@@ -489,20 +596,27 @@ such level.
 
 ### Settings, what it sends, where it runs
 
-Three options, which `/config` names `sdd.questionBudget`,
-`sdd.denialBudget` and `sdd.fence`: the question budget (6 by default),
-the denial budget (10) and the fence (on). A budget takes a whole number
-from 1 to 99999; any other value counts as the default. With the fence
-off, a push, a request and an edit under a configuration directory are
-left to the rule text, while the question's and the plan approval's
-refusals and the guard stay.
+Six options, which `/config` names `sdd.questionBudget`,
+`sdd.denialBudget`, `sdd.continuationBudget`, `sdd.fence`,
+`sdd.permissionHook` and `sdd.terminal`: the question budget (6 by
+default), the denial budget (10), the continuation budget (20), the fence
+(on), the permission hook (on) and the terminal command (`link`, or
+`off`). A budget takes a whole number from 1 to 99999; any other value
+counts as the default. With the fence off, a push, a request and an edit
+under a configuration directory are left to the rule text, while the
+question's and the plan approval's refusals and the guard stay. With the
+permission hook off, a permission prompt and a tool server's question
+wait for you, as without noask; any value but `false` leaves it on. With
+the terminal command at `off`, each new session's start removes the link
+the plugin made and adds none; any value but `off` links.
 
 noask sends nothing: its module and its command make no network call. Its
 switches and the sessions' records stay in `~/.local/state/sdd/`.
 
-noask works on Linux only, with bash 5, GNU coreutils and `flock`;
-elsewhere the command reads every switch as off and refuses to switch,
-with a line that says so.
+noask works on Linux only, with bash 5, GNU coreutils and `flock`, and
+its command hooks also need `jq` (Requirements); elsewhere the command
+reads every switch as off and refuses to switch, with a line that says
+so, and its hooks answer nothing.
 
 ## Develop
 
@@ -556,9 +670,14 @@ update only while the paths it handed to its controllers still exist.
 ## Uninstall
 
 First switch noask off: type `/noask global off` in a session, or run
-`bin/noask global off` of the plugin's folder in a terminal, for the
-global switch, and type `/noask off` in each session whose own switch is
-on (a bare `bin/noask` lists them). Then:
+`noask global off` in a terminal, for the global switch, and type
+`/noask off` in each session whose own switch is on (a bare `noask` in a
+terminal lists them). Then remove the terminal command: set
+`sdd.terminal` to `off` in `/config` and start one new session, which
+removes `~/.local/bin/noask` and says so (the link step runs only when a
+new session starts, not at a resume, a fork, a clear or a compaction); or
+remove `~/.local/bin/noask` by hand and start no session before the
+uninstall, since a new one would link it again. Then:
 
 ```bash
 claude plugin uninstall sdd@akalongman
@@ -572,6 +691,8 @@ by hand.
 
 The design history is kept in the record repository
 (`akalongman/claude-subagent-apply`, private).
+
+- 0.4.0, 2026-11-24: noask whole; its record is entry 8 of `docs/decisions.md`.
 
 ## License
 

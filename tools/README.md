@@ -361,13 +361,21 @@ copy into a new worktree, its content and the executable bit, the launch
 checkout left as it was, the undo that lets the unforced worktree removal
 succeed, bad calls that copy nothing, and the copy into a plain folder
 outside every repository. `test-noask.sh` tests `bin/noask`, the noask
-switch and its count entry, and the rule text `scripts/noask-rule.md`,
-each command under a temporary home and a fixed clock, so no case touches
-the real switches or records, and prints `ok <n>` or
-`FAIL <n> (<broken parts>)` for each of forty-five cases; the last holds
-the module's marker fixtures, `hooks/marker.fixtures.ts`, to the command's
-own readings and the module's end-of-turn lines to the apply skill's
-noask reference.
+switch, its count entry, its four hook entries and `start-line`, and the
+rule text `scripts/noask-rule.md`, each command under a temporary home and
+a fixed clock (and, where a session's start links the terminal command, a
+temporary plugin data folder under that home), so no case touches the
+real switches, records or `~/.local/bin`, and prints `ok <n>` or
+`FAIL <n> (<broken parts>)` for each of seventy-two cases. Beside the
+switches and the counts, the cases cover the entries on the probes' hook
+inputs (`tests/fixtures/hook-inputs/`), the start line and the link into
+`~/.local/bin`. Case 45 holds the module's marker fixtures,
+`hooks/marker.fixtures.ts`, to the command's own readings and the module's
+end-of-turn lines to the apply skill's noask reference; case 72 holds
+`hooks/entry.fixtures.ts`, the texts the entries answer with, to what
+`tests/gen-entry-texts.sh` prints from the entries, and the four command
+hooks of `hooks/hooks.json` and the option names the entries read to the
+manifest.
 `test-run-archive.sh` tests the `Sub-skill:`
 line (decision 23), the park step (the record repository's
 `docs/superpowers/specs/2026-10-27-handed-items-design.md`), the

@@ -2982,3 +2982,1060 @@ entry's text with these outputs in place, printed the same and exited 1
 again.
 
 Result: pass. Nothing was pushed.
+
+## 8. Ship noask's command hooks, its start line and its terminal command (2026-11-24)
+
+On 2026-11-24 the plugin moved to version 0.4.0 with the second step of
+noask: under noask a permission prompt is denied and a tool server's
+question declined in the owner's place, a turn that ends without an
+end-of-turn line is continued, every stop allowed on such a line or
+beside a running subagent sets the counts back, a session's start shows
+a line, and the command is linked into a terminal's PATH. The design is
+`docs/superpowers/specs/2026-10-30-sdd-plugin-design.md` at revision 21
+(`745074b`), which this build did not edit; the owner's seven rulings
+below bound the build where they differ from it, and the spec's revision
+22 is to take them in. The build followed the plan of noask's second
+step, a local working document, in six tasks: five commits on the base
+`745074b`, `ea0cf38` to `38f7957`, and this entry's commit. Before the
+launch one probe settled four facts the plan leans on; it comes first.
+
+### The probe of 2026-11-23
+
+```
+$ claude --version
+2.1.330 (Claude Code)
+```
+
+The plan rests on four facts that no earlier probe reached: the name and
+value under which a configured plugin option reaches a command hook and
+what the transcript calls read just after a compaction (both under Not
+covered in entry 6), the moment at which the host takes a command hook's
+answer, and what the host does with a hook that runs past its timeout.
+The probe ran on 2026-11-23, before the plan was revised on its answers,
+in the scratch repository of entries 4 and 6
+(`~/projects/scratch/sdd-probe-2`), with a third throwaway plugin,
+`noaskprobe3`. No session had this plugin loaded. Its full record is part
+of the plan's local material; this section is written from it.
+
+The main findings:
+
+- A configured option reaches every command hook of the plugin as
+  `CLAUDE_PLUGIN_OPTION_<KEY>`, the key upper-cased, the value as a
+  string, also when the configured value equals the default.
+- The host takes a command hook's answer when the hook's process exits,
+  not when its output is printed, redirected or closed. Until then the
+  permission dialog is on the screen, the request is with the owner's
+  other devices when Remote Control is on, and whoever answers first
+  decides.
+- A hook past its `timeout` is sent `TERM`, then killed half a second
+  later, and everything it printed is thrown away, an answer printed
+  long before the timeout included. The event then goes on as if the
+  hook had not answered: a stop is allowed, a permission prompt waits for
+  a person.
+
+Three things went otherwise than planned. The account of entries 4 and
+6, an account of a Team organization, was out of usage: its one session
+started and showed its start line, and its first prompt met the account's
+usage limit, so a session start is all that account saw. Every other
+session ran on another account of the same machine, of another plan, so
+the security default of a Team organization was not in play but for that
+one start. That account's first start asked whether to trust the scratch
+folder; it was answered "No, exit" once and then "Yes, I trust this
+folder", as entry 4 did on its own account, which records the folder's
+trust in that account's configuration directory: the one change outside
+the scratch folder and the driving session's scratchpad. And the owner's
+user settings start Remote Control in every session, so in the first
+sessions each permission request also went to the owner's other devices,
+and several were allowed from there (P3); from session p3d on, the
+session's own settings file carries `"remoteControlAtStartup": false`,
+and no later debug log holds a line of the remote bridge. No file of the
+owner's configuration was edited for it.
+
+#### Setup
+
+`~/projects/scratch/sdd-probe-plugin-3`, a copy of entry 6's plugin,
+never committed. Its manifest declares the four options this release
+has, with the same keys and types: `denialBudget` (number, default 10),
+`continuationBudget` (number, default 20), `permissionHook` (boolean,
+default true) and `terminal` (string, `"options": ["link", "off"]`,
+default `link`). `claude plugin validate` passes with one warning (no
+author); it accepts the `options` list.
+
+Its `hooks/hooks.json` is written by `scripts/set-timeout.sh <seconds>`
+and registers one script at three events in the form this release uses:
+
+```
+{"type":"command","shell":"bash","command":"PROBE_SEAM= bash \"${CLAUDE_PLUGIN_ROOT}/scripts/hook.sh\" Stop","timeout":30}
+```
+
+SessionStart has the matcher `startup|resume|clear|compact|fork` and a
+timeout of 30; Stop and PermissionRequest have 30, and 5 in session p4.
+The script appends its standard input to `r22/<event>.log`, one line on
+its own process to `r22/env.log` (the value of each of the four option
+variables, the names of every other variable that starts with
+`CLAUDE_PLUGIN`, never their values, and whether `PROBE_SEAM` reached
+it), and timed lines to `r22/timing.log` (bash's `EPOCHREALTIME`, the
+event, the mode, its process id). It answers by the word in the file
+`probe-mode`:
+
+| Mode | Event | What the script does |
+|---|---|---|
+| `log` | any | no answer (SessionStart always prints a `systemMessage`) |
+| `deny-permission` | PermissionRequest | prints the deny object and exits |
+| `deny-open` | PermissionRequest | prints deny, leaves its output open, sleeps 8 s |
+| `deny-null` | PermissionRequest | prints deny, `exec >/dev/null`, sleeps 8 s |
+| `deny-null-err` | PermissionRequest | prints deny, `exec >/dev/null 2>/dev/null`, sleeps 8 s |
+| `deny-close` | PermissionRequest | prints deny, `exec >&-`, sleeps 8 s |
+| `deny-close-all` | PermissionRequest | prints deny, `exec >&- 2>&-`, sleeps 8 s |
+| `deny-bg` | PermissionRequest | prints deny, starts a background child with all three descriptors at `/dev/null` that sleeps 8 s, exits at once |
+| `deny-bg-open` | PermissionRequest | the same, the child keeping the hook's output and error |
+| `stop-overrun`, `perm-overrun` | Stop (a first stop), PermissionRequest | no answer; sleeps 20 s under traps that log `TERM`, `INT` and `HUP`, then sleeps 10 s more |
+| `stop-answer-overrun`, `perm-answer-overrun` | the same | prints a block decision, or deny, at once, then as above |
+| `stop-term-answer`, `perm-term-answer` | the same | sleeps 20 s; a trap on `TERM` prints the block decision, or deny, and exits 0 |
+
+The module `hooks/register.ts` logs to `r22/module.log` what
+`$.session.id()`, `$.session.turns()` and `$.session.messages()` read at
+`session.start`, at each main-loop `turn.start`, before and after
+`session.compact`, and when the command `/probeq` is typed (registered
+with `$.command.register` and `immediate: true`, as this plugin's module
+registers `/noask`); the time from each `tool.call` to its result
+(`tool.done`, `ms`); and whether a value kept with `$.state` at an
+earlier `session.start` is still there (`kept`).
+
+Sessions were started in `tmux` as in entry 4, with
+`--plugin-dir ~/projects/scratch/sdd-probe-plugin-3 --permission-mode auto`,
+the account's configuration directory in `CLAUDE_CONFIG_DIR` and the
+flags below. Options were set only through the session's `--settings`
+file. After each session its logs moved to `r22/<session>/`.
+
+| Session | Account | Extra flags | Modes, in order |
+|---|---|---|---|
+| p1-team | entry 6's | `--settings settings/r22-p1.json` | `deny-permission` (the start only) |
+| p1 | the other | `--settings settings/r22-p1.json` | `deny-permission`, then `log` |
+| p1-resume | the other | `--continue` | `log` |
+| p3a | the other | `--settings settings/r22-ask.json` | the five `deny-*` sleep variants, `log` |
+| p3a2 | the other | the same, `--debug-file` | `deny-close`, `deny-close-all`, `deny-null` |
+| p3a3 | the other | the same | the five sleep variants |
+| p3d | the other | `r22-ask.json` with Remote Control off, `--debug-file` | the five sleep variants, `deny-open` |
+| p3e | the other | `--settings settings/r22-ask-allow3.json`, `--debug-file` | `deny-open`, `deny-null`, `deny-close-all`, `deny-permission`, `deny-bg`, `deny-bg-open` |
+| p4 | the other | as p3d, hooks at `"timeout": 5` | the six overrun modes, `stop-overrun` twice |
+
+`settings/r22-p1.json`:
+
+```
+{
+  "permissions": { "ask": ["Bash(touch:*)"] },
+  "pluginConfigs": {
+    "noaskprobe3@inline": {
+      "options": { "denialBudget": 3, "continuationBudget": 20, "permissionHook": false, "terminal": "off" }
+    }
+  }
+}
+```
+
+`settings/r22-ask.json` holds the same ask rule alone, and from p3d on
+`"remoteControlAtStartup": false`. `settings/r22-ask-allow3.json` adds a
+PermissionRequest command hook of the settings, `settings/r22-allow3.sh`,
+which sleeps 3 seconds and then prints an allow decision (entry 6's s6
+with a longer sleep). Each debug log was written into the driving
+session's scratchpad, its hook lines were copied to
+`r22/<session>/debug-hooks.txt` with the home directory's name replaced,
+and the full log was deleted.
+
+Prompts were `Run the shell command \`touch <name>\` once, then reply
+with the single word done.` for a permission prompt and
+`Reply with the single word <fruit>.` for a stop.
+
+#### P1: a configured option in a hook's process
+
+Observed, on both accounts at SessionStart and on the other account at
+all three events.
+
+```
+$ cd ~/projects/scratch/sdd-probe-2 && jq -c 'del(.others)' r22/p1/env.log | sort | uniq -c
+      1 {"event":"PermissionRequest","optnames":"CLAUDE_PLUGIN_OPTION_CONTINUATIONBUDGET CLAUDE_PLUGIN_OPTION_DENIALBUDGET CLAUDE_PLUGIN_OPTION_PERMISSIONHOOK CLAUDE_PLUGIN_OPTION_TERMINAL ","DENIALBUDGET":"3","CONTINUATIONBUDGET":"20","PERMISSIONHOOK":"false","TERMINAL":"off","seam":""}
+      2 {"event":"SessionStart","optnames":"CLAUDE_PLUGIN_OPTION_CONTINUATIONBUDGET CLAUDE_PLUGIN_OPTION_DENIALBUDGET CLAUDE_PLUGIN_OPTION_PERMISSIONHOOK CLAUDE_PLUGIN_OPTION_TERMINAL ","DENIALBUDGET":"3","CONTINUATIONBUDGET":"20","PERMISSIONHOOK":"false","TERMINAL":"off","seam":""}
+      2 {"event":"Stop","optnames":"CLAUDE_PLUGIN_OPTION_CONTINUATIONBUDGET CLAUDE_PLUGIN_OPTION_DENIALBUDGET CLAUDE_PLUGIN_OPTION_PERMISSIONHOOK CLAUDE_PLUGIN_OPTION_TERMINAL ","DENIALBUDGET":"3","CONTINUATIONBUDGET":"20","PERMISSIONHOOK":"false","TERMINAL":"off","seam":""}
+```
+
+`r22/p1-team/env.log` holds the same SessionStart line (entry 6's
+account, `startup`). The second SessionStart line of p1 is the `compact`
+source.
+
+| Option, as set | Variable | Value |
+|---|---|---|
+| `denialBudget: 3` (a JSON number) | `CLAUDE_PLUGIN_OPTION_DENIALBUDGET` | `3` |
+| `continuationBudget: 20` (the default's value) | `CLAUDE_PLUGIN_OPTION_CONTINUATIONBUDGET` | `20`, present |
+| `permissionHook: false` (a JSON boolean) | `CLAUDE_PLUGIN_OPTION_PERMISSIONHOOK` | `false` |
+| `terminal: "off"` | `CLAUDE_PLUGIN_OPTION_TERMINAL` | `off` |
+
+So an option configured to its default's value is present, where an
+option never configured is absent. With nothing set, in a session resumed
+without the settings file and in every later session
+(`r22/p1-resume/env.log`, `r22/p3a/env.log`: 1 SessionStart, 6
+PermissionRequest and 6 Stop lines), `optnames` is empty and all four
+read `unset`, as entry 6 found.
+
+The id under which the settings name a plugin loaded with `--plugin-dir`
+is `<name>@inline`. `seam` is the empty string at every event of every
+session: an assignment written before `bash` in the command string of a
+hook with `"shell": "bash"` reaches the script.
+
+#### P2: the transcript after a compaction
+
+Observed in p1: a prompt (denied `touch`), `/probeq`, `/compact`,
+`/probeq` before any prompt, a prompt, `/probeq`. Roles are the last
+twelve messages as the role's first letter and the text's length, `t`
+for a message with a tool use.
+
+```
+$ jq -c 'select(.ev|test("tool|register")|not) | [.ev, .sessionId.value[0:4], .turns.value, .messages.value, .roles.value, .kept.value]' r22/p1/module.log
+["session.start","ca38",0,0,"",null]
+["turn.start","ca38",1,1,"u77",null]
+["command.run","ca38",1,6,"u77 a0 a0t u0 a0 a239",null]
+["session.compact:before","ca38",2,7,"u77 a0 a0t u0 a0 a239 u8",null]
+["session.compact:after","ca38",2,7,"u77 a0 a0t u0 a0 a239 u8",null]
+["command.run","ca38",4,9,"u77 a0 a0t u0 u3414 a0 a239 u134 u92",null]
+["turn.start","ca38",5,10,"u77 a0 a0t u0 u3414 a0 a239 u134 u92 u33",null]
+["command.run","ca38",5,12,"u77 a0 a0t u0 u3414 a0 a239 u134 u92 u33 a0 a5",null]
+["session.start","ca38",5,12,"u77 a0 a0t u0 u3414 a0 a239 u134 u92 u33 a0 a5","started"]
+$ jq -c '[.source, .session_id[0:4], (keys|join(","))]' r22/p1/SessionStart.log
+["startup","ca38","cwd,hook_event_name,model,scratchpad_dir,session_id,source,transcript_path"]
+["compact","ca38","cwd,hook_event_name,model,prompt_id,scratchpad_dir,session_id,source,transcript_path"]
+```
+
+- Just after a compaction and before any prompt, the command's handler
+  reads 9 messages: the messages from before the compaction are still
+  read, a user message of 3,414 characters (the summary) and two more
+  user records (134 and 92 characters, the lengths entry 6 saw) are
+  added, and the last message is a user's. `turns()` went from 2 to 4. A
+  module that asks "is there at least one message" gets yes.
+- `session.start` did not run at the compaction, and no `turn.start`
+  fired for it. `session.compact` ran; inside it, before and after
+  `next(e)`, the calls read the transcript as it was before.
+- The session's id is the same after the compaction. The SessionStart
+  command hook ran with the source `compact`, its message showed on the
+  screen (`SessionStart:compact says: ...`), and its input carries one
+  key more than at `startup`, `prompt_id`.
+- The last line above is a reload, not a process start: the module's
+  file was edited while the session was open, the screen showed
+  `noaskprobe3: reloaded (5 hooks: ...)`, `session.start` ran again and
+  the value kept with `$.state` at the first one was still there
+  (`started`).
+
+At a resume of that session in a new process (`--continue`,
+`r22/p1-resume/module.log`):
+
+```
+["session.start","ca38",4,8,"u3414 a0 a239 u134 u92 u33 a0 a5",null]
+```
+
+The kept value is gone, the transcript starts at the summary (8
+messages), and the SessionStart hook's source is `resume`.
+
+#### P3: when the host takes a hook's answer
+
+Observed. The answer is taken at the exit of the hook's process.
+
+Alone (p3d, Remote Control off). The script printed the deny object
+about 11 ms after it started and exited 8 seconds later; the module's
+`tool.done` came 8.1 to 8.2 seconds after its `tool.call` in every
+variant, and no file was created.
+
+| Variant | Hook printed after | Hook exited after | `tool.done` after | Result |
+|---|---|---|---|---|
+| `deny-open` | 12 ms | 8.014 s | 8,190 ms | denied |
+| `deny-null` | 12 ms | 8.016 s | 8,166 ms | denied |
+| `deny-null-err` | 12 ms | 8.016 s | 8,146 ms | denied |
+| `deny-close` | 12 ms | 8.016 s | 8,158 ms | denied |
+| `deny-close-all` | 11 ms | 8.014 s | 8,150 ms | denied |
+
+The debug log shows the host reading the first line at once, to see
+whether the hook declares itself asynchronous, and acting on it only when
+the process has finished (`r22/p3d/debug-hooks.txt`, `deny-open`):
+
+```
+2026-11-23T00:21:39.219Z [DEBUG] executePermissionRequestHooks called for tool: Bash
+2026-11-23T00:21:39.263Z [DEBUG] Hooks: Checking first line for async: {"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"deny","message":"probe: denied, go on"}}}
+2026-11-23T00:21:39.263Z [DEBUG] Hooks: Parsed initial response: {"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"deny","message":"probe: denied, go on"}}}
+2026-11-23T00:21:45.302Z [DEBUG] Notification:permission_prompt [~/.claude/hooks/hooks.sh notification] completed with status 0
+2026-11-23T00:21:47.266Z [DEBUG] Hooks: PermissionRequest:Bash [PROBE_SEAM= bash "~/projects/scratch/sdd-probe-plugin-3/scripts/hook.sh" PermissionRequest] (plugin noaskprobe3@inline) finished with status 0 (8043ms)
+2026-11-23T00:21:47.270Z [INFO] Slow permission decision: 8070ms for Bash (mode=auto, behavior=deny)
+```
+
+While the hook ran, the permission dialog was on the screen: a capture
+0.93 seconds after the hook printed already shows
+`Do you want to proceed?  ❯ 1. Yes  2. No`, and after 6 seconds the host
+ran the owner's `permission_prompt` notification hook. The dialog closed
+by itself when the hook exited with its deny. With an instant hook (entry
+6, and `deny-permission` here) no dialog is seen.
+
+Beside a hook that allows after 3 seconds (p3e):
+
+```
+$ jq -c 'select(.ev=="tool.done") | .ms' r22/p3e/module.log | tr '\n' ' '
+3311 3136 3111 79 67 570
+```
+
+| Variant | The plugin's deny printed | The plugin's hook exited | The allow printed | Result |
+|---|---|---|---|---|
+| `deny-open` | 0.012 s | 8.0 s | 3.0 s | allowed, file created, `Allowed by PermissionRequest hook` |
+| `deny-null` | 0.011 s | 8.0 s | 3.0 s | allowed |
+| `deny-close-all` | 0.011 s | 8.0 s | 3.0 s | allowed |
+| `deny-permission` | 0.011 s | 0.011 s | 3.0 s | denied, `Denied by PermissionRequest hook` |
+| `deny-bg` | 0.010 s | 0.011 s | 3.0 s | denied after 67 ms |
+| `deny-bg-open` | 0.011 s | 0.011 s | 3.0 s | denied after 570 ms |
+
+A deny printed three seconds before the other hook's allow lost to it
+whenever its process was still running, whatever it had done with its
+output. In `deny-bg` the host reported the hook finished after 30 ms and
+applied the deny; the background child lived its 8 seconds out
+(`bg-child-done` is in `timing.log` 8.0 s later), so the host did not
+kill it. In `deny-bg-open`, where that child kept the hook's output pipe,
+the host reported the hook finished after 533 ms: it waits about half a
+second for the pipe after the exit, not for the child.
+
+Remote Control (p3a, p3a3). With Remote Control on, the host sends the
+permission request to the remote bridge in the same millisecond in which
+it starts the PermissionRequest hooks, and an allow from there decides
+if it arrives before the hook's exit (`r22/p3a3/debug-hooks.txt`):
+
+```
+00:19:57.784Z [DEBUG] executePermissionRequestHooks called for tool: Bash
+00:19:57.784Z [DEBUG] [remote-bridge] Sent control_request request_id=f6bf883e-...
+00:19:57.820Z [DEBUG] Hooks: Parsed initial response: {"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"deny",...}}}
+00:20:00.196Z [DEBUG] [bridge:repl] Ingress message type=control_response
+00:20:00.198Z [INFO] Slow permission decision: 2423ms for Bash (mode=auto, behavior=allow)
+00:20:05.824Z [DEBUG] Hooks: PermissionRequest:Bash [...] (plugin noaskprobe3@inline) finished with status 0 (8038ms)
+00:20:05.825Z [DEBUG] Hook PermissionRequest (command hook) returned permissionDecision: deny
+```
+
+In p3a3 three of the five requests were allowed that way (after 7.6, 2.4
+and 3.1 seconds; `deny-null`, `deny-close` and `deny-close-all`), and
+their files were created. In p3a, which kept no debug log, the
+`deny-close` and `deny-close-all` requests ran after 5.9 and 8.2 seconds
+with no label on the screen; by p3a3's evidence those were remote allows
+too, which is an inference. In p3a2 no answer came from the bridge and
+all three requests were denied at the hook's exit. So which variant was
+allowed followed who answered, not what the hook did with its output.
+
+One dialog of p3a (mode `log`, no answer from the hook) was meant to be
+answered "No" with the Down key and Enter and ended as "Yes"; the file
+was created and removed. That session kept no debug log, so whether the
+key was lost or a remote allow came first is not established. In p4 the
+screen was read after the Down key and before Enter each time.
+
+#### P4: a hook past its timeout
+
+Observed in p4, hooks at `"timeout": 5`.
+
+Stop:
+
+```
+$ /bin/grep 'Stop stop-' r22/p4/timing.log
+1795393595.981793 Stop stop-overrun pid=4030400 start
+1795393595.993236 Stop stop-overrun pid=4030400 sleep-start
+1795393600.977135 Stop stop-overrun pid=4030400 signal TERM
+1795393600.977214 Stop stop-overrun pid=4030400 wait returned 143, sleep alive
+1795393600.977691 Stop stop-overrun pid=4030400 wait returned 143, sleep gone
+1795393600.977877 Stop stop-overrun pid=4030400 sleep-end
+1795393600.977912 Stop stop-overrun pid=4030400 exit
+1795393644.732501 Stop stop-answer-overrun pid=4044128 start
+1795393644.743977 Stop stop-answer-overrun pid=4044128 printed
+1795393644.744054 Stop stop-answer-overrun pid=4044128 sleep-start
+1795393649.734330 Stop stop-answer-overrun pid=4044128 signal TERM
+1795393649.734431 Stop stop-answer-overrun pid=4044128 wait returned 143, sleep alive
+1795393649.734704 Stop stop-answer-overrun pid=4044128 wait returned 143, sleep gone
+1795393649.734970 Stop stop-answer-overrun pid=4044128 sleep-end
+1795393681.973294 Stop stop-term-answer pid=4061239 start
+1795393681.985157 Stop stop-term-answer pid=4061239 sleep-start
+1795393686.979415 Stop stop-term-answer pid=4061239 signal TERM, answering
+1795393686.979503 Stop stop-term-answer pid=4061239 exit-after-term
+1795393719.625709 Stop stop-overrun pid=4077851 start
+1795393719.637247 Stop stop-overrun pid=4077851 sleep-start
+1795393724.631390 Stop stop-overrun pid=4077851 signal TERM
+1795393724.631481 Stop stop-overrun pid=4077851 wait returned 143, sleep alive
+1795393724.631791 Stop stop-overrun pid=4077851 wait returned 143, sleep gone
+1795393724.632024 Stop stop-overrun pid=4077851 sleep-end
+$ cat r22/p4/debug-hooks.txt   (the Stop lines, the command shortened)
+00:26:40.978Z Hooks: Stop [...] (plugin noaskprobe3@inline) timed out after 5000ms (5020ms)
+00:26:40.978Z Hook Stop (Stop) cancelled:
+00:27:30.234Z Hooks: Stop [...] timed out after 5000ms (5520ms)
+00:27:30.234Z "Hook Stop (Stop) cancelled:\nstdout:\n{\"decision\":\"block\",\"reason\":\"probe: reply with the single word pineapple, then stop\"}"
+00:28:06.980Z Hooks: Stop [...] timed out after 5000ms (5019ms)
+00:28:06.980Z "Hook Stop (Stop) cancelled:\nstdout:\n{\"decision\":\"block\",\"reason\":\"probe: reply with the single word pineapple, then stop\"}"
+00:28:45.131Z Hooks: Stop [...] timed out after 5000ms (5517ms)
+00:28:45.131Z Hook Stop (Stop) cancelled:
+```
+
+- `TERM` arrives 4.99 to 5.01 seconds after the script's start, and the
+  script's `sleep` child dies of it in the same instant (status 143), so
+  the signal goes to the hook's process group. No `INT` or `HUP` was
+  seen.
+- A script that goes on after `TERM` is killed about half a second later:
+  the first `stop-overrun` ran before the script's second sleep was added
+  and exited by itself (the host's figure is 5,020 ms); the later runs
+  went into the second sleep, logged nothing more, not even the line a
+  trapped signal would have left, and the host's figure is 5,517 to
+  5,520 ms.
+- Every stop was allowed: the screen shows the one word and the turn's
+  end, with no error and no feedback line, in all four runs.
+- The block decision printed 11 ms after the start
+  (`stop-answer-overrun`) was thrown away with the rest, and so was the
+  one printed in answer to `TERM` by a script that then exited 0 at once
+  (`stop-term-answer`): the debug log holds each as the `stdout` of a
+  cancelled hook, and neither turn was continued.
+
+PermissionRequest:
+
+```
+00:29:36.921Z Hooks: PermissionRequest:Bash [...] (plugin noaskprobe3@inline) timed out after 5000ms (5517ms)
+00:29:36.921Z Hook PermissionRequest:Bash (PermissionRequest) cancelled:
+00:29:50.882Z [INFO] Slow permission decision: 19499ms for Bash (mode=auto, behavior=ask)
+00:30:11.881Z Hooks: PermissionRequest:Bash [...] timed out after 5000ms (5524ms)
+00:30:11.881Z "Hook PermissionRequest:Bash (PermissionRequest) cancelled:\nstdout:\n{\"hookSpecificOutput\":{\"hookEventName\":\"PermissionRequest\",\"decision\":{\"behavior\":\"deny\",\"message\":\"probe: denied, go on\"}}}"
+00:30:16.476Z [INFO] Slow permission decision: 10135ms for Bash (mode=auto, behavior=ask)
+00:30:38.690Z Hooks: PermissionRequest:Bash [...] timed out after 5000ms (5025ms)
+00:30:38.691Z "Hook PermissionRequest:Bash (PermissionRequest) cancelled:\nstdout:\n{...\"behavior\":\"deny\"...}"
+00:30:44.121Z [INFO] Slow permission decision: 10478ms for Bash (mode=auto, behavior=ask)
+```
+
+The same signals at the same times (`timing.log`). In all three modes
+the dialog, on the screen since the hook started, stayed open after the
+timeout and waited: 9 seconds after the hook's start the screen still
+read `Do you want to proceed?`. Each was answered "No" by the driver with
+the Down key and Enter (the screen read `❯ 2. No` before Enter), which
+the session showed as `Interrupted · What should Claude do instead?`. The
+deny printed before the overrun and the deny printed at `TERM` were both
+thrown away. No file was created.
+
+#### Not covered
+
+- Entry 6's account beyond one session start: P2, P3 and P4 were seen on
+  another account, without a Team organization's security default.
+- A timeout at SessionStart and at Elicitation, and the answer's moment
+  at Stop, SessionStart and Elicitation (only PermissionRequest was
+  timed, the event where another party can answer first).
+- An option set through `/config` or stored in the user settings file:
+  the options here came from a `--settings` file, the other of the two
+  sources the build reads them from. An option of the `sensitive` kind.
+- Whether a background child outlives the session's end, or a hook's
+  process group when the hook is cancelled at its timeout. The child of
+  `deny-bg` lived 8 seconds past a hook that exited in time.
+- What `$.session.messages()` reads at a `session.start` that the
+  compaction itself would cause: none ran.
+- Build 2.1.325, which CI pins.
+
+#### Leftovers
+
+Every `tmux` session of the probe was killed when it ended. No `touch`
+target is left in the scratch repository (the files that allowed calls
+created were removed). `probe-mode` reads `log` again and the plugin's
+`hooks.json` is back at a timeout of 30. For the owner, in
+`~/projects/scratch/`: the plugin `sdd-probe-plugin-3`; in
+`sdd-probe-2`, the folder `r22/` with nine session folders and four new
+files under `settings/` (`r22-p1.json`, `r22-ask.json`,
+`r22-ask-allow3.json`, `r22-allow3.sh`). In the other account's
+configuration directory: the scratch folder's trust flag and the probe
+sessions' transcripts, as every session leaves them. Entry 6's plugin and
+`r16/` were not touched.
+
+#### Pinned values
+
+- A configured option in a command hook's process: `CLAUDE_PLUGIN_OPTION_<KEY>`, the key upper-cased, at SessionStart, Stop and PermissionRequest
+- Its value: the string form (`3`, `20`, `false`, `off`); present also when the configured value equals the default; absent when never configured
+- The settings id of a `--plugin-dir` plugin: `<name>@inline`; `pluginConfigs.<id>.options` in a `--settings` file reaches the hook
+- A manifest option with `"options": [...]`: accepted by `claude plugin validate`
+- `"shell": "bash"` with `VAR= bash "${CLAUDE_PLUGIN_ROOT}/..." <event>`: runs, and the assignment reaches the script
+- After a compaction, before any prompt: `messages()` reads the earlier messages and the summary (9 where 7 stood), `turns()` 4 where 2 stood, the same session id; `session.start` and `turn.start` do not fire; the SessionStart command hook runs with source `compact` and is shown
+- `$.state` across a reload of the plugin: kept; across a resume in a new process: gone
+- A command hook's answer: taken at the process's exit; printing, redirecting or closing the output earlier changes nothing
+- While a PermissionRequest hook runs: the dialog is on the screen within a second, a remote device has the request at once, and the first answer decides
+- A hook that exits while a background child lives on: finished at the exit (about 0.5 s later if the child holds its output); the child is not killed
+- A hook past its timeout: `TERM` to its process group at the timeout, killed about 0.5 s later, its whole output discarded (`cancelled`), an answer printed before the timeout or at `TERM` included
+- After such a timeout: a stop is allowed with nothing shown; a permission dialog stays open and waits
+
+### What was built
+
+- Task 1, `ea0cf38`: the command's two new forms,
+  `noask hook session-start|permission|elicitation|stop` and
+  `noask [--session <id>] start-line`, told apart before the platform
+  test, so that off the platform, without `HOME` and without a clock they
+  print nothing and exit 0 where the other forms fail. An entry reads its
+  input once (to 4 MiB, within 4 seconds, NUL bytes made `\001`), takes
+  the session's id and an agent's from it only as JSON strings of the
+  id's form, tested inside `jq` on the whole string, and without a usable
+  id takes the reading of a session with no id by the module's rule. It
+  answers once, each answer through one `printf` format and the command's
+  own escaper, never built by `jq`, and from its guard on a trap answers
+  the noask side when it would end unanswered. The session-start entry
+  answers with the start line as its message and, as its context, the
+  rule text and where the apply skill's noask reference is. Eleven hook
+  inputs of entry 6's probe, the home rewritten, are the tests'
+  fixtures (`tests/fixtures/hook-inputs/`); case 16 now holds that the
+  switches, the status and the counts answer the same without `jq`, and
+  `start-line` the same line with the `jq` note after it; cases 47 to 51.
+- Task 2, `8af4f17`: the permission and the elicitation entries, which
+  count first and then answer (ruling 4). A prompt is denied with
+  Intervention 2's text, a subagent's with the role's text, either with
+  the ending text once the denial budget is spent, and after it the
+  count's failure or note and an unreadable reading's reason; a server's
+  question is declined whatever the count gave. Without a usable session
+  id, or with an agent id of another form, nothing is counted. Both are
+  inert while `permissionHook` is exactly `false`. Cases 52 to 58.
+- Task 3, `5b4e7a7`: the stop entry. It is inert for a stop that names an
+  agent; it allows a stop whose record's budget is spent; it sets the
+  counts back and allows a stop beside a subagent in flight or on an
+  end-of-turn line, but continues a waiting line once on a first stop
+  with nothing running or scheduled; and it continues any other with the
+  rule text, counted, the sentence for a token on an earlier line and,
+  from the sixth continuation on, the sentence that asks the session to
+  end. Its work on the message is bounded (ruling 7), and its failure
+  path blocks only a first stop (ruling 1). Cases 59 to 67.
+- Task 4, `3ea4798`: the session-start entry's link step, at a start
+  whose source is `startup` and whatever the reading:
+  `~/.local/bin/noask` a link to `<plugin data>/bin/noask`, itself a link
+  to the plugin's `bin/noask`; `terminal` at `off` removes the plugin's
+  link and adds none; an entry the plugin did not make is never touched;
+  the refused and the PATH notices are said when their condition starts,
+  by the last conditions kept in `terminal-state`, which is written by a
+  rename (ruling 6); every command is bounded, and the step ends at the
+  first that fails and after 4 seconds (ruling 7). Cases 68 to 71.
+- Task 5, `38f7957`: the four command hooks in `hooks/hooks.json`
+  (SessionStart with the matcher `startup|clear|compact`,
+  PermissionRequest, Elicitation and Stop, each `"shell": "bash"`, the
+  command `SDD_NOASK_NOW= SDD_NOASK_LOCK_WAIT= bash "${CLAUDE_PLUGIN_ROOT}/bin/noask" hook <event>`
+  and a timeout of 30); the three options `continuationBudget`,
+  `permissionHook` and `terminal`, and "in a row" in the two budgets'
+  descriptions; the entries' texts in `hooks/text.ts`, which loses the
+  line that said the release was partial; `hooks/entry.fixtures.ts`, 35
+  texts that `tests/gen-entry-texts.sh` prints from the entries and that
+  the module's tests hold `hooks/text.ts` to; the module's start line at
+  a resume and a fork, once a session (`sdd.startLine`), its run of
+  `start-line` limited to 7 seconds (ruling 6); five records of the
+  fence's table for the new forms, and the module's count of its rows
+  (D1); case 72.
+- Task 6, this entry's commit: the README's Noask section (the denied
+  prompt, the declined question and the race at a prompt, the continued
+  stop, the three budgets in a row, the start line, the terminal command
+  and its four notices, the stated limits, the spelling through an
+  interpreter that the guard does not catch, six settings) and its lines
+  in Requirements, Uninstall and History; the sentences on
+  `test-noask.sh` in `tools/README.md`; CI's step that logs
+  `jq --version`; and version 0.4.0.
+
+Where the build departs from the plan's words, or reads them one way
+where they leave room, it does as follows:
+
+- An `ln` that fails with nothing in the way ends the link step silently
+  (a ruling during the run, below).
+- Under a reading of on or unreadable the link step runs after the start
+  line is built, not right after the rule is read, so a signal during it
+  answers with the whole start line and the hook's failure rather than
+  with `noask is ON`; no case pins it.
+- A sentence a start line gains (this session's own switch under the
+  global one, the `jq` note, the rule note) follows the line after one
+  space with no full stop between them:
+  `... noask global off to end it This session's own switch is on too until <time>; /noask off ends that one.`
+  The spec fixes the base lines without a final stop, and call 8 leaves
+  the sentences to the builder. Case 48, the fixture and `hooks/text.ts`
+  hold the wording, so a change touches all three; it is the owner's to
+  rule on.
+- The stripping's limit: a line holds no token when the eighth pass still
+  changed it, so seven surrounding `**` pairs keep the token and eight
+  continue the turn (case 67); the other reading of ruling 7 would let
+  eight through.
+- A failed count's words: an entry drops the `noask: ` head from a
+  count's error and note and says `no session id` alone, where the
+  module's caller, unchanged since 0.3.0, keeps the head and says
+  `no session id: <why>`. So one failed count reads
+  ` (noask count failed: noask: cannot ...)` at a fence denial and
+  ` (noask count failed: cannot ...)` at a denied prompt. The entries'
+  form is the one the plan prescribes.
+- The link step's bound is the shell's `SECONDS`, which counts whole
+  seconds, so the step ends between about 3 and 5 seconds of real time;
+  with its last command's own 2 seconds it can take about 7, and a
+  session start about 17, against the plan's 6 and 16, both inside the
+  hooks' 30. This is reasoned from `SECONDS`, not measured.
+- The module's start: a session id that does not answer within 2 seconds
+  counts as no usable id, and `start-line` then runs without `--session`;
+  and the line shown is the run's standard output alone.
+- Two files are read to a limit: a rule file longer than 64 KiB reads as
+  unreadable (the built-in text, and the rule note on the start line),
+  and `terminal-state` is read to 4096 bytes, of which its first two
+  lines count.
+- When the link step ends at its bound or on a signal between making a
+  temporary link or file in the plugin's data folder and renaming it,
+  the temporary one stays there; nothing sweeps them.
+
+### The owner's rulings
+
+The plan's rulings by the owner, 1 to 5 of 2026-11-23, 6 of the same day
+on the plan's third review and 7 of 2026-11-24 on its fourth. Where one
+differs from the spec's text or adds to it, it bound this build; the
+spec takes them in as revision 22, as revision 21 took in the first
+step's.
+
+1. A stop whose input cannot be read. The failure path blocks only what
+   is recognisably a first stop: the input shows `stop_hook_active`
+   false, as its own top-level boolean where `jq` can read it, and in the
+   raw text only on a machine without `jq`. An input that does not show
+   it is allowed, with nothing printed. The spec's "never a loop" is
+   kept; the cost is that on a host that sends an unreadable input the
+   session stops as it would without the plugin.
+2. `bash <path>/noask global off` is not read by the fence as switching
+   noask (probed at `745074b`; it was so in 0.3.0 already). This step
+   leaves `hooks/fence.ts` alone, and the README names the spelling
+   among what the guard does not catch. The wider fence waits for later
+   work.
+3. The two facts entry 6 did not reach, a configured option's value in a
+   hook's process and the transcript calls just after a compaction, were
+   probed before the launch with a throwaway plugin, never with this
+   plugin loaded, together with two facts the plan leans on: when the
+   host takes a hook's answer, and what it does with a hook past its
+   timeout. That is the probe above.
+4. The permission and the elicitation entries count first, then answer.
+   The spec has them answer before they count, so that their own lock
+   never costs them the race with an owner's hook that allows; the probe
+   showed that the host acts on a PermissionRequest hook's answer only
+   when the hook's process exits (P3), so that order buys nothing in one
+   process, and counting first makes the text exact. The denial or the
+   decline is as late as the count: a few milliseconds as a rule, and up
+   to the lock's 2 seconds when another process holds the records'
+   lock. Meanwhile an allow from elsewhere can win a prompt, and a
+   person can answer a prompt's or a question's dialog. Not taken:
+   handing the count to a background child (applied after 67 ms in the
+   probe, but the count then lands after the answer, and each denial
+   leaves a process behind).
+5. The run is plain, launched without the apply skill's `handsoff`: it
+   pushes nothing.
+6. On the third review. The module's run of `start-line` gets a limit of
+   its own, 7 seconds, in place of the module's usual 2 seconds for a
+   file call: the command's own read of one hanging marker takes those
+   2 seconds, so the line under a hanging marker could never show. The
+   link step writes `terminal-state` through a temporary file and a
+   rename, and ends without its two notices or a write when the file is
+   there and cannot be read. The look through `noask.d` for a session
+   with no id keeps no total bound, and the plan says so. Not taken: a
+   total bound in that loop, with a reason text and a test of its own for
+   a state that needs hundreds of markers.
+7. On the fourth review. The stop's work on the message is bounded: it
+   looks at the message's last 200 lines, a line longer than 1024 bytes
+   holds no token, and the stripping stops after 8 passes. The link step
+   ends silently once it has run 4 seconds in all, which replaces ruling
+   6's "no total bound" for that step; the look through `noask.d` stays
+   as ruling 6 left it. The rule file is read right after the guard in
+   every stop. An entry ends with status 0 and nothing printed on a
+   signal before its guard. The session start's failure text leaves the
+   generated fixture. The no-id start line stays the plan's and is
+   recorded as a departure (call 15). Calls 10, 12 and 13, which one
+   reviewer would reopen, stand, and the README names call 12's case.
+
+### The plan's decisions
+
+Where the spec leaves the shape to the builder, the plan decided, each
+with what it would cost if it were wrong:
+
+1. The form's name, `noask hook <event>`, and `start-line` for the
+   module's question; the spec names neither. Cost if wrong: a rename
+   touches `bin/noask`, `hooks/hooks.json`, the module's run, the
+   generator and the fence's records; nothing outside the plugin calls
+   either form.
+2. Withdrawn, and replaced by ruling 4: the first two drafts had the
+   permission entry answer from a look at the record and count after,
+   the spec's order.
+3. The `permissionHook` option switches off the declined MCP question
+   too, since the spec states the option under Intervention 2, which
+   holds both. Cost if wrong: an owner cannot keep prompts waiting while
+   servers' questions are declined, or the reverse; a second option
+   would split them.
+4. In the waiting check, any entry of `background_tasks` or
+   `session_crons` counts as something running or scheduled. Cost if
+   wrong: a waiting line beside unrelated work is believed, a limit the
+   README names.
+5. A stop whose input names an agent is left alone even when the id is
+   unusable. On a machine without `jq` the entry cannot see an agent id
+   at all, so a stop that carried one would be blocked once there like
+   any other, where the spec leaves it alone; entry 6 saw a subagent's
+   stop only as SubagentStop, never as Stop. Not taken: a match on the
+   raw text for `"agent_id"`, which a key of that name nested in another
+   object would satisfy as well. Cost if wrong: on a machine without
+   `jq`, a subagent's stop that reached Stop would be blocked once.
+6. The fixtures are the probes' inputs with the home rewritten in both
+   its spellings and the configuration folder's number dropped; the
+   session ids stay, and a case sets the id its marker carries. Cost if
+   wrong: an input whose shape differs from build 2.1.325's is not
+   tested; the acceptance after the run meets live ones.
+7. Withdrawn as a call, since the build has it so: the link step runs at
+   a start whose source is `startup` only, as laterbox's does, so a
+   clear in a session of an older install does not point the link back
+   at that install. Cost if wrong: a change of the `terminal` setting
+   takes effect at the next new session, not at a clear.
+8. The builder's wording, where the spec fixes only that something is
+   said: the two start notes, the start line under an unreadable marker,
+   the `<why>` words of a no-id reason, the two sentences for a
+   session's own switch under the global one, the global line's optional
+   `until`, `noask is ON` in the session start's failure answer, the
+   session's sentence after an unreadable global marker's line, the
+   reason `noask.d cannot be listed or searched`, and the two fixed
+   failure messages, `ended by a signal` and `ended without an answer`.
+   Cost if wrong: wording only; the fixture holds the module's copies to
+   the command's, and revision 22 takes them or rewrites them.
+9. The stop entry looks at the record without the lock and counts after,
+   as two steps. The look reads a file that is only ever replaced by a
+   rename, and the reason follows the cause the count prints. Not taken:
+   one locked transaction for the stop's decision. Cost if wrong: a race
+   costs one continuation that carries the ending text.
+10. The module's state key takes `started` also when the command printed
+    no line (noask off at a resume), so a reload after a later `on`
+    shows no late line. Reopened by one reviewer of the fourth round and
+    kept by ruling 7, since a session that is not reloaded shows none
+    either. Cost if wrong: that reload shows no line.
+11. A denied prompt carries the short text of Intervention 2 and no rule
+    text. The spec's start item says a resumed session meets the rule at
+    its first refused question, denied prompt or continued stop, "each of
+    which carries it", while Intervention 2 fixes the denial's message
+    word for word; the plan follows the intervention, and revision 22
+    corrects the other sentence. Cost if wrong: a resumed or forked
+    session meets the rule only at its first refused question or
+    continued stop.
+12. An input the entry cannot use goes the no-id way, a valid object over
+    4 MiB included, and its read is bounded at 4 seconds, twice a file's,
+    since it comes from the host's pipe. Reopened by one reviewer of the
+    fourth round, with the case of a prompt over 4 MiB in a session that
+    has noask off; kept by ruling 7, and the README names the case. Not
+    taken: reading the id from the part that was read with
+    `jq --stream`, a second parse path whose agent id may lie past the
+    cut. Cost if wrong: while another session's own switch is on, such a
+    prompt is denied in a session whose own switch is off.
+13. A clock that cannot be read ends an entry with nothing printed, under
+    an active marker too: without the time no expiry can be judged, and
+    the other forms stop there. Reopened by one reviewer of the fourth
+    round, since every other unreadable state fails closed; kept by
+    ruling 7. Cost if wrong: that one event is not answered.
+14. The look through `noask.d` for a session with no id stops at the
+    first marker that is on or unreadable, where the module looks on for
+    one that is on. Cost if wrong: the reading is the same and only the
+    reason's tail can differ from the module's.
+15. The no-id start line is `noask treats this session as ON: <reason>`,
+    where the spec fixes the sentence
+    `sdd: this session's id could not be read while a session's own noask switch is on; the session is treated as under noask`.
+    The plan's line says which of its reasons holds (the id's, an
+    unreadable marker, `noask.d` itself), which the spec's one sentence
+    cannot; revision 22 takes it in. Cost if wrong: wording only.
+
+### What stays read and not observed
+
+No session ran with this plugin loaded during the build: the command is
+proven under a temporary home by `tests/test-noask.sh`, the module by
+`claude plugin test .`. What the build takes from Claude Code itself
+stands on one of three kinds of evidence, named by the word before each
+fact below:
+
+- fixture: the host's input that shows the fact was recorded by entry 6's
+  probe and is a file of `tests/fixtures/hook-inputs/`, which the tests
+  feed to the entries; so the entries' reading of it is tested, and the
+  host's side was seen in that probe only.
+- probe: seen on the host by a probe with a throwaway plugin, never this
+  one: the probe above (P1 to P4, on build 2.1.330), or entry 4's or 6's
+  (on build 2.1.325), as the fact says.
+- neither: read from the design, the host's types or laterbox's code,
+  and seen by no probe.
+
+The facts:
+
+- fixture: the inputs carry what the entries read: `session_id` at all
+  four events; `agent_id` at a subagent's permission prompt; `source` at
+  a session's start; and at a stop `stop_hook_active`,
+  `last_assistant_message`, `background_tasks` (one entry of `type`
+  `subagent` beside a live subagent) and `session_crons` (one entry
+  beside a one-shot wakeup).
+- probe: the answers' forms are applied: a deny object with no dialog
+  seen when it is instant, a decline that the server receives, a stop's
+  additional context read as the hook's feedback and a block read as its
+  error, each followed by an input with `stop_hook_active` true (entry
+  6); the session start's message on the screen and its context to the
+  agent at `startup`, `clear` and `compact` (entry 4).
+- probe: an option set in a `--settings` file reaches the SessionStart,
+  Stop and PermissionRequest hooks as `CLAUDE_PLUGIN_OPTION_<KEY>` with
+  its string value, also when it is set to its default's value, and one
+  never configured is absent (P1).
+- neither: an option at an Elicitation hook; an option set through
+  `/config` or in the user settings; and that `/config` names the option
+  `sdd.terminal`, as the added notice tells the owner.
+- probe: the registration's form, `"shell": "bash"` with an assignment
+  before `bash`, runs at SessionStart, Stop and PermissionRequest and the
+  assignment reaches the script (P1).
+- neither: that form at Elicitation, where entry 6 ran its script
+  directly.
+- probe: the host takes a PermissionRequest hook's answer when its
+  process exits; meanwhile the dialog is on the screen within a second,
+  Remote Control has the request at once, and the first answer decides
+  (P3).
+- neither: the moment the host takes the answer at Stop, SessionStart
+  and Elicitation, and the time this entry takes to deny with the lock
+  free, measured against the dialog.
+- probe: a hook past its timeout is sent `TERM` to its process group,
+  killed about half a second later and its output thrown away; then a
+  stop is allowed and a prompt waits (P4, at Stop and PermissionRequest,
+  with a timeout of 5).
+- neither: the same at SessionStart and Elicitation, and at this
+  release's timeout of 30.
+- probe: `$.state` is kept across a reload of the plugin and gone at a
+  resume in a new process, which `sdd.startLine` rests on; `session.start`
+  does not run at a compaction, while the command hook does with the
+  source `compact` (P2).
+- probe: at a resume and a fork the command hook's answer reaches neither
+  the screen nor the agent, and a line of the module's `$.ui.log` shows,
+  headed by the plugin's name; the transcript is empty at a new start and
+  holds the kept history at a resume and a fork (entry 6).
+- probe: a subagent's stop goes to SubagentStop, never to Stop, so the
+  Stop entry's inert return on an agent id guards against an input no
+  probe saw (entry 6).
+- probe: `CLAUDE_PLUGIN_DATA` and `CLAUDE_PLUGIN_ROOT` are in every
+  hook's process (entry 6).
+- neither: that the plugin's data folder keeps its path across an update
+  of the plugin, which the link chain counts on, as laterbox's does.
+- neither: the module's run of `start-line` and its line through
+  `$.ui.log` at a resume on the live engine, which the test kit alone
+  ran.
+- neither: whether a goal proposal's dialog waits under noask.
+- neither: every fact of P1 to P4 on build 2.1.325, which CI pins.
+
+The spec's acceptance item 3, an afternoon and a night with the plugin
+loaded, is to see before the push what it lists: each of the four
+options set in `/config` and its effect, a prompt raised while the
+records' lock is held, a hook past its timeout on the owner's own
+account (or the owner takes P4 as enough), `/noask on` in a session just
+compacted, the wake-up's submission of entry 7, and a session marker
+that is a link to nothing.
+
+### Rulings during the run
+
+The run's own rulings, and one question withdrawn, each with what it
+would cost if it were wrong.
+
+- D1 (the driver, before Task 1). Task 5's five new records of the
+  fence's table make the module's assertion of the table's row count in
+  `hooks/fence.test.ts` (306) fail, and that file was in no task's list.
+  Task 5 may change that one assertion to the count the regenerated
+  `hooks/fence.rows.ts` holds, and nothing else in the file, which joins
+  its commit. Cost if wrong: one more file in that commit, visible in its
+  stat.
+- D2 (the driver, before Task 1). The gates' GNU run uses a helper of the
+  run that links every `/usr/bin/gnu<name>` program under its plain name
+  in a temporary folder and runs its arguments with that folder first on
+  PATH; under it `date`, `env`, `head` and `timeout` report GNU coreutils
+  9.7, where the plain names here are uutils'. Cost if wrong: a GNU run
+  that misses some tool CI has from GNU; the probe covered the four the
+  command calls most.
+- D3 (the driver, before Task 1). The gate commands of every task, run
+  one after another, the suite never twice at once: the list under Gates
+  below. Cost if wrong: none beyond the plan's list, which these commands
+  spell out.
+- The failed `ln` of the link step (Task 4's controller). An `ln` that
+  fails while nothing is at `~/.local/bin/noask` ends the step silently,
+  accepted as built: the plan's "any failed command ends the step
+  silently" covers it, and refused means an entry in the way, by the
+  refused notice's own words ("exists and was not made by this plugin")
+  and the spec's "a foreign `noask` in the way"; the plan's "not made:
+  read again, own or refused" is read as the `ln` that lost to an entry
+  put there meanwhile. Cost if wrong: a `~/.local/bin` the session cannot
+  write to is never reported, and every start tries again silently; the
+  fix is a few lines of the step and one case.
+- Withdrawn (the driver, at `3ea4798`): the question whether cases 69 and
+  71 depend on `find` being bfs, as it is where the build ran. The
+  helper's format `%P %y %m %s %l %T@` printed the same fields under GNU
+  findutils 4.10.0 (in a `debian:trixie` container, offline, the checkout
+  mounted read only) as under bfs 4.1.1, for a file, a folder, a FIFO, a
+  link and a link to nothing, so they do not.
+- The History line (Task 6's controller). The README's History section
+  gains one line for 0.4.0 after its paragraph, naming the release, its
+  date and this entry; nothing is written for 0.2.0 or 0.3.0, since
+  neither release wrote a line there. Cost if wrong: a History section
+  with one release line; adding the others, or removing it, is a few
+  lines of the README.
+
+### Gates
+
+At the repository root, in the working tree before this entry's commit,
+the gates of D3, run one after another, the suite never twice at once.
+They ran with the manifest, the workflow and `tools/README.md` in their
+final state, the README before two wording edits that left its
+shellcheck line as it was, and this entry before its last edits; none of
+them reads this file or the README's prose. The validation ran again on
+the final text and printed the same. Three cuts, the home directory written as `~` and
+the run's GNU-tools helper of D2 named by its role, not its path, are the
+only departures from verbatim: of `claude plugin test .` the
+closing lines are quoted and the 764 lines `(pass) <test> [<time>]` under
+the names of its five test files are left out; of `bash tests/run.sh`
+its 152 lines `ok <n>` are left out (19 of `test-run-archive`, 14 of
+`test-sdd-checkpoint`, 7 of `test-briefs`, 6 of `test-source-copy`, 72 of
+`test-noask`, 8 of `test-sub-skill-check`, 16 of `test-tools`, 5 of
+`test-check-skill-size` and 5 of `test-run`), while every other line it
+printed stands; and of the two runs of `tests/test-noask.sh` the lines
+`ok 1` to `ok 72` are written as one line, each run having printed those
+72 lines and nothing else.
+
+```
+$ claude --version
+2.1.331 (Claude Code)
+$ claude plugin validate . --strict
+Validating plugin manifest: ~/projects/akalongman/claude-sdd/.claude-plugin/plugin.json
+
+  ❯ types ./types/index.d.ts declares on $: nothing (no EngineInterface member)
+  ❯ types ./types/index.d.ts declares state: sdd.mainTurn, sdd.startLine
+
+Validating hooks: ~/projects/akalongman/claude-sdd/hooks/hooks.json
+
+  ❯ ./register.tsx hooks: tool.call{tool=AskUserQuestion}, tool.call{tool=ExitPlanMode}, tool.call{tool=Bash}, tool.call{tool=Monitor}, tool.call{tool=Edit}, tool.call{tool=Write}, tool.call{tool=NotebookEdit}, session.start, turn.start, turn.complete, command.run{command=noask}
+  ❯ ./register.tsx gating hook with .catch: tool.call{tool=AskUserQuestion}
+  ❯ ./register.tsx gating hook with .catch: tool.call{tool=ExitPlanMode}
+  ❯ ./register.tsx gating hook with .catch: tool.call{tool=Bash}
+  ❯ ./register.tsx gating hook with .catch: tool.call{tool=Monitor}
+  ❯ ./register.tsx gating hook with .catch: tool.call{tool=Edit}
+  ❯ ./register.tsx gating hook with .catch: tool.call{tool=Write}
+  ❯ ./register.tsx gating hook with .catch: tool.call{tool=NotebookEdit}
+  ❯ ./register.tsx gating hook without .catch: command.run{command=noask}
+  ❯ ./register.tsx calls: $.clock.after (via inTime, startLineRun), $.clock.now (via mayPublish, readNoask), $.clock.sleep (via submitWakeUp), $.command.register, $.env.get (via configRoots, homeOf, stateDirectoryOf), $.fs.exists (via lookAt, readingWithoutId), $.fs.list (via listingOf, readingWithoutId), $.fs.read (via lookAt, readRule), $.fs.stat (via statOf), $.process.run (via countOn, runCommand, startLineRun), $.prompt.submit (via submitWakeUp), $.session.cwd (via directoryFor), $.session.id (via sessionIdOf), $.session.messages (via transcriptOf), $.state.get (via mainTurnOf, startLineOf), $.state.set, $.ui.log (via logged), $.ui.toast (via toast)
+  ❯ ./register.tsx env writes: nothing
+  ❯ ./register.tsx env reads: CLAUDE_CONFIG_DIR, HOME
+  ❯ ./register.tsx state writes: sdd.mainTurn, sdd.startLine
+  ❯ ./register.tsx state reads: sdd.mainTurn, sdd.startLine
+  ❯ ./register.tsx types: not checked (the mod names dependencies, whose contracts are laid as links out of the mod's folder; validate reads nothing outside it)
+
+Provides:
+
+  ❯ modules: hooks/register.tsx
+  ❯ hooks: SessionStart startup|clear|compact command "SDD_NOASK_NOW= SDD_NOASK_LOCK_WAIT= bash \"${CLAUDE_PLUGIN_ROOT}/bin/noask\" hook session-start"
+  ❯ hooks: PermissionRequest command "SDD_NOASK_NOW= SDD_NOASK_LOCK_WAIT= bash \"${CLAUDE_PLUGIN_ROOT}/bin/noask\" hook permission"
+  ❯ hooks: Elicitation command "SDD_NOASK_NOW= SDD_NOASK_LOCK_WAIT= bash \"${CLAUDE_PLUGIN_ROOT}/bin/noask\" hook elicitation"
+  ❯ hooks: Stop command "SDD_NOASK_NOW= SDD_NOASK_LOCK_WAIT= bash \"${CLAUDE_PLUGIN_ROOT}/bin/noask\" hook stop"
+  ❯ skills: sdd:apply
+  ❯ agents: sdd:implementer
+  ❯ agents: sdd:reviewer
+  ❯ agents: sdd:unit-controller
+  ❯ bin: noask
+  ❯ bin: sdd-checkpoint
+  ❯ bin: sdd-files-add
+
+Hosts not read for: modules (1), hooks (4), skills (1), bin (3)
+Hosts not declared: list what these parts reach under "network.hosts" in plugin.json
+
+Plugin directory checks for ~/projects/akalongman/claude-sdd. The plugin directory is the catalog that plugins are submitted to; this is a subset of what it runs.
+
+⚠ Found 1 plugin directory warning:
+
+  ❯ .claude-plugin/plugin.json icon: No icon (ICON_MISSING). No icon found in the plugin. The validator looked for `icon` in plugin.json and for a file at .claude-plugin/icon.png or .svg, assets/icon.png or .svg, or a similar path.
+    Fix: Add a square PNG to the plugin folder at .claude-plugin/icon.png, or set `icon` in plugin.json to the path of a square PNG or JPEG in the plugin: 512 to 2048 px on each side, under 2 MB. SVG and WebP are not accepted. That file may become the listing icon only once: the first time the plugin is saved or submitted in the developer portal. Adding or changing it later does not change the icon.
+
+About these checks:
+
+  ❯ hooks/hooks.json names a hooks module (a code file listed under `modules`). The plugin directory has rules of its own for such code, and these checks apply none of them, so passing here does not mean the directory accepts the plugin. The developer portal's own validation applies those rules.
+
+These plugin directory checks do not change the result below.
+
+The directory also runs a safety scan and a policy review that this command does not.
+
+✔ Validation passed
+$ claude plugin test .
+ 764 pass
+ 0 fail
+Ran 764 tests across 5 files. [7.55s]
+$ npx -y -p typescript@5.9.3 tsc -p . --noEmit
+npm notice run npx
+npm notice run 'tsc' -p . --noEmit
+$ bash tests/run.sh
+ok 19336/19500 (substituted)
+ok check-skill-size
+ok check-pause-text
+ok check-pause-text
+ok check-noask-reference
+ok check-isolated-reference
+ok test-run-archive
+ok test-sdd-checkpoint
+ok kept-file
+ok kept-new
+ok kept-range
+ok kept-line
+ok kept-dot
+ok folder
+ok no-folder
+ok no-root-file
+ok new-no-folder
+ok space
+ok trailing-slash
+ok glob
+ok method
+ok url
+ok flag
+ok variable
+ok tilde
+ok absolute
+ok scoped
+ok setting
+ok bare-name
+ok order
+ok fence
+ok indented-fence
+ok stdin
+ok subfolder
+ok errors
+ok test-named-paths
+ok test-briefs
+ok test-source-copy
+ok test-noask
+ok test-sub-skill-check
+ok test-tools
+ok test-check-skill-size
+ok test-run
+15 ok, 0 skipped, 0 failed
+$ bash tests/test-noask.sh
+ok 1 ... ok 72
+$ bash <the run's GNU-tools helper> bash tests/test-noask.sh
+ok 1 ... ok 72
+$ bash tests/check-fence-rows.sh
+ok 311 rows, 13 not run
+$ bash <the run's GNU-tools helper> bash tests/check-fence-rows.sh
+ok 311 rows, 13 not run
+$ bash tests/gen-marker-fixtures.sh | cmp - hooks/marker.fixtures.ts
+$ bash tests/gen-entry-texts.sh | cmp - hooks/entry.fixtures.ts
+$ shellcheck bin/noask bin/sdd-checkpoint bin/sdd-files-add skills/apply/scripts/named-paths skills/apply/scripts/openspec-section-brief skills/apply/scripts/openspec-section-tick skills/apply/scripts/run-archive skills/apply/scripts/source-copy skills/apply/scripts/sub-skill-check skills/apply/scripts/task-brief tests/*.sh
+$ bash tests/check-skill-size.sh
+ok 19336/19500 (substituted)
+```
+
+Every command exited 0. The two `cmp` lines ran under `pipefail`, so a
+generator that failed would have failed them. The shellcheck line is the
+README's as it stands after this release's edit.
+
+Then, with the five files of this commit staged, the publication checks
+over the lines it adds, each first run on a file of known-bad lines,
+where each counted its line. Each prints the number of added lines that
+match, `$added` being those lines saved to a file in the session's
+scratchpad:
+
+```
+$ git diff --cached -- README.md tools/README.md .claude-plugin/plugin.json docs/decisions.md .github/workflows/test.yml | /bin/grep -E '^\+' | /bin/grep -v -E '^\+\+\+ ' > "$added"
+$ /bin/grep -c -P '[\x{2013}\x{2014}]' "$added"
+0
+$ /bin/grep -c -w -F -- "$(id -un)" "$added"
+0
+$ /bin/grep -c -F -- "$(hostname)" "$added"
+0
+$ /bin/grep -E '/home/' "$added" | /bin/grep -c -v -E '/home/someone'
+0
+$ /bin/grep -c -E '\.claude[0-9]' "$added"
+0
+$ jq . .claude-plugin/plugin.json > /dev/null
+```
+
+Each `grep` found nothing and so exited 1, the pass here; `jq` exited 0.
+Five more counts of the same kind, whose patterns are left out here since
+they would spell what they look for, found no added line that names the
+plan's folder or file, the plan's review folder or one of its files, the
+run's workspace, a line number of the run's ledger, or an agent's id.
+The gates ran on the local Claude Code, 2.1.331; whether CI's pinned
+2.1.325 accepts the module's new start is seen at the first push.
+
+Result: pass. Nothing was pushed.
