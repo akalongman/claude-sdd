@@ -3821,11 +3821,11 @@ permission prompt raised while the records' lock is held from a
 terminal, where the denial comes after the lock's wait, with the count's
 failure in its text, and the dialog is seen meanwhile; a hook past its
 timeout on the owner's own account (or the owner takes P4 as enough);
-`/noask on` in a session just compacted; the wake-up's submission of
-entry 7, and a session marker that is a link to nothing; and step one's
-open acceptance notes, as the parked notes list them (the wake-up look,
-the origin rule, the watch tool, a plan's write, the memory tool, a
-missing configuration root).
+`/noask on` in a session just compacted, before any prompt; the
+wake-up's submission of entry 7, and a session marker that is a link to
+nothing, read by both readers; and step one's open acceptance notes, as
+the parked notes list them (the wake-up look, the origin rule, the watch
+tool, a plan's write, the memory tool, a missing configuration root).
 
 ### Rulings during the run
 

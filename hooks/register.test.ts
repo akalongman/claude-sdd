@@ -994,8 +994,9 @@ test('a switch typed through the bridge runs as one typed at the prompt', async 
 // `start-line` and shows the line the command prints, or marks the start seen when it prints none; a session whose
 // transcript is empty, a new one, was spoken to by the command hook, and its start is marked seen. A read of the
 // session's id that rejects or does not answer in time counts as no usable id, and the command runs without
-// `--session`; any other failure on the way shows and marks nothing, so a reload, which runs session.start again in the
-// same session, tries again.
+// `--session`. The line is shown before the state is written, so a write that fails leaves the line shown and lets a
+// reload show it again; any other failure on the way shows and marks nothing, so a reload, which runs session.start
+// again in the same session, tries again.
 
 const START_LINE =
     'noask is ON for this session since 23:00 until 2026-11-12 07:00; it rules on its own recommendations and never ' +
@@ -1075,7 +1076,7 @@ test('a start where the command prints nothing shows nothing, nor a start after'
     expect(world.logs).toEqual([]);
 });
 
-// A failure on the way shows nothing and marks nothing: the next start runs the command again.
+// A run that rejects or exits other than 0 shows nothing and marks nothing: the next start runs the command again.
 const FAILED_STARTS: ReadonlyArray<readonly [string, Reply]> = [
     ['a run that rejects', new Error('command still running after 7000 ms')],
     ['an exit of 1', { exitCode: 1, stdout: '', stderr: 'noask: cannot read the clock\n' }],

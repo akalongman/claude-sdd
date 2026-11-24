@@ -1811,6 +1811,7 @@ hook_stop() {
     stop_reset
     return 0
   fi
+  # { ...; } 2>/dev/null silences bash's ignored null byte warning, for a message's \u0000 (read_input made NULs \001).
   { message=$(field '.last_assistant_message | strings'); } 2>/dev/null
   last_line "$message"
   token_of "$last"

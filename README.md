@@ -381,8 +381,8 @@ and no link is made. Without `jq`, and off Linux, the step does not run.
   or use the global switch. The old switch stays on under the old id,
   and a bare `noask` in a terminal still lists it, until it expires or
   `/noask off` is typed in a session that still holds that id:
-  `noask global off` leaves it on, and a switch's sweep removes its
-  marker only once it has expired.
+  `noask global off` leaves it on, and the clean-up that follows every
+  `on` or `off` removes the old switch's marker only once it has expired.
 - A dialog that no hook precedes still waits for you, such as the browser
   setup offer, and a goal proposal's may: whether its dialog waits under
   noask is unchecked.
